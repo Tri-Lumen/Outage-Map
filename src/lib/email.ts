@@ -1,0 +1,162 @@
+import nodemailer from 'nodemailer';
+import { hasRecentAlert, logAlert } from './db';
+import { getServiceBySlug } from './services';
+import { IncidentResult, ServiceStatus } from './types';
+
+function getTransporter() {
+  const host = process.env.SMTP_HOST;
+  const port = parseInt(process.env.SMTP_PORT || '587', 10);
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  if (!host || !user || !pass) {
+    return null;
+  }
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+}
+
+function getRecipients(): string[] {
+  const emails = process.env.ALERT_EMAILS || '';
+  return emails.split(',').map((e) => e.trim()).filter(Boolean);
+}
+
+function statusColor(status: ServiceStatus): string {
+  switch (status) {
+    case 'operational': return '#22c55e';
+    case 'degraded': return '#eab308';
+    case 'major_outage': return '#f97316';
+    case 'down': return '#ef4444';
+    default: return '#6b7280';
+  }
+}
+
+function statusLabel(status: ServiceStatus): string {
+  switch (status) {
+    case 'operational': return 'Operational';
+    case 'degraded': return 'Degraded Performance';
+    case 'major_outage': return 'Major Outage';
+    case 'down': return 'Service Down';
+    default: return 'Unknown';
+  }
+}
+
+export async function sendIncidentAlert(incident: IncidentResult): Promise<boolean> {
+  if (hasRecentAlert(incident.serviceSlug, incident.incidentId, 'new_incident')) {
+    return false;
+  }
+
+  const transporter = getTransporter();
+  const recipients = getRecipients();
+  if (!transporter || recipients.length === 0) {
+    console.log('[email] SMTP not configured or no recipients - skipping alert');
+    return false;
+  }
+
+  const service = getServiceBySlug(incident.serviceSlug);
+  const serviceName = service?.name || incident.serviceSlug;
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: #1e293b; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+        <h2 style="margin: 0;">Outage Dashboard Alert</h2>
+      </div>
+      <div style="border: 1px solid #e2e8f0; padding: 20px; border-radius: 0 0 8px 8px;">
+        <div style="display: inline-block; background: ${statusColor(incident.severity === 'critical' ? 'down' : 'major_outage')}; color: white; padding: 4px 12px; border-radius: 4px; font-size: 14px; font-weight: 600; margin-bottom: 16px;">
+          ${incident.severity.toUpperCase()} INCIDENT
+        </div>
+        <h3 style="margin: 0 0 8px 0; color: #1e293b;">${serviceName}</h3>
+        <p style="font-size: 18px; margin: 0 0 16px 0; color: #334155;">${incident.title}</p>
+        ${incident.description ? `<p style="color: #64748b; margin: 0 0 16px 0;">${incident.description}</p>` : ''}
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr><td style="padding: 8px 0; color: #64748b;">Status</td><td style="padding: 8px 0; font-weight: 600;">${incident.status}</td></tr>
+          <tr><td style="padding: 8px 0; color: #64748b;">Severity</td><td style="padding: 8px 0; font-weight: 600;">${incident.severity}</td></tr>
+          <tr><td style="padding: 8px 0; color: #64748b;">Started</td><td style="padding: 8px 0;">${incident.startedAt || 'Unknown'}</td></tr>
+          ${incident.sourceUrl ? `<tr><td style="padding: 8px 0; color: #64748b;">Source</td><td style="padding: 8px 0;"><a href="${incident.sourceUrl}">${incident.sourceUrl}</a></td></tr>` : ''}
+        </table>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 16px 0;">
+        <p style="font-size: 12px; color: #94a3b8; margin: 0;">
+          Sent by Enterprise Outage Dashboard at ${new Date().toISOString()}
+        </p>
+      </div>
+    </div>
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: process.env.ALERT_FROM || process.env.SMTP_USER,
+      to: recipients.join(', '),
+      subject: `[${incident.severity.toUpperCase()}] ${serviceName}: ${incident.title}`,
+      html,
+    });
+
+    logAlert(incident.serviceSlug, incident.incidentId, 'new_incident');
+    console.log(`[email] Alert sent for ${serviceName}: ${incident.title}`);
+    return true;
+  } catch (err) {
+    console.error('[email] Failed to send alert:', err);
+    return false;
+  }
+}
+
+export async function sendStatusChangeAlert(
+  serviceSlug: string,
+  oldStatus: ServiceStatus,
+  newStatus: ServiceStatus
+): Promise<boolean> {
+  if (newStatus !== 'major_outage' && newStatus !== 'down') {
+    return false;
+  }
+
+  if (hasRecentAlert(serviceSlug, null, 'status_change')) {
+    return false;
+  }
+
+  const transporter = getTransporter();
+  const recipients = getRecipients();
+  if (!transporter || recipients.length === 0) return false;
+
+  const service = getServiceBySlug(serviceSlug);
+  const serviceName = service?.name || serviceSlug;
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: #1e293b; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+        <h2 style="margin: 0;">Status Change Alert</h2>
+      </div>
+      <div style="border: 1px solid #e2e8f0; padding: 20px; border-radius: 0 0 8px 8px;">
+        <h3 style="margin: 0 0 16px 0; color: #1e293b;">${serviceName}</h3>
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+          <span style="background: ${statusColor(oldStatus)}; color: white; padding: 4px 12px; border-radius: 4px; font-size: 14px;">${statusLabel(oldStatus)}</span>
+          <span style="font-size: 20px;">&rarr;</span>
+          <span style="background: ${statusColor(newStatus)}; color: white; padding: 4px 12px; border-radius: 4px; font-size: 14px; font-weight: 600;">${statusLabel(newStatus)}</span>
+        </div>
+        <p style="color: #64748b;">The service status has changed. Please monitor the situation.</p>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 16px 0;">
+        <p style="font-size: 12px; color: #94a3b8; margin: 0;">
+          Sent by Enterprise Outage Dashboard at ${new Date().toISOString()}
+        </p>
+      </div>
+    </div>
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: process.env.ALERT_FROM || process.env.SMTP_USER,
+      to: recipients.join(', '),
+      subject: `[STATUS CHANGE] ${serviceName}: ${statusLabel(newStatus)}`,
+      html,
+    });
+
+    logAlert(serviceSlug, null, 'status_change');
+    return true;
+  } catch (err) {
+    console.error('[email] Failed to send status change alert:', err);
+    return false;
+  }
+}
