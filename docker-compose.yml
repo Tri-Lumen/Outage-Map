@@ -1,0 +1,31 @@
+services:
+  outage-map:
+    image: ghcr.io/tri-lumen/outage-map:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: outage-map
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      DATABASE_PATH: /app/data/outage.db
+      POLL_INTERVAL_MINUTES: ${POLL_INTERVAL_MINUTES:-3}
+      CRON_SECRET: ${CRON_SECRET:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      ALERT_FROM: ${ALERT_FROM:-}
+      ALERT_EMAILS: ${ALERT_EMAILS:-}
+      DOWNDETECTOR_ENABLED: ${DOWNDETECTOR_ENABLED:-true}
+      DD_REPORT_THRESHOLD_DEGRADED: ${DD_REPORT_THRESHOLD_DEGRADED:-100}
+      DD_REPORT_THRESHOLD_MAJOR: ${DD_REPORT_THRESHOLD_MAJOR:-500}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    volumes:
+      - outage-map-data:/app/data
+
+volumes:
+  outage-map-data:
+    driver: local
