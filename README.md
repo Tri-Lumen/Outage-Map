@@ -101,6 +101,28 @@ The SQLite database is persisted in the named volume `outage-map-data`
 creating a `.env` file next to `docker-compose.yml` (the compose file reads
 the same variables as `.env.example`).
 
+### Changing the host port
+
+The container listens on port `3000` internally and is published on the
+host via `${APP_PORT:-3000}:3000`. If you see an error like:
+
+```
+Bind for 0.0.0.0:3000 failed: port is already allocated
+```
+
+another process (or another container) is already bound to host port
+`3000`. Pick a free port and set `APP_PORT` before redeploying:
+
+```bash
+# .env (next to docker-compose.yml)
+APP_PORT=3100
+```
+
+Then `docker compose up -d` again, or in Portainer set `APP_PORT=3100`
+under the stack's environment variables and redeploy. The dashboard will
+be reachable at `http://<host>:3100`. To find what's holding port 3000,
+run `docker ps --filter "publish=3000"` or `sudo lsof -i :3000`.
+
 ## Deploying with Portainer
 
 The stack can be deployed as a Portainer Stack in one of two ways:
