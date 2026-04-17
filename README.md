@@ -88,6 +88,57 @@ npm start
 
 Open [http://localhost:3000](http://localhost:3000) to view the dashboard.
 
+## Docker
+
+Build and run with the bundled `Dockerfile` and `docker-compose.yml`:
+
+```bash
+docker compose up -d --build
+```
+
+The SQLite database is persisted in the named volume `outage-map-data`
+(mounted at `/app/data` inside the container). Configure the container by
+creating a `.env` file next to `docker-compose.yml` (the compose file reads
+the same variables as `.env.example`).
+
+## Deploying with Portainer
+
+The stack can be deployed as a Portainer Stack in one of two ways:
+
+### Option 1 — Repository (recommended)
+
+1. In Portainer, go to **Stacks → Add stack**.
+2. Give the stack a name (e.g. `outage-map`).
+3. Choose **Build method: Repository**.
+4. Set the repository URL to this project and the **Compose path** to
+   `docker-compose.yml`.
+5. Under **Environment variables**, add the values you want to override
+   (see `.env.example`). At minimum, set:
+   - `APP_PORT` — host port to expose (defaults to `3000`)
+   - `POLL_INTERVAL_MINUTES`
+   - `SMTP_*` and `ALERT_*` if you want email alerts
+6. Click **Deploy the stack**.
+
+Portainer will clone the repo, build the image via the Dockerfile, and
+start the container. The `outage-map-data` volume will keep the SQLite
+database across redeploys.
+
+### Option 2 — Web editor
+
+1. In Portainer, go to **Stacks → Add stack**.
+2. Choose **Build method: Web editor**.
+3. Paste the contents of `docker-compose.yml` into the editor.
+4. Because Portainer's web editor cannot build from a local Dockerfile, you
+   will need to point `image:` at a prebuilt image (for example a GHCR or
+   Docker Hub tag you've pushed) and remove the `build:` block.
+5. Add the same environment variables as in Option 1 and deploy.
+
+### Updating
+
+From the stack page, click **Pull and redeploy** (or **Update the stack**
+for the repository-based option) to rebuild with the latest code. The
+SQLite volume is preserved automatically.
+
 ## API Endpoints
 
 | Endpoint | Method | Description |
