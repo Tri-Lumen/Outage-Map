@@ -7,7 +7,7 @@ services:
     container_name: outage-map
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-3000}:3000"
+      - "${APP_PORT:-3100}:3100"
     environment:
       NODE_ENV: production
       DATABASE_PATH: /app/data/outage.db
@@ -22,7 +22,7 @@ services:
       DOWNDETECTOR_ENABLED: ${DOWNDETECTOR_ENABLED:-true}
       DD_REPORT_THRESHOLD_DEGRADED: ${DD_REPORT_THRESHOLD_DEGRADED:-100}
       DD_REPORT_THRESHOLD_MAJOR: ${DD_REPORT_THRESHOLD_MAJOR:-500}
-      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3100}
     volumes:
       - outage-map-data:/app/data
 

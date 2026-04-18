@@ -86,7 +86,7 @@ npm run build
 npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to view the dashboard.
+Open [http://localhost:3100](http://localhost:3100) to view the dashboard.
 
 ## Docker
 
@@ -103,25 +103,25 @@ the same variables as `.env.example`).
 
 ### Changing the host port
 
-The container listens on port `3000` internally and is published on the
-host via `${APP_PORT:-3000}:3000`. If you see an error like:
+The container listens on port `3100` internally and is published on the
+host via `${APP_PORT:-3100}:3100`. If you see an error like:
 
 ```
-Bind for 0.0.0.0:3000 failed: port is already allocated
+Bind for 0.0.0.0:3100 failed: port is already allocated
 ```
 
 another process (or another container) is already bound to host port
-`3000`. Pick a free port and set `APP_PORT` before redeploying:
+`3100`. Pick a free port and set `APP_PORT` before redeploying:
 
 ```bash
 # .env (next to docker-compose.yml)
-APP_PORT=3100
+APP_PORT=3200
 ```
 
-Then `docker compose up -d` again, or in Portainer set `APP_PORT=3100`
+Then `docker compose up -d` again, or in Portainer set `APP_PORT=3200`
 under the stack's environment variables and redeploy. The dashboard will
-be reachable at `http://<host>:3100`. To find what's holding port 3000,
-run `docker ps --filter "publish=3000"` or `sudo lsof -i :3000`.
+be reachable at `http://<host>:3200`. To find what's holding port 3100,
+run `docker ps --filter "publish=3100"` or `sudo lsof -i :3100`.
 
 ## Deploying with Portainer
 
@@ -136,7 +136,7 @@ The stack can be deployed as a Portainer Stack in one of two ways:
    `docker-compose.yml`.
 5. Under **Environment variables**, add the values you want to override
    (see `.env.example`). At minimum, set:
-   - `APP_PORT` — host port to expose (defaults to `3000`)
+   - `APP_PORT` — host port to expose (defaults to `3100`)
    - `POLL_INTERVAL_MINUTES`
    - `SMTP_*` and `ALERT_*` if you want email alerts
 6. Click **Deploy the stack**.
