@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
 import { useServiceStatus } from '@/hooks/useStatus';
+import { useSidebar } from './SidebarContext';
 
 interface NavItem {
   href: string;
@@ -76,7 +76,7 @@ function getOverallHealth(statuses: string[]): { label: string; tone: string; do
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
+  const { collapsed, setCollapsed } = useSidebar();
   const { data } = useServiceStatus();
   const services = data?.services || [];
   const health = getOverallHealth(services.map((s) => s.overallStatus));
@@ -108,7 +108,7 @@ export default function Sidebar() {
           )}
         </Link>
         <button
-          onClick={() => setCollapsed((c) => !c)}
+          onClick={() => setCollapsed(!collapsed)}
           className="p-1.5 rounded-md text-gray-500 hover:text-foreground hover:bg-white/5 transition-colors"
           aria-label="Toggle sidebar"
         >
@@ -129,6 +129,7 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              title={collapsed ? item.label : undefined}
               className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
                 active
                   ? 'bg-accent-soft text-foreground'

@@ -5,7 +5,6 @@ import { useMemo } from 'react';
 import { useServiceStatus, useIncidents, useHistory } from '@/hooks/useStatus';
 import { SERVICES } from '@/lib/services';
 import { HistoryPoint } from '@/lib/types';
-import PageHeader from './ui/PageHeader';
 import StatTile from './ui/StatTile';
 import Card from './ui/Card';
 import StatusBadge from './StatusBadge';
@@ -39,8 +38,14 @@ export default function ServiceDetailView({ slug }: Props) {
   const { data: historyData } = useHistory(30);
 
   const service = statusData?.services?.find((s) => s.slug === slug);
-  const history = historyData?.history?.[slug] || [];
-  const incidents = (incidentData?.incidents || []).filter((i) => i.service === slug);
+  const history = useMemo(
+    () => historyData?.history?.[slug] || [],
+    [historyData, slug],
+  );
+  const incidents = useMemo(
+    () => (incidentData?.incidents || []).filter((i) => i.service === slug),
+    [incidentData, slug],
+  );
 
   const metrics = useMemo(() => {
     const uptime = uptimeForService(history);

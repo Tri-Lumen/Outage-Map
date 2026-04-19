@@ -51,7 +51,7 @@ export default function ServiceCard({ service, onClick, href }: ServiceCardProps
   const content = (
     <div
       onClick={onClick}
-      className={`relative surface-card rounded-2xl p-5 cursor-pointer transition-all duration-200 hover:border-strong hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)] before:absolute before:left-0 before:top-4 before:bottom-4 before:w-0.5 before:rounded-r ${accent}`}
+      className={`group relative surface-card rounded-2xl p-5 cursor-pointer transition-all duration-200 hover:border-strong hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)] before:absolute before:left-0 before:top-4 before:bottom-4 before:w-0.5 before:rounded-r ${accent}`}
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">

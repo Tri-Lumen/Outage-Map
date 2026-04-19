@@ -32,8 +32,8 @@ export default function Dashboard() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<StatusFilter>('all');
 
-  const services = statusData?.services || [];
-  const incidents = incidentData?.incidents || [];
+  const services = useMemo(() => statusData?.services || [], [statusData]);
+  const incidents = useMemo(() => incidentData?.incidents || [], [incidentData]);
   const history = historyData?.history || {};
 
   const stats = useMemo(() => {

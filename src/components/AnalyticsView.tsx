@@ -36,9 +36,9 @@ export default function AnalyticsView() {
   const { data: historyData } = useHistory(30);
   const { data: incidentData } = useIncidents(30);
 
-  const services = statusData?.services || [];
-  const history = historyData?.history || {};
-  const incidents = incidentData?.incidents || [];
+  const services = useMemo(() => statusData?.services || [], [statusData]);
+  const history = useMemo(() => historyData?.history || {}, [historyData]);
+  const incidents = useMemo(() => incidentData?.incidents || [], [incidentData]);
 
   const rows = useMemo(() => {
     return SERVICES.map((s) => {

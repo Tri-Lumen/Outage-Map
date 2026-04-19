@@ -41,7 +41,7 @@ function deterministicShare(reports: number, regionId: string, serviceSlug: stri
 
 export default function OutageMapView() {
   const { data } = useServiceStatus();
-  const services = data?.services || [];
+  const services = useMemo(() => data?.services || [], [data]);
   const [selectedService, setSelectedService] = useState<string>('all');
   const [hoverRegion, setHoverRegion] = useState<string | null>(null);
 
