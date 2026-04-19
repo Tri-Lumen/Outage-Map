@@ -8,6 +8,7 @@ export const SERVICES: ServiceConfig[] = [
     statusUrl: 'https://status.office365.com',
     downdetectorSlug: 'office-365',
     fetcher: 'microsoft',
+    brandFont: 'var(--font-brand-inter), Inter, system-ui, sans-serif',
   },
   {
     name: 'Adobe Creative Cloud',
@@ -16,6 +17,7 @@ export const SERVICES: ServiceConfig[] = [
     statusUrl: 'https://status.adobe.com',
     downdetectorSlug: 'creative-cloud',
     fetcher: 'statuspage',
+    brandFont: 'var(--font-brand-source-sans), "Source Sans 3", system-ui, sans-serif',
   },
   {
     name: 'ServiceNow',
@@ -24,6 +26,7 @@ export const SERVICES: ServiceConfig[] = [
     statusUrl: 'https://status.servicenow.com',
     downdetectorSlug: 'servicenow',
     fetcher: 'statuspage',
+    brandFont: 'var(--font-brand-inter), Inter, system-ui, sans-serif',
   },
   {
     name: 'Salesforce',
@@ -32,6 +35,7 @@ export const SERVICES: ServiceConfig[] = [
     statusUrl: 'https://api.status.salesforce.com',
     downdetectorSlug: 'salesforce',
     fetcher: 'salesforce',
+    brandFont: 'var(--font-brand-inter), Inter, system-ui, sans-serif',
   },
   {
     name: 'Workday',
@@ -40,6 +44,7 @@ export const SERVICES: ServiceConfig[] = [
     statusUrl: 'https://status.workday.com',
     downdetectorSlug: 'workday',
     fetcher: 'workday',
+    brandFont: 'var(--font-brand-lato), Lato, system-ui, sans-serif',
   },
   {
     name: 'Zoom',
@@ -48,6 +53,7 @@ export const SERVICES: ServiceConfig[] = [
     statusUrl: 'https://status.zoom.us',
     downdetectorSlug: 'zoom',
     fetcher: 'statuspage',
+    brandFont: 'var(--font-brand-inter), Inter, system-ui, sans-serif',
   },
   {
     name: 'Google Workspace',
@@ -56,6 +62,7 @@ export const SERVICES: ServiceConfig[] = [
     statusUrl: 'https://www.google.com/appsstatus/dashboard/',
     downdetectorSlug: 'google',
     fetcher: 'google',
+    brandFont: 'var(--font-brand-roboto), Roboto, system-ui, sans-serif',
   },
 ];
 

@@ -44,6 +44,9 @@ export async function GET() {
         overallStatus: deriveOverallStatus(officialStatus, ddStatus),
         details: official?.details || null,
         lastChecked: official?.checked_at || dd?.checked_at || null,
+        statusUrl: service.statusUrl,
+        downdetectorUrl: `https://downdetector.com/status/${service.downdetectorSlug}/`,
+        brandFont: service.brandFont,
       };
     });
 

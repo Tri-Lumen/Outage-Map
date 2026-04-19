@@ -128,10 +128,10 @@ export default function OutageMapView() {
             <h2 className="text-sm font-semibold text-foreground">Report density by region</h2>
             <p className="text-xs text-gray-500 mt-0.5">Larger dots · redder tint = more reports</p>
           </div>
-          <div className="flex items-center gap-1 bg-white/5 rounded-md p-0.5 overflow-x-auto">
+          <div className="inline-flex items-center gap-1 bg-white/5 rounded-full p-1 overflow-x-auto">
             <button
               onClick={() => setSelectedService('all')}
-              className={`px-3 py-1 text-xs rounded whitespace-nowrap ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap transition-colors ${
                 selectedService === 'all'
                   ? 'bg-accent-soft text-foreground'
                   : 'text-gray-400 hover:text-foreground'
@@ -143,7 +143,7 @@ export default function OutageMapView() {
               <button
                 key={s.slug}
                 onClick={() => setSelectedService(s.slug)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs rounded whitespace-nowrap ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap transition-colors ${
                   selectedService === s.slug
                     ? 'bg-accent-soft text-foreground'
                     : 'text-gray-400 hover:text-foreground'
@@ -165,6 +165,10 @@ export default function OutageMapView() {
               </radialGradient>
             </defs>
 
+            {/* TODO(outage-map#7 follow-up): Replace these amorphous continent
+                outlines with TopoJSON-backed country shapes (react-simple-maps or
+                similar), and add a separate "North America" tab with US regional
+                granularity (East/West/Central/South). Tracked as a follow-up. */}
             <g opacity="0.35" fill="none" stroke="rgba(148,163,184,0.35)" strokeWidth="1">
               {/* Simplified continent paths */}
               <path d="M80 130 Q120 90 180 100 Q240 90 280 130 L300 180 Q260 220 200 230 Q150 230 100 200 Z" />

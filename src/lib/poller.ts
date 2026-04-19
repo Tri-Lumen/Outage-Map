@@ -66,6 +66,7 @@ async function pollService(service: ServiceConfig): Promise<void> {
 
   // Process official status
   let officialStatus: StatusResult | null = null;
+  let activeIncidentCount = 0;
   if (officialResult.status === 'fulfilled') {
     officialStatus = officialResult.value.status;
     upsertServiceStatus(
@@ -78,6 +79,7 @@ async function pollService(service: ServiceConfig): Promise<void> {
 
     // Process incidents
     for (const incident of officialResult.value.incidents) {
+      if (!incident.resolvedAt) activeIncidentCount++;
       const { isNew } = upsertIncident(
         incident.serviceSlug,
         incident.incidentId,
@@ -100,6 +102,8 @@ async function pollService(service: ServiceConfig): Promise<void> {
     if (previousStatus && previousStatus !== officialStatus.status) {
       await sendStatusChangeAlert(service.slug, previousStatus, officialStatus.status);
     }
+  } else {
+    console.debug(`[poller] ${service.name} official fetch rejected:`, officialResult.reason);
   }
 
   // Process Downdetector
@@ -113,14 +117,20 @@ async function pollService(service: ServiceConfig): Promise<void> {
       ddStatus.details,
       ddStatus.reportCount
     );
+  } else {
+    console.debug(`[poller] ${service.name} downdetector fetch rejected:`, ddResult.reason);
   }
 
-  // Record history point
+  // Record history point — include active incident count so services whose
+  // Statuspage reports issues still show a non-empty history even when DD
+  // is disabled or returns zero reports.
   const effectiveStatus = officialStatus?.status || ddStatus?.status || 'unknown';
   const reportCount = ddStatus?.reportCount || 0;
-  insertStatusHistory(service.slug, effectiveStatus, reportCount);
+  insertStatusHistory(service.slug, effectiveStatus, reportCount, activeIncidentCount);
 
-  console.log(`[poller] ${service.name}: ${effectiveStatus} (DD: ${reportCount} reports)`);
+  console.log(
+    `[poller] ${service.name}: ${effectiveStatus} (DD: ${reportCount} reports, active incidents: ${activeIncidentCount})`
+  );
 }
 
 let isPolling = false;

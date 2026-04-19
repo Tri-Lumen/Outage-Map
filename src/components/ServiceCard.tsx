@@ -62,7 +62,12 @@ export default function ServiceCard({ service, onClick, href }: ServiceCardProps
             {icon}
           </div>
           <div>
-            <h3 className="text-foreground font-semibold text-sm leading-tight">{service.name}</h3>
+            <h3
+              className="text-foreground font-semibold text-sm leading-tight tracking-tight"
+              style={{ fontFamily: service.brandFont }}
+            >
+              {service.name}
+            </h3>
             <p className="text-gray-500 text-[11px] mt-0.5">
               {formatTimestamp(service.lastChecked)}
             </p>
@@ -97,9 +102,14 @@ export default function ServiceCard({ service, onClick, href }: ServiceCardProps
           <span className={
             service.downdetectorReports >= 500 ? 'text-red-400 font-semibold' :
             service.downdetectorReports >= 100 ? 'text-yellow-400' :
+            service.downdetectorStatus === 'unknown' ? 'text-gray-500 italic' :
             'text-gray-300'
           }>
-            {service.downdetectorReports > 0 ? service.downdetectorReports.toLocaleString() : '--'}
+            {service.downdetectorStatus === 'unknown'
+              ? 'no data'
+              : service.downdetectorReports > 0
+                ? service.downdetectorReports.toLocaleString()
+                : '--'}
           </span>
         </div>
       </div>
@@ -109,6 +119,29 @@ export default function ServiceCard({ service, onClick, href }: ServiceCardProps
           {service.details}
         </p>
       )}
+
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="mt-3 pt-2 border-t border-subtle flex items-center gap-3 text-[10px]"
+      >
+        <a
+          href={service.statusUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-accent-cyan hover:underline"
+        >
+          Official ↗
+        </a>
+        <span className="text-gray-700">·</span>
+        <a
+          href={service.downdetectorUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-accent-cyan hover:underline"
+        >
+          {service.downdetectorStatus === 'unknown' ? 'Open Downdetector ↗' : 'Downdetector ↗'}
+        </a>
+      </div>
     </div>
   );
 

@@ -35,6 +35,7 @@ function statusToColor(status: string): string {
 interface TooltipPayload {
   date: string;
   reports: number;
+  incidents: number;
   outageMinutes: number;
   status: string;
 }
@@ -49,7 +50,7 @@ function CustomTooltip({ active, payload, label }: {
 
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 shadow-xl">
-      <p className="text-xs text-gray-400 mb-1">{label}</p>
+      <p className="text-xs text-gray-300 mb-1">{label}</p>
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <span
@@ -60,11 +61,16 @@ function CustomTooltip({ active, payload, label }: {
             {data.status.replace('_', ' ')}
           </span>
         </div>
-        <p className="text-xs text-gray-300">
+        <p className="text-xs text-gray-200">
           Reports: <span className="text-white font-medium">{data.reports}</span>
         </p>
+        {data.incidents > 0 && (
+          <p className="text-xs text-gray-200">
+            Incidents: <span className="text-white font-medium">{data.incidents}</span>
+          </p>
+        )}
         {data.outageMinutes > 0 && (
-          <p className="text-xs text-gray-300">
+          <p className="text-xs text-gray-200">
             Outage: <span className="text-orange-400 font-medium">{data.outageMinutes}min</span>
           </p>
         )}
@@ -78,7 +84,7 @@ export default function OutageChart({ serviceName, serviceColor, data }: OutageC
     return (
       <div className="bg-gray-800/30 rounded-xl border border-gray-700/50 p-4">
         <h3 className="text-sm font-semibold text-white mb-3">{serviceName}</h3>
-        <div className="h-32 flex items-center justify-center text-gray-500 text-xs">
+        <div className="h-32 flex items-center justify-center text-gray-400 text-xs">
           No history data yet. Data will populate as the dashboard polls services.
         </div>
       </div>
@@ -91,49 +97,70 @@ export default function OutageChart({ serviceName, serviceColor, data }: OutageC
     fillColor: statusToColor(point.status),
   }));
 
+  const hasReports = chartData.some((p) => p.reports > 0);
+  const hasIncidents = chartData.some((p) => (p.incidents || 0) > 0);
+  const gradId = `grad-${serviceName.replace(/\s/g, '')}`;
+  const incidentGradId = `grad-incidents-${serviceName.replace(/\s/g, '')}`;
+
   return (
     <div className="bg-gray-800/30 rounded-xl border border-gray-700/50 p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+        <h3 className="text-sm font-semibold text-white flex items-center gap-2 tracking-tight">
           <span
             className="w-3 h-3 rounded"
             style={{ backgroundColor: serviceColor }}
           />
           {serviceName}
         </h3>
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-gray-400">
           {data.length} days
         </span>
       </div>
       <ResponsiveContainer width="100%" height={140}>
         <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
           <defs>
-            <linearGradient id={`grad-${serviceName.replace(/\s/g, '')}`} x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor={serviceColor} stopOpacity={0.3} />
               <stop offset="95%" stopColor={serviceColor} stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id={incidentGradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#f97316" stopOpacity={0.35} />
+              <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
           <XAxis
             dataKey="date"
-            tick={{ fill: '#6b7280', fontSize: 10 }}
-            axisLine={{ stroke: '#374151' }}
+            tick={{ fill: '#9ca3af', fontSize: 10 }}
+            axisLine={{ stroke: '#4b5563' }}
             tickLine={false}
             interval="preserveStartEnd"
           />
           <YAxis
-            tick={{ fill: '#6b7280', fontSize: 10 }}
-            axisLine={{ stroke: '#374151' }}
+            tick={{ fill: '#9ca3af', fontSize: 10 }}
+            axisLine={{ stroke: '#4b5563' }}
             tickLine={false}
           />
           <Tooltip content={<CustomTooltip />} />
+          {/* Always render the reports area, but draw the incidents area on top
+              so Zoom-style services (flat DD reports but real Statuspage incidents)
+              still show activity. */}
           <Area
             type="monotone"
             dataKey="reports"
-            stroke={serviceColor}
+            stroke={hasReports ? serviceColor : 'transparent'}
             strokeWidth={2}
-            fill={`url(#grad-${serviceName.replace(/\s/g, '')})`}
+            fill={`url(#${gradId})`}
           />
+          {hasIncidents && (
+            <Area
+              type="monotone"
+              dataKey="incidents"
+              stroke="#f97316"
+              strokeWidth={1.5}
+              fill={`url(#${incidentGradId})`}
+            />
+          )}
         </AreaChart>
       </ResponsiveContainer>
     </div>
