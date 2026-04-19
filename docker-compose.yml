@@ -1,6 +1,7 @@
 services:
   outage-map:
-    image: ghcr.io/tri-lumen/outage-map:latest
+    image: outage-map:local
+    pull_policy: build
     build:
       context: .
       dockerfile: Dockerfile

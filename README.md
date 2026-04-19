@@ -157,9 +157,16 @@ database across redeploys.
 
 ### Updating
 
-From the stack page, click **Pull and redeploy** (or **Update the stack**
-for the repository-based option) to rebuild with the latest code. The
-SQLite volume is preserved automatically.
+From the stack page, click **Update the stack** (repository-based
+deployment) and enable **Re-pull image and redeploy** to rebuild with the
+latest code. The compose file sets `pull_policy: build`, so Portainer
+will build the image from the bundled `Dockerfile` rather than trying to
+pull a prebuilt image from a registry — this avoids "image not found"
+errors during re-pull. The SQLite volume is preserved automatically.
+
+If you host your own prebuilt image in a registry (e.g. GHCR, Docker
+Hub), change the `image:` tag in `docker-compose.yml` to point at it and
+remove `pull_policy: build` (and optionally the `build:` block).
 
 ## API Endpoints
 
