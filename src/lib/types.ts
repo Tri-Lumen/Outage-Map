@@ -11,6 +11,7 @@ export interface ServiceConfig {
   statusUrl: string;
   downdetectorSlug: string;
   fetcher: FetcherType;
+  brandFont: string;
 }
 
 export interface StatusResult {
@@ -48,6 +49,9 @@ export interface ServiceStatusResponse {
   overallStatus: ServiceStatus;
   details: string | null;
   lastChecked: string | null;
+  statusUrl: string;
+  downdetectorUrl: string;
+  brandFont: string;
 }
 
 export interface IncidentResponse {
@@ -68,6 +72,7 @@ export interface HistoryPoint {
   date: string;
   status: ServiceStatus;
   reports: number;
+  incidents: number;
   outageMinutes: number;
 }
 

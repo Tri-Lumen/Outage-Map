@@ -43,7 +43,12 @@ export default function ServiceDetailModal({
               {service.name.charAt(0)}
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">{service.name}</h2>
+              <h2
+                className="text-lg font-semibold text-white tracking-tight"
+                style={{ fontFamily: service.brandFont }}
+              >
+                {service.name}
+              </h2>
               <StatusBadge status={service.overallStatus} size="sm" />
             </div>
           </div>
@@ -66,15 +71,33 @@ export default function ServiceDetailModal({
               {service.details && (
                 <p className="text-xs text-gray-400 mt-2">{service.details}</p>
               )}
+              <a
+                href={service.statusUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-accent-cyan hover:underline mt-2 inline-block"
+              >
+                View official source ↗
+              </a>
             </div>
             <div className="bg-gray-800/50 rounded-lg p-4">
               <p className="text-xs text-gray-500 mb-1">Downdetector</p>
               <StatusBadge status={service.downdetectorStatus} size="sm" />
               <p className="text-xs text-gray-400 mt-2">
-                {service.downdetectorReports > 0
-                  ? `${service.downdetectorReports.toLocaleString()} reports`
-                  : 'No data available'}
+                {service.downdetectorStatus === 'unknown'
+                  ? 'No data — open Downdetector directly'
+                  : service.downdetectorReports > 0
+                    ? `${service.downdetectorReports.toLocaleString()} reports`
+                    : 'No reports'}
               </p>
+              <a
+                href={service.downdetectorUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-accent-cyan hover:underline mt-2 inline-block"
+              >
+                {service.downdetectorStatus === 'unknown' ? 'Open Downdetector' : 'View on Downdetector'} ↗
+              </a>
             </div>
           </div>
 

@@ -16,9 +16,9 @@ function statusToMinutes(status: ServiceStatus): number {
 }
 
 function aggregateByDay(
-  rows: Array<{ service_slug: string; status: string; report_count: number; recorded_at: string }>
+  rows: Array<{ service_slug: string; status: string; report_count: number; incident_count: number; recorded_at: string }>
 ): Record<string, HistoryPoint[]> {
-  const byService: Record<string, Map<string, { statuses: string[]; reports: number[]; outageMinutes: number }>> = {};
+  const byService: Record<string, Map<string, { statuses: string[]; reports: number[]; incidents: number[]; outageMinutes: number }>> = {};
 
   for (const row of rows) {
     if (!byService[row.service_slug]) {
@@ -29,11 +29,13 @@ function aggregateByDay(
     const dayData = byService[row.service_slug].get(date) || {
       statuses: [],
       reports: [],
+      incidents: [],
       outageMinutes: 0,
     };
 
     dayData.statuses.push(row.status);
     dayData.reports.push(row.report_count || 0);
+    dayData.incidents.push(row.incident_count || 0);
     dayData.outageMinutes += statusToMinutes(row.status as ServiceStatus);
 
     byService[row.service_slug].set(date, dayData);
@@ -60,6 +62,7 @@ function aggregateByDay(
           date,
           status: worstStatus,
           reports: Math.max(...data.reports),
+          incidents: Math.max(...data.incidents, 0),
           outageMinutes: data.outageMinutes,
         };
       });

@@ -79,7 +79,7 @@ export default function Dashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
             </svg>
           </div>
-          <h2 className="text-lg font-bold text-foreground mb-1">Unable to load dashboard</h2>
+          <h2 className="text-lg font-semibold tracking-tight text-foreground mb-1">Unable to load dashboard</h2>
           <p className="text-gray-400 text-sm mb-4">
             Could not fetch service statuses. The polling service may not have run yet.
           </p>
@@ -159,7 +159,7 @@ export default function Dashboard() {
 
       <section>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+          <h2 className="text-base font-semibold tracking-tight text-foreground flex items-center gap-2">
             <span className="w-1 h-5 rounded-full bg-accent-cyan" />
             Service Status
           </h2>
@@ -209,7 +209,7 @@ export default function Dashboard() {
 
       <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-4">
-          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+          <h2 className="text-base font-semibold tracking-tight text-foreground flex items-center gap-2">
             <span className="w-1 h-5 rounded-full bg-purple-400" />
             30-Day Outage History
           </h2>

@@ -56,6 +56,7 @@ function initTables(db: Database.Database) {
       service_slug TEXT NOT NULL,
       status TEXT NOT NULL,
       report_count INTEGER DEFAULT 0,
+      incident_count INTEGER DEFAULT 0,
       recorded_at DATETIME NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -70,6 +71,12 @@ function initTables(db: Database.Database) {
       sent_at DATETIME NOT NULL DEFAULT (datetime('now'))
     );
   `);
+
+  // Safe migration for pre-existing databases — add incident_count if missing.
+  const cols = db.prepare(`PRAGMA table_info(status_history)`).all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === 'incident_count')) {
+    db.exec(`ALTER TABLE status_history ADD COLUMN incident_count INTEGER DEFAULT 0`);
+  }
 }
 
 export function upsertServiceStatus(
@@ -94,13 +101,14 @@ export function upsertServiceStatus(
 export function insertStatusHistory(
   serviceSlug: string,
   status: string,
-  reportCount: number
+  reportCount: number,
+  incidentCount: number = 0
 ) {
   const db = getDb();
   db.prepare(`
-    INSERT INTO status_history (service_slug, status, report_count, recorded_at)
-    VALUES (?, ?, ?, datetime('now'))
-  `).run(serviceSlug, status, reportCount);
+    INSERT INTO status_history (service_slug, status, report_count, incident_count, recorded_at)
+    VALUES (?, ?, ?, ?, datetime('now'))
+  `).run(serviceSlug, status, reportCount, incidentCount);
 }
 
 export function upsertIncident(
@@ -176,7 +184,7 @@ export function getStatusHistory(serviceSlug: string | null, days: number = 30) 
   const db = getDb();
   if (serviceSlug) {
     return db.prepare(`
-      SELECT service_slug, status, report_count, recorded_at
+      SELECT service_slug, status, report_count, incident_count, recorded_at
       FROM status_history
       WHERE service_slug = ? AND recorded_at >= datetime('now', '-' || ? || ' days')
       ORDER BY recorded_at ASC
@@ -184,11 +192,12 @@ export function getStatusHistory(serviceSlug: string | null, days: number = 30) 
       service_slug: string;
       status: string;
       report_count: number;
+      incident_count: number;
       recorded_at: string;
     }>;
   }
   return db.prepare(`
-    SELECT service_slug, status, report_count, recorded_at
+    SELECT service_slug, status, report_count, incident_count, recorded_at
     FROM status_history
     WHERE recorded_at >= datetime('now', '-' || ? || ' days')
     ORDER BY recorded_at ASC
@@ -196,6 +205,7 @@ export function getStatusHistory(serviceSlug: string | null, days: number = 30) 
     service_slug: string;
     status: string;
     report_count: number;
+    incident_count: number;
     recorded_at: string;
   }>;
 }

@@ -44,6 +44,7 @@ export async function fetchGoogleStatus(serviceSlug: string): Promise<FetchResul
     // Google embeds status data in script tags as JSON
     let worstStatus: ServiceStatus = 'operational';
     const affectedServices: string[] = [];
+    let jsonBranchMatched = false;
 
     // Try to find embedded JSON data
     $('script').each((_, el) => {
@@ -54,6 +55,7 @@ export async function fetchGoogleStatus(serviceSlug: string): Promise<FetchResul
         try {
           const data = JSON.parse(jsonMatch[1]);
           if (Array.isArray(data?.services)) {
+            jsonBranchMatched = true;
             for (const service of data.services) {
               const name = service.name || '';
               const status = service.status || 1;
@@ -74,16 +76,24 @@ export async function fetchGoogleStatus(serviceSlug: string): Promise<FetchResul
       }
     });
 
-    // Fallback: parse HTML status indicators
-    if (worstStatus === 'operational') {
-      $('[class*="status"], .psi, [data-status]').each((_, el) => {
-        const text = $(el).text().trim().toLowerCase();
-        if (text.includes('disruption') || text.includes('outage')) {
+    // Fallback: parse HTML status indicators.
+    // Only run when the JSON branch didn't match — otherwise generic "disruption"
+    // text elsewhere on the page (e.g. "Report a disruption") can flip a green
+    // dashboard to major_outage. Scope the selector to actual service rows only,
+    // and require whole-word matches.
+    if (!jsonBranchMatched) {
+      const majorRe = /\b(service disruption|outage in progress|disrupted)\b/i;
+      const degradedRe = /\b(service information|minor issue|degraded performance)\b/i;
+
+      $('table.ps-table tr, .ps-service-row, [data-service-name]').each((_, el) => {
+        const text = $(el).text().trim();
+        const rowName = $(el).find('.name, td:first, [data-service-name]').first().text().trim();
+        if (majorRe.test(text)) {
           worstStatus = 'major_outage';
-          affectedServices.push($(el).closest('tr, .row').find('.name, td:first').text().trim());
-        } else if (text.includes('issue') || text.includes('degraded')) {
+          if (rowName) affectedServices.push(rowName);
+        } else if (degradedRe.test(text)) {
           if (worstStatus === 'operational') worstStatus = 'degraded';
-          affectedServices.push($(el).closest('tr, .row').find('.name, td:first').text().trim());
+          if (rowName) affectedServices.push(rowName);
         }
       });
     }

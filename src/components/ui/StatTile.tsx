@@ -38,7 +38,7 @@ export default function StatTile({
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">{label}</p>
-            <p className="text-3xl font-bold mt-2 text-foreground tabular-nums">{value}</p>
+            <p className="text-3xl font-semibold tracking-tight mt-2 text-foreground tabular-nums">{value}</p>
           </div>
           {icon && (
             <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
