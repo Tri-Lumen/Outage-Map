@@ -79,6 +79,10 @@ export default function AnalyticsView() {
     color: r.color,
   }));
 
+  const yMin = rows.length
+    ? Math.max(0, Math.floor(Math.min(...rows.map((r) => r.uptime)) - 0.5))
+    : 98;
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -135,7 +139,7 @@ export default function AnalyticsView() {
                 tickLine={false}
               />
               <YAxis
-                domain={[Math.min(98, aggregate.avgUptime - 0.5), 100]}
+                domain={[yMin, 100]}
                 tick={{ fill: '#94a3b8', fontSize: 11 }}
                 axisLine={{ stroke: 'rgba(148,163,184,0.2)' }}
                 tickLine={false}

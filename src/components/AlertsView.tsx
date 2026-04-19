@@ -52,9 +52,12 @@ export default function AlertsView() {
     setRules(loadRules());
   }, []);
 
-  const updateRules = (next: AlertRule[]) => {
-    setRules(next);
-    saveRules(next);
+  const applyRules = (updater: (prev: AlertRule[]) => AlertRule[]) => {
+    setRules((prev) => {
+      const next = updater(prev);
+      saveRules(next);
+      return next;
+    });
   };
 
   const toggleService = (slug: string) => {
@@ -73,7 +76,7 @@ export default function AlertsView() {
       id: `rule_${Date.now()}`,
       createdAt: new Date().toISOString(),
     };
-    updateRules([rule, ...rules]);
+    applyRules((prev) => [rule, ...prev]);
     setDraft({
       email: '',
       services: [],
@@ -85,11 +88,13 @@ export default function AlertsView() {
   };
 
   const toggleEnabled = (id: string) => {
-    updateRules(rules.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r)));
+    applyRules((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r)),
+    );
   };
 
   const deleteRule = (id: string) => {
-    updateRules(rules.filter((r) => r.id !== id));
+    applyRules((prev) => prev.filter((r) => r.id !== id));
   };
 
   const requestDesktop = async () => {

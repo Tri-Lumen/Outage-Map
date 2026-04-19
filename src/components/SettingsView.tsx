@@ -10,7 +10,6 @@ interface Preferences {
   refreshInterval: 15 | 30 | 60 | 300;
   compactCards: boolean;
   showDowndetector: boolean;
-  defaultPage: '/' | '/analytics' | '/map' | '/alerts';
   pinnedServices: string[];
 }
 
@@ -18,7 +17,6 @@ const DEFAULTS: Preferences = {
   refreshInterval: 30,
   compactCards: false,
   showDowndetector: true,
-  defaultPage: '/',
   pinnedServices: [],
 };
 
@@ -44,24 +42,34 @@ export default function SettingsView() {
   }, []);
 
   const update = <K extends keyof Preferences>(key: K, value: Preferences[K]) => {
-    const next = { ...prefs, [key]: value };
-    setPrefs(next);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      setSaved(true);
-      setTimeout(() => setSaved(false), 1500);
-    } catch {
-      /* ignore */
-    }
+    setPrefs((prev) => {
+      const next = { ...prev, [key]: value };
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
   };
 
   const togglePin = (slug: string) => {
-    update(
-      'pinnedServices',
-      prefs.pinnedServices.includes(slug)
-        ? prefs.pinnedServices.filter((s) => s !== slug)
-        : [...prefs.pinnedServices, slug],
-    );
+    setPrefs((prev) => {
+      const nextPinned = prev.pinnedServices.includes(slug)
+        ? prev.pinnedServices.filter((s) => s !== slug)
+        : [...prev.pinnedServices, slug];
+      const next = { ...prev, pinnedServices: nextPinned };
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
   };
 
   const resetAll = () => {

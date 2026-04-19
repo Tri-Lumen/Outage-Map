@@ -105,12 +105,21 @@ export default function OutageMapView() {
           accent={hotspotRegions > 0 ? 'red' : 'green'}
           hint=">50% of peak"
         />
-        <StatTile
-          label="Peak Region"
-          value={regionData.reduce((a, b) => (b.total > a.total ? b : a), regionData[0]).name.split(' · ')[0]}
-          accent="amber"
-          hint={`${Math.max(...regionData.map((r) => r.total)).toLocaleString()} reports`}
-        />
+        {(() => {
+          const peak = regionData.reduce(
+            (a, b) => (b.total > a.total ? b : a),
+            regionData[0],
+          );
+          const hasReports = peak && peak.total > 0;
+          return (
+            <StatTile
+              label="Peak Region"
+              value={hasReports ? peak.name.split(' · ')[0] : '—'}
+              accent="amber"
+              hint={hasReports ? `${peak.total.toLocaleString()} reports` : 'No reports'}
+            />
+          );
+        })()}
       </section>
 
       <Card padded={false}>

@@ -225,10 +225,6 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="space-y-4">
-          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-            <span className="w-1 h-5 rounded-full bg-orange-400" />
-            Incident Feed
-          </h2>
           <IncidentFeed incidents={incidents} />
         </div>
       </section>
