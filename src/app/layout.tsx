@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { ThemeProvider } from "@/components/ThemeProvider";
+import AppShell from "@/components/AppShell";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -14,13 +16,14 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Enterprise Outage Dashboard",
+  title: "Outage Map · Enterprise Status",
   description:
-    "Live monitoring dashboard tracking Microsoft 365, Adobe Creative Cloud, ServiceNow, Salesforce, Workday, Zoom, and Google Workspace outages",
+    "Real-time outage monitoring with analytics, geographic insights, and alerts for Microsoft 365, Adobe, ServiceNow, Salesforce, Workday, Zoom, and Google Workspace.",
   keywords: [
     "outage",
     "dashboard",
     "status",
+    "uptime",
     "monitoring",
     "enterprise",
     "Microsoft 365",
@@ -35,11 +38,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-950 text-white`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <ThemeProvider>
+          <AppShell>{children}</AppShell>
+        </ThemeProvider>
       </body>
     </html>
   );
