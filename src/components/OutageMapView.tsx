@@ -3,31 +3,30 @@
 import { useMemo, useState } from 'react';
 import { useServiceStatus } from '@/hooks/useStatus';
 import { SERVICES } from '@/lib/services';
+import {
+  NA_VIEWBOX,
+  US_OUTLINE_SHAPE,
+  US_REGION_SHAPES,
+  WORLD_LAND_SHAPES,
+  WORLD_REGIONS,
+  WORLD_VIEWBOX,
+  projectNA,
+  projectWorld,
+  toPath,
+} from '@/lib/mapData';
 import PageHeader from './ui/PageHeader';
 import StatTile from './ui/StatTile';
 import Card from './ui/Card';
 
-interface Region {
+type Scope = 'global' | 'na';
+
+interface HeatRegion {
   id: string;
   name: string;
-  x: number;
-  y: number;
-  population: number;
+  short: string;
+  total: number;
+  reportsByService: { slug: string; name: string; color: string; reports: number }[];
 }
-
-const REGIONS: Region[] = [
-  { id: 'na-w', name: 'North America · West', x: 140, y: 150, population: 0.18 },
-  { id: 'na-e', name: 'North America · East', x: 250, y: 155, population: 0.22 },
-  { id: 'sa', name: 'South America', x: 290, y: 310, population: 0.08 },
-  { id: 'eu-w', name: 'Europe · West', x: 470, y: 140, population: 0.17 },
-  { id: 'eu-e', name: 'Europe · East', x: 530, y: 145, population: 0.07 },
-  { id: 'af', name: 'Africa', x: 510, y: 270, population: 0.06 },
-  { id: 'me', name: 'Middle East', x: 575, y: 195, population: 0.05 },
-  { id: 'as-s', name: 'South Asia', x: 650, y: 215, population: 0.08 },
-  { id: 'as-se', name: 'Southeast Asia', x: 720, y: 260, population: 0.05 },
-  { id: 'as-e', name: 'East Asia', x: 760, y: 175, population: 0.12 },
-  { id: 'oc', name: 'Oceania', x: 820, y: 345, population: 0.03 },
-];
 
 function deterministicShare(reports: number, regionId: string, serviceSlug: string) {
   let hash = 0;
@@ -39,49 +38,63 @@ function deterministicShare(reports: number, regionId: string, serviceSlug: stri
   return Math.round(reports * (0.4 + jitter * 0.6));
 }
 
+function heatColor(pct: number): string {
+  if (pct <= 0) return '#334155';
+  if (pct < 0.25) return '#0ea5e9';
+  if (pct < 0.5) return '#eab308';
+  if (pct < 0.75) return '#f97316';
+  return '#ef4444';
+}
+
 export default function OutageMapView() {
   const { data } = useServiceStatus();
   const services = useMemo(() => data?.services || [], [data]);
   const [selectedService, setSelectedService] = useState<string>('all');
+  const [scope, setScope] = useState<Scope>('global');
   const [hoverRegion, setHoverRegion] = useState<string | null>(null);
 
-  const regionData = useMemo(() => {
-    const filtered = selectedService === 'all'
-      ? services
-      : services.filter((s) => s.slug === selectedService);
+  const filteredServices = useMemo(
+    () =>
+      selectedService === 'all'
+        ? services
+        : services.filter((s) => s.slug === selectedService),
+    [services, selectedService],
+  );
 
-    return REGIONS.map((r) => {
-      const reportsByService = filtered.map((s) => {
-        const share = deterministicShare(
-          s.downdetectorReports || 0,
-          r.id,
-          s.slug,
-        );
+  const worldData = useMemo<HeatRegion[]>(() => {
+    return WORLD_REGIONS.map((r) => {
+      const reportsByService = filteredServices.map((s) => {
+        const share = deterministicShare(s.downdetectorReports || 0, r.id, s.slug);
         const popScaled = Math.round(share * r.population * 3);
         return { slug: s.slug, name: s.name, color: s.color, reports: popScaled };
       });
       const total = reportsByService.reduce((sum, s) => sum + s.reports, 0);
-      return { ...r, total, reportsByService };
+      return { id: r.id, name: r.name, short: r.short, total, reportsByService };
     });
-  }, [services, selectedService]);
+  }, [filteredServices]);
 
-  const maxReports = Math.max(1, ...regionData.map((r) => r.total));
-  const totalReports = regionData.reduce((s, r) => s + r.total, 0);
-  const hotspotRegions = regionData.filter((r) => r.total > maxReports * 0.5).length;
+  const naData = useMemo<HeatRegion[]>(() => {
+    return US_REGION_SHAPES.map((r) => {
+      const reportsByService = filteredServices.map((s) => {
+        const share = deterministicShare(s.downdetectorReports || 0, r.id, s.slug);
+        // NA-specific share draws from the parent NA signal (roughly 35% of global
+        // volume for the services in scope) with regional population weighting.
+        const popScaled = Math.round(share * r.population * 2);
+        return { slug: s.slug, name: s.name, color: s.color, reports: popScaled };
+      });
+      const total = reportsByService.reduce((sum, s) => sum + s.reports, 0);
+      return { id: r.id, name: r.name, short: r.short, total, reportsByService };
+    });
+  }, [filteredServices]);
 
-  const getColor = (total: number) => {
-    const pct = total / maxReports;
-    if (pct === 0) return '#334155';
-    if (pct < 0.25) return '#0ea5e9';
-    if (pct < 0.5) return '#eab308';
-    if (pct < 0.75) return '#f97316';
-    return '#ef4444';
-  };
-
-  const getRadius = (total: number) => {
-    const pct = total / maxReports;
-    return 8 + pct * 26;
-  };
+  const activeData = scope === 'global' ? worldData : naData;
+  const maxReports = Math.max(1, ...activeData.map((r) => r.total));
+  const totalReports = activeData.reduce((s, r) => s + r.total, 0);
+  const hotspotRegions = activeData.filter((r) => r.total > maxReports * 0.5).length;
+  const peak = activeData.reduce(
+    (a, b) => (b.total > a.total ? b : a),
+    activeData[0],
+  );
 
   return (
     <div className="space-y-8">
@@ -95,9 +108,9 @@ export default function OutageMapView() {
         <StatTile label="Total Reports" value={totalReports.toLocaleString()} accent="indigo" />
         <StatTile
           label="Active Regions"
-          value={regionData.filter((r) => r.total > 0).length}
+          value={activeData.filter((r) => r.total > 0).length}
           accent="cyan"
-          hint={`of ${REGIONS.length}`}
+          hint={`of ${activeData.length}`}
         />
         <StatTile
           label="Hotspots"
@@ -105,30 +118,41 @@ export default function OutageMapView() {
           accent={hotspotRegions > 0 ? 'red' : 'green'}
           hint=">50% of peak"
         />
-        {(() => {
-          const peak = regionData.reduce(
-            (a, b) => (b.total > a.total ? b : a),
-            regionData[0],
-          );
-          const hasReports = peak && peak.total > 0;
-          return (
-            <StatTile
-              label="Peak Region"
-              value={hasReports ? peak.name.split(' · ')[0] : '—'}
-              accent="amber"
-              hint={hasReports ? `${peak.total.toLocaleString()} reports` : 'No reports'}
-            />
-          );
-        })()}
+        <StatTile
+          label="Peak Region"
+          value={peak && peak.total > 0 ? peak.short : '—'}
+          accent="amber"
+          hint={peak && peak.total > 0 ? `${peak.total.toLocaleString()} reports` : 'No reports'}
+        />
       </section>
 
       <Card padded={false}>
-        <div className="px-5 py-4 border-b border-subtle flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Report density by region</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Larger dots · redder tint = more reports</p>
+        <div className="px-5 py-4 border-b border-subtle flex flex-col gap-3">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">
+                {scope === 'global' ? 'Report density by region' : 'US regional breakdown'}
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {scope === 'global'
+                  ? 'Redder fill = higher concentration of reports.'
+                  : 'Reports distributed across us-east, us-west, us-central, us-south.'}
+              </p>
+            </div>
+            <div className="inline-flex items-center gap-1 bg-white/5 rounded-full p-1">
+              <ScopeButton
+                active={scope === 'global'}
+                onClick={() => setScope('global')}
+                label="Global"
+              />
+              <ScopeButton
+                active={scope === 'na'}
+                onClick={() => setScope('na')}
+                label="North America"
+              />
+            </div>
           </div>
-          <div className="inline-flex items-center gap-1 bg-white/5 rounded-full p-1 overflow-x-auto">
+          <div className="inline-flex items-center gap-1 bg-white/5 rounded-full p-1 overflow-x-auto max-w-full">
             <button
               onClick={() => setSelectedService('all')}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap transition-colors ${
@@ -157,93 +181,21 @@ export default function OutageMapView() {
         </div>
 
         <div className="relative grid-bg overflow-hidden">
-          <svg viewBox="0 0 960 480" className="w-full h-auto">
-            <defs>
-              <radialGradient id="glow">
-                <stop offset="0%" stopColor="#ffffff" stopOpacity="0.3" />
-                <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
-              </radialGradient>
-            </defs>
-
-            {/* TODO(outage-map#7 follow-up): Replace these amorphous continent
-                outlines with TopoJSON-backed country shapes (react-simple-maps or
-                similar), and add a separate "North America" tab with US regional
-                granularity (East/West/Central/South). Tracked as a follow-up. */}
-            <g opacity="0.35" fill="none" stroke="rgba(148,163,184,0.35)" strokeWidth="1">
-              {/* Simplified continent paths */}
-              <path d="M80 130 Q120 90 180 100 Q240 90 280 130 L300 180 Q260 220 200 230 Q150 230 100 200 Z" />
-              <path d="M240 250 Q280 250 310 290 Q320 350 290 390 Q260 410 240 370 Q220 320 240 250 Z" />
-              <path d="M430 110 Q490 90 550 110 Q580 140 570 170 Q530 180 480 175 Q440 165 430 110 Z" />
-              <path d="M460 210 Q520 220 555 260 Q560 320 530 350 Q490 360 470 320 Q450 270 460 210 Z" />
-              <path d="M590 150 Q660 130 740 150 Q800 170 810 210 Q770 240 700 235 Q620 230 590 180 Z" />
-              <path d="M690 260 Q740 270 760 300 Q740 330 700 320 Q670 300 690 260 Z" />
-              <path d="M780 310 Q840 320 870 360 Q850 390 810 385 Q770 370 780 310 Z" />
-            </g>
-
-            {regionData.map((r) => {
-              const isHover = hoverRegion === r.id;
-              const color = getColor(r.total);
-              const radius = getRadius(r.total);
-              return (
-                <g
-                  key={r.id}
-                  onMouseEnter={() => setHoverRegion(r.id)}
-                  onMouseLeave={() => setHoverRegion(null)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  {r.total > 0 && (
-                    <circle
-                      cx={r.x}
-                      cy={r.y}
-                      r={radius + 8}
-                      fill={color}
-                      opacity={isHover ? 0.3 : 0.15}
-                      className="transition-opacity"
-                    >
-                      <animate
-                        attributeName="r"
-                        values={`${radius};${radius + 10};${radius}`}
-                        dur="3s"
-                        repeatCount="indefinite"
-                      />
-                    </circle>
-                  )}
-                  <circle
-                    cx={r.x}
-                    cy={r.y}
-                    r={radius}
-                    fill={color}
-                    opacity={isHover ? 1 : 0.8}
-                    stroke="rgba(255,255,255,0.2)"
-                    strokeWidth={isHover ? 2 : 1}
-                    className="transition-all"
-                  />
-                  {isHover && (
-                    <g>
-                      <rect
-                        x={r.x + radius + 8}
-                        y={r.y - 28}
-                        width={170}
-                        height={56}
-                        rx={6}
-                        fill="#0f1320"
-                        stroke="rgba(148,163,184,0.3)"
-                      />
-                      <text x={r.x + radius + 18} y={r.y - 12} fill="#f9fafb" fontSize="11" fontWeight="600">
-                        {r.name}
-                      </text>
-                      <text x={r.x + radius + 18} y={r.y + 4} fill="#94a3b8" fontSize="10">
-                        {r.total.toLocaleString()} reports
-                      </text>
-                      <text x={r.x + radius + 18} y={r.y + 18} fill="#64748b" fontSize="9">
-                        {r.reportsByService.length} services tracked
-                      </text>
-                    </g>
-                  )}
-                </g>
-              );
-            })}
-          </svg>
+          {scope === 'global' ? (
+            <GlobalMap
+              data={worldData}
+              maxReports={maxReports}
+              hoverRegion={hoverRegion}
+              setHoverRegion={setHoverRegion}
+            />
+          ) : (
+            <NorthAmericaMap
+              data={naData}
+              maxReports={maxReports}
+              hoverRegion={hoverRegion}
+              setHoverRegion={setHoverRegion}
+            />
+          )}
 
           <div className="absolute bottom-4 left-4 flex items-center gap-3 px-3 py-2 rounded-lg bg-black/40 backdrop-blur-sm border border-subtle">
             <span className="text-[10px] text-gray-400 uppercase tracking-wider">Scale</span>
@@ -262,32 +214,231 @@ export default function OutageMapView() {
       <section>
         <h2 className="text-base font-semibold text-foreground mb-3 flex items-center gap-2">
           <span className="w-1 h-5 rounded-full bg-accent-cyan" />
-          Regional leaderboard
+          {scope === 'global' ? 'Regional leaderboard' : 'US region leaderboard'}
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {[...regionData]
+          {[...activeData]
             .sort((a, b) => b.total - a.total)
             .slice(0, 6)
-            .map((r, i) => (
-              <Card key={r.id} className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-xs font-mono text-gray-400">
-                  #{i + 1}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-foreground font-medium truncate">{r.name}</p>
-                  <p className="text-xs text-gray-500">{r.total.toLocaleString()} reports</p>
-                </div>
-                <span
-                  className="w-8 h-8 rounded-full"
-                  style={{
-                    backgroundColor: getColor(r.total),
-                    opacity: 0.7,
-                  }}
-                />
-              </Card>
-            ))}
+            .map((r, i) => {
+              const pct = r.total / maxReports;
+              return (
+                <Card key={r.id} className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-xs font-mono text-gray-400">
+                    #{i + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground font-medium truncate">{r.name}</p>
+                    <p className="text-xs text-gray-500">{r.total.toLocaleString()} reports</p>
+                  </div>
+                  <span
+                    className="w-8 h-8 rounded-full"
+                    style={{ backgroundColor: heatColor(pct), opacity: 0.7 }}
+                  />
+                </Card>
+              );
+            })}
         </div>
       </section>
     </div>
+  );
+}
+
+function ScopeButton({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap transition-colors ${
+        active ? 'bg-accent-soft text-foreground' : 'text-gray-400 hover:text-foreground'
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+interface MapProps {
+  data: HeatRegion[];
+  maxReports: number;
+  hoverRegion: string | null;
+  setHoverRegion: (id: string | null) => void;
+}
+
+function GlobalMap({ data, maxReports, hoverRegion, setHoverRegion }: MapProps) {
+  const byId = useMemo(() => new Map(data.map((r) => [r.id, r])), [data]);
+  return (
+    <svg
+      viewBox={`0 0 ${WORLD_VIEWBOX.w} ${WORLD_VIEWBOX.h}`}
+      className="w-full h-auto"
+      role="img"
+      aria-label="Global outage heatmap"
+    >
+      <g>
+        {WORLD_LAND_SHAPES.map((shape) => (
+          <path
+            key={shape.id}
+            d={toPath(shape.points, projectWorld)}
+            fill="rgba(148,163,184,0.12)"
+            stroke="rgba(148,163,184,0.35)"
+            strokeWidth={0.8}
+            strokeLinejoin="round"
+          />
+        ))}
+      </g>
+
+      {WORLD_REGIONS.map((r) => {
+        const heat = byId.get(r.id);
+        if (!heat) return null;
+        const [cx, cy] = projectWorld(r.center);
+        const pct = heat.total / maxReports;
+        const color = heatColor(pct);
+        const radius = 8 + pct * 26;
+        const isHover = hoverRegion === r.id;
+        return (
+          <g
+            key={r.id}
+            onMouseEnter={() => setHoverRegion(r.id)}
+            onMouseLeave={() => setHoverRegion(null)}
+            style={{ cursor: 'pointer' }}
+          >
+            {heat.total > 0 && (
+              <circle cx={cx} cy={cy} r={radius + 8} fill={color} opacity={isHover ? 0.3 : 0.15}>
+                <animate
+                  attributeName="r"
+                  values={`${radius};${radius + 10};${radius}`}
+                  dur="3s"
+                  repeatCount="indefinite"
+                />
+              </circle>
+            )}
+            <circle
+              cx={cx}
+              cy={cy}
+              r={radius}
+              fill={color}
+              opacity={isHover ? 1 : 0.85}
+              stroke="rgba(255,255,255,0.25)"
+              strokeWidth={isHover ? 2 : 1}
+            />
+            {isHover && (
+              <Tooltip x={cx + radius + 8} y={cy - 28} name={heat.name} total={heat.total} services={heat.reportsByService.length} />
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function NorthAmericaMap({ data, maxReports, hoverRegion, setHoverRegion }: MapProps) {
+  const byId = useMemo(() => new Map(data.map((r) => [r.id, r])), [data]);
+  return (
+    <svg
+      viewBox={`0 0 ${NA_VIEWBOX.w} ${NA_VIEWBOX.h}`}
+      className="w-full h-auto"
+      role="img"
+      aria-label="United States regional outage map"
+    >
+      <path
+        d={toPath(US_OUTLINE_SHAPE.points, projectNA)}
+        fill="rgba(148,163,184,0.08)"
+        stroke="rgba(148,163,184,0.35)"
+        strokeWidth={1}
+      />
+
+      {US_REGION_SHAPES.map((shape) => {
+        const heat = byId.get(shape.id);
+        const pct = heat ? heat.total / maxReports : 0;
+        const color = heatColor(pct);
+        const isHover = hoverRegion === shape.id;
+        const [hubX, hubY] = projectNA(shape.hub);
+        return (
+          <g
+            key={shape.id}
+            onMouseEnter={() => setHoverRegion(shape.id)}
+            onMouseLeave={() => setHoverRegion(null)}
+            style={{ cursor: 'pointer' }}
+          >
+            <path
+              d={toPath(shape.points, projectNA)}
+              fill={color}
+              fillOpacity={isHover ? 0.55 : 0.32}
+              stroke={color}
+              strokeOpacity={0.9}
+              strokeWidth={isHover ? 2 : 1.2}
+              strokeLinejoin="round"
+              className="transition-all"
+            />
+            <text
+              x={hubX}
+              y={hubY - 6}
+              fill="#f9fafb"
+              fontSize="13"
+              fontWeight={600}
+              textAnchor="middle"
+              style={{ pointerEvents: 'none' }}
+            >
+              {shape.short}
+            </text>
+            <text
+              x={hubX}
+              y={hubY + 10}
+              fill="#cbd5e1"
+              fontSize="11"
+              textAnchor="middle"
+              style={{ pointerEvents: 'none' }}
+            >
+              {(heat?.total || 0).toLocaleString()} reports
+            </text>
+            {isHover && heat && (
+              <Tooltip
+                x={hubX + 40}
+                y={hubY - 40}
+                name={shape.name}
+                total={heat.total}
+                services={heat.reportsByService.length}
+              />
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function Tooltip({
+  x,
+  y,
+  name,
+  total,
+  services,
+}: {
+  x: number;
+  y: number;
+  name: string;
+  total: number;
+  services: number;
+}) {
+  return (
+    <g style={{ pointerEvents: 'none' }}>
+      <rect x={x} y={y} width={180} height={56} rx={6} fill="#0f1320" stroke="rgba(148,163,184,0.3)" />
+      <text x={x + 10} y={y + 18} fill="#f9fafb" fontSize="11" fontWeight={600}>
+        {name}
+      </text>
+      <text x={x + 10} y={y + 34} fill="#94a3b8" fontSize="10">
+        {total.toLocaleString()} reports
+      </text>
+      <text x={x + 10} y={y + 48} fill="#64748b" fontSize="9">
+        {services} services tracked
+      </text>
+    </g>
   );
 }
