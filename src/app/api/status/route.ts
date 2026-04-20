@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServiceStatuses } from '@/lib/db';
+import { getServiceStatuses, getActiveIncidentCounts } from '@/lib/db';
 import { SERVICES } from '@/lib/services';
 import { ServiceStatus, ServiceStatusResponse } from '@/lib/types';
 
@@ -22,6 +22,7 @@ function deriveOverallStatus(
 export async function GET() {
   try {
     const statuses = getServiceStatuses();
+    const activeIncidentCounts = getActiveIncidentCounts();
 
     const services: ServiceStatusResponse[] = SERVICES.map((service) => {
       const official = statuses.find(
@@ -41,6 +42,7 @@ export async function GET() {
         officialStatus,
         downdetectorStatus: ddStatus,
         downdetectorReports: dd?.report_count || 0,
+        incidentCount: activeIncidentCounts[service.slug] || 0,
         overallStatus: deriveOverallStatus(officialStatus, ddStatus),
         details: official?.details || null,
         lastChecked: official?.checked_at || dd?.checked_at || null,

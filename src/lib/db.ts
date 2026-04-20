@@ -158,6 +158,19 @@ export function getServiceStatuses() {
   }>;
 }
 
+export function getActiveIncidentCounts(): Record<string, number> {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT service_slug, COUNT(*) as count
+    FROM incidents
+    WHERE resolved_at IS NULL
+    GROUP BY service_slug
+  `).all() as Array<{ service_slug: string; count: number }>;
+  const out: Record<string, number> = {};
+  for (const r of rows) out[r.service_slug] = r.count;
+  return out;
+}
+
 export function getRecentIncidents(days: number = 7) {
   const db = getDb();
   return db.prepare(`

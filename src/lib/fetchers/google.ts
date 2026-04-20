@@ -2,18 +2,61 @@ import * as cheerio from 'cheerio';
 import crypto from 'crypto';
 import { FetchResult, StatusResult, IncidentResult, ServiceStatus } from '../types';
 
+const DASHBOARD_URL = 'https://www.google.com/appsstatus/dashboard/';
+const INCIDENTS_URL = 'https://www.google.com/appsstatus/dashboard/incidents.json';
+
 const GOOGLE_SERVICES = [
   'Gmail', 'Google Drive', 'Google Meet', 'Google Calendar',
   'Google Chat', 'Google Docs', 'Google Sheets', 'Google Slides',
 ];
 
-function statusFromIndicator(indicator: number): ServiceStatus {
-  switch (indicator) {
+const MAJOR_RE = /\b(service disruption|outage in progress|service outage)\b/i;
+const DEGRADED_RE = /\b(service information|minor issue|degraded performance|disrupted)\b/i;
+
+// Google's incidents.json status numbers. 1 = available/normal, higher = worse.
+function severityFromStatus(status: number): ServiceStatus {
+  switch (status) {
     case 1: return 'operational';
     case 2: return 'degraded';
     case 3: return 'major_outage';
     case 4: return 'down';
     default: return 'unknown';
+  }
+}
+
+interface GoogleIncident {
+  id?: string | number;
+  external_desc?: string;
+  service_name?: string;
+  begin?: string;
+  end?: string | null;
+  most_recent_update?: {
+    status?: number;
+    text?: string;
+    when?: string;
+  };
+  uri?: string;
+}
+
+function hashId(seed: string): string {
+  return crypto.createHash('sha256').update(seed).digest('hex').slice(0, 16);
+}
+
+async function fetchIncidentsJson(): Promise<GoogleIncident[] | null> {
+  try {
+    const res = await fetch(INCIDENTS_URL, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json, text/plain, */*',
+      },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (Array.isArray(data)) return data as GoogleIncident[];
+    return null;
+  } catch {
+    return null;
   }
 }
 
@@ -27,9 +70,61 @@ export async function fetchGoogleStatus(serviceSlug: string): Promise<FetchResul
   };
   const incidents: IncidentResult[] = [];
 
+  // Primary: parse the incidents JSON feed. A service is "active" only when
+  // there is an incident without an end time whose service_name matches a
+  // tracked Google Workspace product.
+  const feed = await fetchIncidentsJson();
+  if (feed) {
+    let worstStatus: ServiceStatus = 'operational';
+    const affectedServices = new Set<string>();
+
+    for (const inc of feed) {
+      const serviceName = inc.service_name || '';
+      const tracked = GOOGLE_SERVICES.some((gs) => serviceName.includes(gs));
+      if (!tracked) continue;
+
+      const isOpen = !inc.end;
+      const statusNum = inc.most_recent_update?.status ?? 1;
+      const mapped = severityFromStatus(statusNum);
+
+      if (isOpen && mapped !== 'operational') {
+        affectedServices.add(serviceName);
+        if (mapped === 'down' || mapped === 'major_outage') {
+          worstStatus = mapped;
+        } else if (mapped === 'degraded' && worstStatus === 'operational') {
+          worstStatus = 'degraded';
+        }
+
+        const startedAt = inc.begin || new Date().toISOString();
+        const title = inc.external_desc?.slice(0, 140) || `${serviceName} incident`;
+        incidents.push({
+          serviceSlug,
+          incidentId: `gws-${hashId(String(inc.id ?? `${serviceName}|${startedAt}`))}`,
+          title,
+          status: 'investigating',
+          severity: mapped === 'major_outage' || mapped === 'down' ? 'major' : 'minor',
+          startedAt,
+          resolvedAt: null,
+          description: inc.most_recent_update?.text || inc.external_desc || null,
+          sourceUrl: inc.uri ? `https://www.google.com${inc.uri}` : DASHBOARD_URL,
+        });
+      }
+    }
+
+    statusResult.status = worstStatus;
+    statusResult.details =
+      worstStatus === 'operational'
+        ? 'All Google Workspace services operational'
+        : `Issues: ${Array.from(affectedServices).join(', ') || 'Some services affected'}`;
+    return { status: statusResult, incidents };
+  }
+
+  // Fallback: scrape the HTML dashboard. Only match rows that contain BOTH a
+  // tracked service name AND a disruption keyword — this avoids flipping the
+  // whole status to major_outage when generic text (e.g. "Report a disruption"
+  // in the page chrome) matches the regex.
   try {
-    // Fetch the Google Workspace Status Dashboard page
-    const res = await fetch('https://www.google.com/appsstatus/dashboard/', {
+    const res = await fetch(DASHBOARD_URL, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'text/html,application/xhtml+xml',
@@ -42,92 +137,32 @@ export async function fetchGoogleStatus(serviceSlug: string): Promise<FetchResul
     const html = await res.text();
     const $ = cheerio.load(html);
 
-    // Google embeds status data in script tags as JSON
     let worstStatus: ServiceStatus = 'operational';
     const affectedServices: string[] = [];
-    let jsonBranchMatched = false;
 
-    // Try to find embedded JSON data
-    $('script').each((_, el) => {
-      const scriptContent = $(el).html() || '';
-      // Look for dashboard data patterns
-      const jsonMatch = scriptContent.match(/dashboard\.jsonp\(([\s\S]*?)\);/);
-      if (jsonMatch) {
-        try {
-          const data = JSON.parse(jsonMatch[1]);
-          if (Array.isArray(data?.services)) {
-            jsonBranchMatched = true;
-            for (const service of data.services) {
-              const name = service.name || '';
-              const status = service.status || 1;
-              const mappedStatus = statusFromIndicator(status);
-              if (mappedStatus !== 'operational' && GOOGLE_SERVICES.some(gs => name.includes(gs))) {
-                affectedServices.push(name);
-                if (mappedStatus === 'down' || mappedStatus === 'major_outage') {
-                  worstStatus = mappedStatus;
-                } else if (mappedStatus === 'degraded' && worstStatus === 'operational') {
-                  worstStatus = 'degraded';
-                }
-              }
-            }
-          }
-        } catch {
-          // JSON parse error, continue
-        }
+    $('tr, [role="row"], [data-service-name]').each((_, el) => {
+      const text = $(el).text().trim();
+      if (!text) return;
+      const matchedService = GOOGLE_SERVICES.find((gs) => text.includes(gs));
+      if (!matchedService) return;
+
+      if (MAJOR_RE.test(text)) {
+        worstStatus = 'major_outage';
+        affectedServices.push(matchedService);
+      } else if (DEGRADED_RE.test(text) && worstStatus === 'operational') {
+        worstStatus = 'degraded';
+        affectedServices.push(matchedService);
       }
     });
-
-    // Fallback: parse HTML status indicators.
-    // Only run when the JSON branch didn't match — otherwise generic "disruption"
-    // text elsewhere on the page (e.g. "Report a disruption") can flip a green
-    // dashboard to major_outage. Scope the selector to actual service rows only,
-    // and require whole-word matches.
-    if (!jsonBranchMatched) {
-      const majorRe = /\b(service disruption|outage in progress|disrupted)\b/i;
-      const degradedRe = /\b(service information|minor issue|degraded performance)\b/i;
-
-      $('table.ps-table tr, .ps-service-row, [data-service-name]').each((_, el) => {
-        const text = $(el).text().trim();
-        const rowName = $(el).find('.name, td:first, [data-service-name]').first().text().trim();
-        if (majorRe.test(text)) {
-          worstStatus = 'major_outage';
-          if (rowName) affectedServices.push(rowName);
-        } else if (degradedRe.test(text)) {
-          if (worstStatus === 'operational') worstStatus = 'degraded';
-          if (rowName) affectedServices.push(rowName);
-        }
-      });
-    }
 
     statusResult.status = worstStatus;
-    statusResult.details = worstStatus === 'operational'
-      ? 'All Google Workspace services operational'
-      : `Issues: ${affectedServices.filter(Boolean).join(', ') || 'Some services affected'}`;
-
-    // Parse incidents from the page
-    $('[class*="incident"], .message, [class*="disruption"]').each((_, el) => {
-      const title = $(el).find('h3, .summary, [class*="title"]').first().text().trim();
-      const desc = $(el).find('.detail, p, [class*="desc"]').first().text().trim();
-      const dateText = $(el).find('.date, time, [class*="date"]').first().text().trim();
-
-      if (title && title.length > 5) {
-        const startedAt = dateText || new Date().toISOString();
-        const hash = crypto.createHash('sha256').update(`${title}|${startedAt}`).digest('hex').slice(0, 16);
-        incidents.push({
-          serviceSlug,
-          incidentId: `gws-${hash}`,
-          title,
-          status: 'investigating',
-          severity: worstStatus === 'major_outage' || worstStatus === 'down' ? 'major' : 'minor',
-          startedAt,
-          resolvedAt: null,
-          description: desc || null,
-          sourceUrl: 'https://www.google.com/appsstatus/dashboard/',
-        });
-      }
-    });
+    statusResult.details =
+      worstStatus === 'operational'
+        ? 'All Google Workspace services operational'
+        : `Issues: ${Array.from(new Set(affectedServices)).join(', ') || 'Some services affected'}`;
   } catch (err) {
     console.error('[google] Failed to fetch status:', err);
+    statusResult.status = 'unknown';
     statusResult.details = 'Unable to fetch Google Workspace status';
   }
 

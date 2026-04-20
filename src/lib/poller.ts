@@ -13,6 +13,7 @@ import { fetchMicrosoftStatus } from './fetchers/microsoft';
 import { fetchSalesforceStatus } from './fetchers/salesforce';
 import { fetchGoogleStatus } from './fetchers/google';
 import { fetchWorkdayStatus } from './fetchers/workday';
+import { fetchAwsStatus } from './fetchers/aws';
 import { fetchDowndetectorStatus } from './fetchers/downdetector';
 
 async function fetchOfficialStatus(service: ServiceConfig): Promise<FetchResult> {
@@ -27,6 +28,8 @@ async function fetchOfficialStatus(service: ServiceConfig): Promise<FetchResult>
       return fetchGoogleStatus(service.slug);
     case 'workday':
       return fetchWorkdayStatus(service.slug);
+    case 'aws':
+      return fetchAwsStatus(service.slug);
     default:
       return {
         status: {
@@ -53,7 +56,7 @@ function getPreviousStatus(serviceSlug: string): ServiceStatus | null {
   }
 }
 
-async function pollService(service: ServiceConfig): Promise<void> {
+async function pollService(service: ServiceConfig): Promise<{ ddReports: number }> {
   console.log(`[poller] Polling ${service.name}...`);
 
   const previousStatus = getPreviousStatus(service.slug);
@@ -131,6 +134,8 @@ async function pollService(service: ServiceConfig): Promise<void> {
   console.log(
     `[poller] ${service.name}: ${effectiveStatus} (DD: ${reportCount} reports, active incidents: ${activeIncidentCount})`
   );
+
+  return { ddReports: reportCount };
 }
 
 let isPolling = false;
@@ -152,13 +157,23 @@ export async function runPollCycle(): Promise<{ success: boolean; polled: number
       SERVICES.map((service) => pollService(service))
     );
 
+    let totalDdReports = 0;
+    let ddFulfilled = 0;
     for (const result of results) {
       if (result.status === 'fulfilled') {
         polled++;
+        totalDdReports += result.value.ddReports;
+        ddFulfilled++;
       } else {
         errors++;
         console.error('[poller] Service poll failed:', result.reason);
       }
+    }
+
+    if (ddFulfilled > 0 && totalDdReports === 0) {
+      console.warn(
+        '[poller] DownDetector returned 0 reports for every service this cycle — scraper may be blocked or slugs may have drifted',
+      );
     }
 
     // Cleanup old history data
