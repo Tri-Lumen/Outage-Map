@@ -38,6 +38,32 @@ function deterministicShare(reports: number, regionId: string, serviceSlug: stri
   return Math.round(reports * (0.4 + jitter * 0.6));
 }
 
+// Fallback signal so the map still shows hotspots when DownDetector returns 0
+// reports but the official status indicates active issues. Each active
+// incident contributes INCIDENT_WEIGHT synthetic reports, and any degraded /
+// outage status contributes a baseline floor.
+const INCIDENT_WEIGHT = 40;
+const STATUS_FLOOR: Record<string, number> = {
+  operational: 0,
+  unknown: 0,
+  degraded: 30,
+  major_outage: 90,
+  down: 140,
+};
+
+function mapSignal(
+  reports: number,
+  incidentCount: number,
+  officialStatus: string,
+  overallStatus: string,
+): number {
+  const floor = Math.max(
+    STATUS_FLOOR[officialStatus] || 0,
+    STATUS_FLOOR[overallStatus] || 0,
+  );
+  return reports + incidentCount * INCIDENT_WEIGHT + floor;
+}
+
 function heatColor(pct: number): string {
   if (pct <= 0) return '#334155';
   if (pct < 0.25) return '#0ea5e9';
@@ -64,7 +90,13 @@ export default function OutageMapView() {
   const worldData = useMemo<HeatRegion[]>(() => {
     return WORLD_REGIONS.map((r) => {
       const reportsByService = filteredServices.map((s) => {
-        const share = deterministicShare(s.downdetectorReports || 0, r.id, s.slug);
+        const signal = mapSignal(
+          s.downdetectorReports || 0,
+          s.incidentCount || 0,
+          s.officialStatus,
+          s.overallStatus,
+        );
+        const share = deterministicShare(signal, r.id, s.slug);
         const popScaled = Math.round(share * r.population * 3);
         return { slug: s.slug, name: s.name, color: s.color, reports: popScaled };
       });
@@ -76,7 +108,13 @@ export default function OutageMapView() {
   const naData = useMemo<HeatRegion[]>(() => {
     return US_REGION_SHAPES.map((r) => {
       const reportsByService = filteredServices.map((s) => {
-        const share = deterministicShare(s.downdetectorReports || 0, r.id, s.slug);
+        const signal = mapSignal(
+          s.downdetectorReports || 0,
+          s.incidentCount || 0,
+          s.officialStatus,
+          s.overallStatus,
+        );
+        const share = deterministicShare(signal, r.id, s.slug);
         // NA-specific share draws from the parent NA signal (roughly 35% of global
         // volume for the services in scope) with regional population weighting.
         const popScaled = Math.round(share * r.population * 2);

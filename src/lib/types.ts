@@ -2,7 +2,7 @@ export type ServiceStatus = 'operational' | 'degraded' | 'major_outage' | 'down'
 export type IncidentStatus = 'investigating' | 'identified' | 'monitoring' | 'resolved';
 export type IncidentSeverity = 'minor' | 'major' | 'critical';
 export type AlertType = 'new_incident' | 'status_change' | 'resolved';
-export type FetcherType = 'statuspage' | 'microsoft' | 'salesforce' | 'google' | 'workday';
+export type FetcherType = 'statuspage' | 'microsoft' | 'salesforce' | 'google' | 'workday' | 'aws';
 
 export interface ServiceConfig {
   name: string;
@@ -46,6 +46,7 @@ export interface ServiceStatusResponse {
   officialStatus: ServiceStatus;
   downdetectorStatus: ServiceStatus;
   downdetectorReports: number;
+  incidentCount: number;
   overallStatus: ServiceStatus;
   details: string | null;
   lastChecked: string | null;

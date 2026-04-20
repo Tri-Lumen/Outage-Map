@@ -1,19 +1,18 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
-import { Inter, Roboto, Source_Sans_3, Lato } from "next/font/google";
+import { Noto_Sans, Noto_Sans_Mono, Inter, Roboto, Source_Sans_3, Lato } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import AppShell from "@/components/AppShell";
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
+const notoSans = Noto_Sans({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
 });
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
+const notoSansMono = Noto_Sans_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
 });
 
 // Brand-approximation fonts applied per service (see src/lib/services.ts)
@@ -65,7 +64,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${brandInter.variable} ${brandRoboto.variable} ${brandSourceSans.variable} ${brandLato.variable} antialiased`}
+        className={`${notoSans.variable} ${notoSansMono.variable} ${brandInter.variable} ${brandRoboto.variable} ${brandSourceSans.variable} ${brandLato.variable} antialiased`}
       >
         <ThemeProvider>
           <AppShell>{children}</AppShell>
