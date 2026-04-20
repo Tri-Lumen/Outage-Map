@@ -285,7 +285,7 @@ function GlobalMap({ data, maxReports, hoverRegion, setHoverRegion }: MapProps) 
         {WORLD_LAND_SHAPES.map((shape) => (
           <path
             key={shape.id}
-            d={toPath(shape.points, projectWorld)}
+            d={toPath(shape.polygons, projectWorld)}
             fill="rgba(148,163,184,0.12)"
             stroke="rgba(148,163,184,0.35)"
             strokeWidth={0.8}
@@ -348,7 +348,7 @@ function NorthAmericaMap({ data, maxReports, hoverRegion, setHoverRegion }: MapP
       aria-label="United States regional outage map"
     >
       <path
-        d={toPath(US_OUTLINE_SHAPE.points, projectNA)}
+        d={toPath(US_OUTLINE_SHAPE.polygons, projectNA)}
         fill="rgba(148,163,184,0.08)"
         stroke="rgba(148,163,184,0.35)"
         strokeWidth={1}
@@ -368,7 +368,7 @@ function NorthAmericaMap({ data, maxReports, hoverRegion, setHoverRegion }: MapP
             style={{ cursor: 'pointer' }}
           >
             <path
-              d={toPath(shape.points, projectNA)}
+              d={toPath(shape.polygons, projectNA)}
               fill={color}
               fillOpacity={isHover ? 0.55 : 0.32}
               stroke={color}

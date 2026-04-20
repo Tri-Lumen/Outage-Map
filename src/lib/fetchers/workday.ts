@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import crypto from 'crypto';
 import { FetchResult, StatusResult, IncidentResult, ServiceStatus } from '../types';
 
 export async function fetchWorkdayStatus(serviceSlug: string): Promise<FetchResult> {
@@ -80,13 +81,15 @@ export async function fetchWorkdayStatus(serviceSlug: string): Promise<FetchResu
       const dateText = $(el).find('small, time, .date').first().text().trim();
 
       if (title && title.length > 3) {
+        const startedAt = dateText || new Date().toISOString();
+        const hash = crypto.createHash('sha256').update(`${title}|${startedAt}`).digest('hex').slice(0, 16);
         incidents.push({
           serviceSlug,
-          incidentId: `wd-${Buffer.from(title).toString('base64').slice(0, 16)}`,
+          incidentId: `wd-${hash}`,
           title,
           status: 'investigating',
           severity: worstStatus === 'major_outage' || worstStatus === 'down' ? 'major' : 'minor',
-          startedAt: dateText || new Date().toISOString(),
+          startedAt,
           resolvedAt: null,
           description: desc || null,
           sourceUrl: 'https://status.workday.com/',

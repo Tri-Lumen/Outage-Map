@@ -34,7 +34,7 @@ export default function Dashboard() {
 
   const services = useMemo(() => statusData?.services || [], [statusData]);
   const incidents = useMemo(() => incidentData?.incidents || [], [incidentData]);
-  const history = historyData?.history || {};
+  const history = useMemo(() => historyData?.history || {}, [historyData]);
 
   const stats = useMemo(() => {
     const total = services.length || SERVICES.length;
