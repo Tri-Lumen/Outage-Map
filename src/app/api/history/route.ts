@@ -25,7 +25,7 @@ function aggregateByDay(
       byService[row.service_slug] = new Map();
     }
 
-    const date = row.recorded_at.split('T')[0] || row.recorded_at.split(' ')[0];
+    const date = row.recorded_at.split(/[T ]/)[0];
     const dayData = byService[row.service_slug].get(date) || {
       statuses: [],
       reports: [],
