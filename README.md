@@ -175,7 +175,7 @@ remove `pull_policy: build` (and optionally the `build:` block).
 | `/api/status` | GET | Current status for all 7 services |
 | `/api/incidents?days=7` | GET | Recent incidents feed |
 | `/api/history?days=30` | GET | 30-day outage history for charts |
-| `/api/cron` | POST/GET | Manually trigger a poll cycle |
+| `/api/cron` | POST | Manually trigger a poll cycle (requires `Bearer $CRON_SECRET` when set) |
 
 ## Architecture
 

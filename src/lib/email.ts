@@ -3,6 +3,24 @@ import { hasRecentAlert, logAlert } from './db';
 import { getServiceBySlug } from './services';
 import { IncidentResult, ServiceStatus } from './types';
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function safeHref(url: string | null | undefined): string | null {
+  if (!url) return null;
+  return /^https?:\/\//i.test(url) ? url : null;
+}
+
+function sanitizeHeader(value: string): string {
+  return value.replace(/[\r\n\t]+/g, ' ').slice(0, 200);
+}
+
 function getTransporter() {
   const host = process.env.SMTP_HOST;
   const port = parseInt(process.env.SMTP_PORT || '587', 10);
@@ -60,6 +78,7 @@ export async function sendIncidentAlert(incident: IncidentResult): Promise<boole
 
   const service = getServiceBySlug(incident.serviceSlug);
   const serviceName = service?.name || incident.serviceSlug;
+  const safeSourceUrl = safeHref(incident.sourceUrl);
 
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -68,16 +87,16 @@ export async function sendIncidentAlert(incident: IncidentResult): Promise<boole
       </div>
       <div style="border: 1px solid #e2e8f0; padding: 20px; border-radius: 0 0 8px 8px;">
         <div style="display: inline-block; background: ${statusColor(incident.severity === 'critical' ? 'down' : 'major_outage')}; color: white; padding: 4px 12px; border-radius: 4px; font-size: 14px; font-weight: 600; margin-bottom: 16px;">
-          ${incident.severity.toUpperCase()} INCIDENT
+          ${escapeHtml(incident.severity.toUpperCase())} INCIDENT
         </div>
-        <h3 style="margin: 0 0 8px 0; color: #1e293b;">${serviceName}</h3>
-        <p style="font-size: 18px; margin: 0 0 16px 0; color: #334155;">${incident.title}</p>
-        ${incident.description ? `<p style="color: #64748b; margin: 0 0 16px 0;">${incident.description}</p>` : ''}
+        <h3 style="margin: 0 0 8px 0; color: #1e293b;">${escapeHtml(serviceName)}</h3>
+        <p style="font-size: 18px; margin: 0 0 16px 0; color: #334155;">${escapeHtml(incident.title)}</p>
+        ${incident.description ? `<p style="color: #64748b; margin: 0 0 16px 0;">${escapeHtml(incident.description)}</p>` : ''}
         <table style="width: 100%; border-collapse: collapse;">
-          <tr><td style="padding: 8px 0; color: #64748b;">Status</td><td style="padding: 8px 0; font-weight: 600;">${incident.status}</td></tr>
-          <tr><td style="padding: 8px 0; color: #64748b;">Severity</td><td style="padding: 8px 0; font-weight: 600;">${incident.severity}</td></tr>
-          <tr><td style="padding: 8px 0; color: #64748b;">Started</td><td style="padding: 8px 0;">${incident.startedAt || 'Unknown'}</td></tr>
-          ${incident.sourceUrl ? `<tr><td style="padding: 8px 0; color: #64748b;">Source</td><td style="padding: 8px 0;"><a href="${incident.sourceUrl}">${incident.sourceUrl}</a></td></tr>` : ''}
+          <tr><td style="padding: 8px 0; color: #64748b;">Status</td><td style="padding: 8px 0; font-weight: 600;">${escapeHtml(incident.status)}</td></tr>
+          <tr><td style="padding: 8px 0; color: #64748b;">Severity</td><td style="padding: 8px 0; font-weight: 600;">${escapeHtml(incident.severity)}</td></tr>
+          <tr><td style="padding: 8px 0; color: #64748b;">Started</td><td style="padding: 8px 0;">${escapeHtml(incident.startedAt || 'Unknown')}</td></tr>
+          ${safeSourceUrl ? `<tr><td style="padding: 8px 0; color: #64748b;">Source</td><td style="padding: 8px 0;"><a href="${escapeHtml(safeSourceUrl)}">${escapeHtml(safeSourceUrl)}</a></td></tr>` : ''}
         </table>
         <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 16px 0;">
         <p style="font-size: 12px; color: #94a3b8; margin: 0;">
@@ -91,7 +110,7 @@ export async function sendIncidentAlert(incident: IncidentResult): Promise<boole
     await transporter.sendMail({
       from: process.env.ALERT_FROM || process.env.SMTP_USER,
       to: recipients.join(', '),
-      subject: `[${incident.severity.toUpperCase()}] ${serviceName}: ${incident.title}`,
+      subject: sanitizeHeader(`[${incident.severity.toUpperCase()}] ${serviceName}: ${incident.title}`),
       html,
     });
 
@@ -130,11 +149,11 @@ export async function sendStatusChangeAlert(
         <h2 style="margin: 0;">Status Change Alert</h2>
       </div>
       <div style="border: 1px solid #e2e8f0; padding: 20px; border-radius: 0 0 8px 8px;">
-        <h3 style="margin: 0 0 16px 0; color: #1e293b;">${serviceName}</h3>
+        <h3 style="margin: 0 0 16px 0; color: #1e293b;">${escapeHtml(serviceName)}</h3>
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
-          <span style="background: ${statusColor(oldStatus)}; color: white; padding: 4px 12px; border-radius: 4px; font-size: 14px;">${statusLabel(oldStatus)}</span>
+          <span style="background: ${statusColor(oldStatus)}; color: white; padding: 4px 12px; border-radius: 4px; font-size: 14px;">${escapeHtml(statusLabel(oldStatus))}</span>
           <span style="font-size: 20px;">&rarr;</span>
-          <span style="background: ${statusColor(newStatus)}; color: white; padding: 4px 12px; border-radius: 4px; font-size: 14px; font-weight: 600;">${statusLabel(newStatus)}</span>
+          <span style="background: ${statusColor(newStatus)}; color: white; padding: 4px 12px; border-radius: 4px; font-size: 14px; font-weight: 600;">${escapeHtml(statusLabel(newStatus))}</span>
         </div>
         <p style="color: #64748b;">The service status has changed. Please monitor the situation.</p>
         <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 16px 0;">
@@ -149,7 +168,7 @@ export async function sendStatusChangeAlert(
     await transporter.sendMail({
       from: process.env.ALERT_FROM || process.env.SMTP_USER,
       to: recipients.join(', '),
-      subject: `[STATUS CHANGE] ${serviceName}: ${statusLabel(newStatus)}`,
+      subject: sanitizeHeader(`[STATUS CHANGE] ${serviceName}: ${statusLabel(newStatus)}`),
       html,
     });
 

@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import crypto from 'crypto';
 import { FetchResult, StatusResult, IncidentResult, ServiceStatus } from '../types';
 
 function parseStatusFromText(text: string): ServiceStatus {
@@ -81,13 +82,15 @@ export async function fetchMicrosoftStatus(serviceSlug: string): Promise<FetchRe
       const title = $(el).find('h3, h4, .title, [class*="title"]').first().text().trim();
       const desc = $(el).find('p, .description, [class*="desc"]').first().text().trim();
       if (title && title.length > 5) {
+        const startedAt = new Date().toISOString();
+        const hash = crypto.createHash('sha256').update(`${title}|${startedAt}`).digest('hex').slice(0, 16);
         incidents.push({
           serviceSlug,
-          incidentId: `ms-${Buffer.from(title).toString('base64').slice(0, 16)}`,
+          incidentId: `ms-${hash}`,
           title,
           status: 'investigating',
           severity: worstStatus === 'major_outage' || worstStatus === 'down' ? 'major' : 'minor',
-          startedAt: new Date().toISOString(),
+          startedAt,
           resolvedAt: null,
           description: desc || null,
           sourceUrl: 'https://status.office365.com/',

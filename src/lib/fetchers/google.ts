@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import crypto from 'crypto';
 import { FetchResult, StatusResult, IncidentResult, ServiceStatus } from '../types';
 
 const GOOGLE_SERVICES = [
@@ -110,13 +111,15 @@ export async function fetchGoogleStatus(serviceSlug: string): Promise<FetchResul
       const dateText = $(el).find('.date, time, [class*="date"]').first().text().trim();
 
       if (title && title.length > 5) {
+        const startedAt = dateText || new Date().toISOString();
+        const hash = crypto.createHash('sha256').update(`${title}|${startedAt}`).digest('hex').slice(0, 16);
         incidents.push({
           serviceSlug,
-          incidentId: `gws-${Buffer.from(title).toString('base64').slice(0, 16)}`,
+          incidentId: `gws-${hash}`,
           title,
           status: 'investigating',
           severity: worstStatus === 'major_outage' || worstStatus === 'down' ? 'major' : 'minor',
-          startedAt: dateText || new Date().toISOString(),
+          startedAt,
           resolvedAt: null,
           description: desc || null,
           sourceUrl: 'https://www.google.com/appsstatus/dashboard/',

@@ -61,7 +61,7 @@ function aggregateByDay(
         return {
           date,
           status: worstStatus,
-          reports: Math.max(...data.reports),
+          reports: Math.max(...data.reports, 0),
           incidents: Math.max(...data.incidents, 0),
           outageMinutes: data.outageMinutes,
         };

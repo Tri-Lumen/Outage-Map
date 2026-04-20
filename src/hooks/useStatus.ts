@@ -3,7 +3,11 @@
 import useSWR from 'swr';
 import { ServiceStatusResponse, IncidentResponse, HistoryResponse } from '@/lib/types';
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+};
 
 export function useServiceStatus() {
   return useSWR<{ services: ServiceStatusResponse[]; lastUpdated: string }>(
