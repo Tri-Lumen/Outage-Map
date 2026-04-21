@@ -8,6 +8,8 @@ interface ServiceCardProps {
   service: ServiceStatusResponse;
   onClick?: () => void;
   href?: string;
+  compact?: boolean;
+  showDowndetector?: boolean;
 }
 
 const SERVICE_ICONS: Record<string, string> = {
@@ -18,6 +20,13 @@ const SERVICE_ICONS: Record<string, string> = {
   'workday': 'W',
   'zoom': 'Z',
   'google-workspace': 'G',
+  'slack': 'S',
+  'github': 'GH',
+  'atlassian': 'A',
+  'okta': 'Ok',
+  'cloudflare': 'CF',
+  'dropbox': 'Db',
+  'aws': 'AWS',
 };
 
 function formatTimestamp(ts: string | null): string {
@@ -44,14 +53,20 @@ function getStatusAccent(status: string): string {
   }
 }
 
-export default function ServiceCard({ service, onClick, href }: ServiceCardProps) {
-  const icon = SERVICE_ICONS[service.slug] || '?';
+export default function ServiceCard({
+  service,
+  onClick,
+  href,
+  compact = false,
+  showDowndetector = true,
+}: ServiceCardProps) {
+  const icon = SERVICE_ICONS[service.slug] || service.name.charAt(0);
   const accent = getStatusAccent(service.overallStatus);
 
   const content = (
     <div
       onClick={onClick}
-      className={`group relative surface-card rounded-2xl p-5 cursor-pointer transition-all duration-200 hover:border-strong hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)] before:absolute before:left-0 before:top-4 before:bottom-4 before:w-0.5 before:rounded-r ${accent}`}
+      className={`group relative surface-card rounded-2xl cursor-pointer transition-all duration-200 hover:border-strong hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)] before:absolute before:left-0 before:top-4 before:bottom-4 before:w-0.5 before:rounded-r ${accent} ${compact ? 'p-3' : 'p-5'}`}
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
@@ -82,66 +97,76 @@ export default function ServiceCard({ service, onClick, href }: ServiceCardProps
         <StatusBadge status={service.overallStatus} size="md" />
       </div>
 
-      <div className="flex items-center justify-between text-xs">
-        <div className="text-gray-400">
-          <span className="text-gray-500">Official:</span>{' '}
-          <span className={
-            service.officialStatus === 'operational' ? 'text-emerald-400' :
-            service.officialStatus === 'degraded' ? 'text-yellow-400' :
-            service.officialStatus === 'major_outage' ? 'text-orange-400' :
-            service.officialStatus === 'down' ? 'text-red-400' :
-            'text-gray-400'
-          }>
-            {service.officialStatus === 'operational' ? 'OK' :
-             service.officialStatus === 'unknown' ? '--' :
-             service.officialStatus.replace('_', ' ')}
-          </span>
+      {!compact && (
+        <div className="flex items-center justify-between text-xs">
+          <div className="text-gray-400">
+            <span className="text-gray-500">Official:</span>{' '}
+            <span className={
+              service.officialStatus === 'operational' ? 'text-emerald-400' :
+              service.officialStatus === 'degraded' ? 'text-yellow-400' :
+              service.officialStatus === 'major_outage' ? 'text-orange-400' :
+              service.officialStatus === 'down' ? 'text-red-400' :
+              'text-gray-400'
+            }>
+              {service.officialStatus === 'operational' ? 'OK' :
+               service.officialStatus === 'unknown' ? '--' :
+               service.officialStatus.replace('_', ' ')}
+            </span>
+          </div>
+          {showDowndetector && (
+            <div className="text-gray-400">
+              <span className="text-gray-500">DD:</span>{' '}
+              <span className={
+                service.downdetectorReports >= 500 ? 'text-red-400 font-semibold' :
+                service.downdetectorReports >= 100 ? 'text-yellow-400' :
+                service.downdetectorStatus === 'unknown' ? 'text-gray-500 italic' :
+                'text-gray-300'
+              }>
+                {service.downdetectorStatus === 'unknown'
+                  ? 'no data'
+                  : service.downdetectorReports > 0
+                    ? service.downdetectorReports.toLocaleString()
+                    : '--'}
+              </span>
+            </div>
+          )}
         </div>
-        <div className="text-gray-400">
-          <span className="text-gray-500">DD:</span>{' '}
-          <span className={
-            service.downdetectorReports >= 500 ? 'text-red-400 font-semibold' :
-            service.downdetectorReports >= 100 ? 'text-yellow-400' :
-            service.downdetectorStatus === 'unknown' ? 'text-gray-500 italic' :
-            'text-gray-300'
-          }>
-            {service.downdetectorStatus === 'unknown'
-              ? 'no data'
-              : service.downdetectorReports > 0
-                ? service.downdetectorReports.toLocaleString()
-                : '--'}
-          </span>
-        </div>
-      </div>
+      )}
 
-      {service.details && service.overallStatus !== 'operational' && (
+      {!compact && service.details && service.overallStatus !== 'operational' && (
         <p className="text-xs text-gray-400 mt-2 truncate border-t border-subtle pt-2">
           {service.details}
         </p>
       )}
 
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="mt-3 pt-2 border-t border-subtle flex items-center gap-3 text-[10px]"
-      >
-        <a
-          href={service.statusUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-accent-cyan hover:underline"
+      {!compact && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="mt-3 pt-2 border-t border-subtle flex items-center gap-3 text-[10px]"
         >
-          Official ↗
-        </a>
-        <span className="text-gray-700">·</span>
-        <a
-          href={service.downdetectorUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-accent-cyan hover:underline"
-        >
-          {service.downdetectorStatus === 'unknown' ? 'Open Downdetector ↗' : 'Downdetector ↗'}
-        </a>
-      </div>
+          <a
+            href={service.statusUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent-cyan hover:underline"
+          >
+            Official ↗
+          </a>
+          {showDowndetector && (
+            <>
+              <span className="text-gray-700">·</span>
+              <a
+                href={service.downdetectorUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent-cyan hover:underline"
+              >
+                {service.downdetectorStatus === 'unknown' ? 'Open Downdetector ↗' : 'Downdetector ↗'}
+              </a>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 

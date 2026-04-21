@@ -1,6 +1,6 @@
 # Enterprise Outage Dashboard
 
-A live US enterprise application outage monitoring dashboard that tracks 7 major services with real-time status aggregation, 30-day outage history charts, and email alerting.
+A live US enterprise application outage monitoring dashboard that tracks 14 major services with real-time status aggregation, 30-day outage history charts, and email alerting.
 
 ## Monitored Services
 
@@ -11,6 +11,13 @@ A live US enterprise application outage monitoring dashboard that tracks 7 major
 - **Workday** - HR and finance platform
 - **Zoom** - Video conferencing
 - **Google Workspace** - Gmail, Drive, Meet, Calendar
+- **Slack** - Team messaging and collaboration
+- **GitHub** - Source control and CI/CD
+- **Atlassian** - Jira, Confluence, Bitbucket
+- **Okta** - Identity and single sign-on
+- **Cloudflare** - CDN, DNS, and edge services
+- **Dropbox** - File storage and sharing
+- **Amazon Web Services** - Cloud infrastructure
 
 ## Features
 
@@ -172,7 +179,7 @@ remove `pull_policy: build` (and optionally the `build:` block).
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/status` | GET | Current status for all 7 services |
+| `/api/status` | GET | Current status for all 14 services |
 | `/api/incidents?days=7` | GET | Recent incidents feed |
 | `/api/history?days=30` | GET | 30-day outage history for charts |
 | `/api/cron` | POST | Manually trigger a poll cycle (requires `Bearer $CRON_SECRET` when set) |

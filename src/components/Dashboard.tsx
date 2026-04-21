@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useServiceStatus, useIncidents, useHistory } from '@/hooks/useStatus';
+import { usePreferences } from '@/hooks/usePreferences';
 import { SERVICES } from '@/lib/services';
 import ServiceCard from './ServiceCard';
 import IncidentFeed from './IncidentFeed';
@@ -25,7 +26,9 @@ function formatTimestamp(ts: string | null | undefined): string {
 }
 
 export default function Dashboard() {
-  const { data: statusData, error: statusError, isLoading: statusLoading } = useServiceStatus();
+  const prefs = usePreferences();
+  const refreshMs = prefs.refreshInterval * 1000;
+  const { data: statusData, error: statusError, isLoading: statusLoading } = useServiceStatus(refreshMs);
   const { data: incidentData } = useIncidents(7);
   const { data: historyData } = useHistory(30);
   const [selectedService, setSelectedService] = useState<string | null>(null);
@@ -35,6 +38,7 @@ export default function Dashboard() {
   const services = useMemo(() => statusData?.services || [], [statusData]);
   const incidents = useMemo(() => incidentData?.incidents || [], [incidentData]);
   const history = useMemo(() => historyData?.history || {}, [historyData]);
+  const pinnedSet = useMemo(() => new Set(prefs.pinnedServices), [prefs.pinnedServices]);
 
   const stats = useMemo(() => {
     const total = services.length || SERVICES.length;
@@ -50,13 +54,19 @@ export default function Dashboard() {
   }, [services, incidents]);
 
   const filteredServices = useMemo(() => {
-    return services.filter((s) => {
+    const matched = services.filter((s) => {
       if (search && !s.name.toLowerCase().includes(search.toLowerCase())) return false;
       if (filter === 'operational' && s.overallStatus !== 'operational') return false;
       if (filter === 'issues' && s.overallStatus === 'operational') return false;
       return true;
     });
-  }, [services, search, filter]);
+    if (pinnedSet.size === 0) return matched;
+    // Stable partition: pinned services first, others after, order within each group preserved.
+    return [
+      ...matched.filter((s) => pinnedSet.has(s.slug)),
+      ...matched.filter((s) => !pinnedSet.has(s.slug)),
+    ];
+  }, [services, search, filter, pinnedSet]);
 
   if (statusLoading) {
     return (
@@ -105,7 +115,9 @@ export default function Dashboard() {
         actions={
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs font-medium text-emerald-300">Auto-refresh · 30s</span>
+            <span className="text-xs font-medium text-emerald-300">
+              Auto-refresh · {prefs.refreshInterval < 60 ? `${prefs.refreshInterval}s` : `${prefs.refreshInterval / 60}m`}
+            </span>
           </div>
         }
       />
@@ -144,17 +156,31 @@ export default function Dashboard() {
             </svg>
           }
         />
-        <StatTile
-          label="DD Reports (now)"
-          value={stats.reports.toLocaleString()}
-          accent="indigo"
-          hint="Aggregated across services"
-          icon={
-            <svg className="w-5 h-5 text-indigo-300" fill="none" viewBox="0 0 24 24" strokeWidth={1.6} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-            </svg>
-          }
-        />
+        {prefs.showDowndetector ? (
+          <StatTile
+            label="DD Reports (now)"
+            value={stats.reports.toLocaleString()}
+            accent="indigo"
+            hint="Aggregated across services"
+            icon={
+              <svg className="w-5 h-5 text-indigo-300" fill="none" viewBox="0 0 24 24" strokeWidth={1.6} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+              </svg>
+            }
+          />
+        ) : (
+          <StatTile
+            label="Services Tracked"
+            value={stats.total}
+            accent="indigo"
+            hint="Total monitored services"
+            icon={
+              <svg className="w-5 h-5 text-indigo-300" fill="none" viewBox="0 0 24 24" strokeWidth={1.6} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25A2.25 2.25 0 018.25 10.5H6A2.25 2.25 0 013.75 8.25V6zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25A2.25 2.25 0 0113.5 8.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 018.25 20.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+              </svg>
+            }
+          />
+        )}
       </section>
 
       <section>
@@ -195,12 +221,20 @@ export default function Dashboard() {
             No services match your filters.
           </Card>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div
+            className={
+              prefs.compactCards
+                ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3'
+                : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'
+            }
+          >
             {filteredServices.map((service) => (
               <ServiceCard
                 key={service.slug}
                 service={service}
                 onClick={() => setSelectedService(service.slug)}
+                compact={prefs.compactCards}
+                showDowndetector={prefs.showDowndetector}
               />
             ))}
           </div>

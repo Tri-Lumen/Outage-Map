@@ -2,80 +2,55 @@
 
 import { useEffect, useState } from 'react';
 import { SERVICES } from '@/lib/services';
+import {
+  DEFAULT_PREFERENCES,
+  Preferences,
+  clearPreferences,
+  usePreferences,
+  writePreferences,
+} from '@/hooks/usePreferences';
 import { useTheme } from './ThemeProvider';
 import PageHeader from './ui/PageHeader';
 import Card from './ui/Card';
 
-interface Preferences {
-  refreshInterval: 15 | 30 | 60 | 300;
-  compactCards: boolean;
-  showDowndetector: boolean;
-  pinnedServices: string[];
-}
-
-const DEFAULTS: Preferences = {
-  refreshInterval: 30,
-  compactCards: false,
-  showDowndetector: true,
-  pinnedServices: [],
-};
-
-const STORAGE_KEY = 'outage-map-prefs';
-
-function loadPrefs(): Preferences {
-  if (typeof window === 'undefined') return DEFAULTS;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? { ...DEFAULTS, ...JSON.parse(raw) } : DEFAULTS;
-  } catch {
-    return DEFAULTS;
-  }
-}
-
 export default function SettingsView() {
   const { theme, setTheme } = useTheme();
-  const [prefs, setPrefs] = useState<Preferences>(DEFAULTS);
+  const synced = usePreferences();
+  const [prefs, setPrefs] = useState<Preferences>(synced);
   const [saved, setSaved] = useState(false);
 
+  // Reflect external preference changes (e.g. reset from another tab) into
+  // local state so controls stay in sync with storage.
   useEffect(() => {
-    setPrefs(loadPrefs());
-  }, []);
+    setPrefs(synced);
+  }, [synced]);
 
-  const update = <K extends keyof Preferences>(key: K, value: Preferences[K]) => {
-    setPrefs((prev) => {
-      const next = { ...prev, [key]: value };
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
+  const persist = (next: Preferences) => {
+    setPrefs(next);
+    writePreferences(next);
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
+  };
+
+  const update = <K extends keyof Preferences>(key: K, value: Preferences[K]) => {
+    persist({ ...prefs, [key]: value });
   };
 
   const togglePin = (slug: string) => {
-    setPrefs((prev) => {
-      const nextPinned = prev.pinnedServices.includes(slug)
-        ? prev.pinnedServices.filter((s) => s !== slug)
-        : [...prev.pinnedServices, slug];
-      const next = { ...prev, pinnedServices: nextPinned };
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
+    const nextPinned = prefs.pinnedServices.includes(slug)
+      ? prefs.pinnedServices.filter((s) => s !== slug)
+      : [...prefs.pinnedServices, slug];
+    persist({ ...prefs, pinnedServices: nextPinned });
   };
 
   const resetAll = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem('outage-map-alert-rules');
-    setPrefs(DEFAULTS);
+    clearPreferences();
+    try {
+      localStorage.removeItem('outage-map-alert-rules');
+    } catch {
+      /* ignore */
+    }
+    setPrefs(DEFAULT_PREFERENCES);
     setTheme('dark');
   };
 
