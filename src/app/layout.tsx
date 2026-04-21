@@ -42,7 +42,7 @@ const brandLato = Lato({
 export const metadata: Metadata = {
   title: "Outage Map · Enterprise Status",
   description:
-    "Real-time outage monitoring with analytics, geographic insights, and alerts for Microsoft 365, Adobe, ServiceNow, Salesforce, Workday, Zoom, and Google Workspace.",
+    "Real-time outage monitoring with analytics, geographic insights, and alerts for Microsoft 365, Adobe, ServiceNow, Salesforce, Workday, Zoom, Google Workspace, Slack, GitHub, Atlassian, Okta, Cloudflare, Dropbox, and AWS.",
   keywords: [
     "outage",
     "dashboard",
@@ -53,6 +53,10 @@ export const metadata: Metadata = {
     "Microsoft 365",
     "Salesforce",
     "Zoom",
+    "Slack",
+    "GitHub",
+    "AWS",
+    "Cloudflare",
   ],
 };
 
@@ -64,7 +68,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body
-        className={`${notoSans.variable} ${notoSansMono.variable} ${brandInter.variable} ${brandRoboto.variable} ${brandSourceSans.variable} ${brandLato.variable} antialiased`}
+        className={`${notoSans.variable} ${notoSansMono.variable} ${brandInter.variable} ${brandRoboto.variable} ${brandSourceSans.variable} ${brandLato.variable} font-sans antialiased`}
       >
         <ThemeProvider>
           <AppShell>{children}</AppShell>

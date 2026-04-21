@@ -3,6 +3,8 @@ import { getStatusHistory } from '@/lib/db';
 import { SERVICES } from '@/lib/services';
 import { HistoryPoint, ServiceStatus } from '@/lib/types';
 
+export const dynamic = 'force-dynamic';
+
 function statusToMinutes(status: ServiceStatus): number {
   switch (status) {
     case 'major_outage':

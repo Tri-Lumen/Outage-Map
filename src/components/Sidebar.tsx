@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useServiceStatus } from '@/hooks/useStatus';
+import { SERVICES } from '@/lib/services';
 import { useSidebar } from './SidebarContext';
 
 interface NavItem {
@@ -158,7 +159,7 @@ export default function Sidebar() {
             <span className={`text-xs font-medium ${health.tone}`}>{health.label}</span>
           </div>
           <div className="text-[11px] text-gray-500">
-            {operational}/{services.length || 7} services operational
+            {operational}/{services.length || SERVICES.length} services operational
           </div>
           <div className="mt-2 w-full h-1 rounded-full bg-white/5 overflow-hidden">
             <div

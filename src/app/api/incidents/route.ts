@@ -3,6 +3,8 @@ import { getRecentIncidents } from '@/lib/db';
 import { SERVICES } from '@/lib/services';
 import { IncidentResponse } from '@/lib/types';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
