@@ -19,18 +19,61 @@ function parseStatusFromText(text: string): ServiceStatus {
   return 'unknown';
 }
 
-export async function fetchMicrosoftStatus(serviceSlug: string): Promise<FetchResult> {
-  const statusResult: StatusResult = {
-    serviceSlug,
-    source: 'official',
+const STATUS_ORDER: Record<ServiceStatus, number> = {
+  operational: 0,
+  unknown: 1,
+  degraded: 2,
+  major_outage: 3,
+  down: 4,
+};
+
+function worseOf(a: ServiceStatus, b: ServiceStatus): ServiceStatus {
+  return STATUS_ORDER[b] > STATUS_ORDER[a] ? b : a;
+}
+
+interface MsSource {
+  name: string;
+  url: string;
+  degradedRe: RegExp;
+  majorRe: RegExp;
+}
+
+// status.office365.com already covers Exchange, SharePoint, Teams and
+// OneDrive for Business, but Azure has its own dashboard — without it we
+// miss identity/backbone outages that still affect M365 tenants. We fetch
+// both in parallel and take the worst status.
+const SOURCES: MsSource[] = [
+  {
+    name: 'Microsoft 365',
+    url: 'https://status.office365.com/',
+    degradedRe: /\b(service incident|service degradation|advisory)\b/i,
+    majorRe: /\b(extended outage|service interruption)\b/i,
+  },
+  {
+    name: 'Microsoft Azure',
+    url: 'https://azure.status.microsoft/en-us/status/',
+    degradedRe: /\b(active event|service degradation|advisory)\b/i,
+    majorRe: /\b(service outage|widespread outage|extended outage)\b/i,
+  },
+];
+
+interface SourceResult {
+  source: MsSource;
+  status: ServiceStatus;
+  incidents: IncidentResult[];
+  reachable: boolean;
+}
+
+async function fetchSource(source: MsSource, serviceSlug: string): Promise<SourceResult> {
+  const result: SourceResult = {
+    source,
     status: 'unknown',
-    details: null,
-    reportCount: null,
+    incidents: [],
+    reachable: false,
   };
-  const incidents: IncidentResult[] = [];
 
   try {
-    const res = await fetch('https://status.office365.com/', {
+    const res = await fetch(source.url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'text/html,application/xhtml+xml',
@@ -42,65 +85,90 @@ export async function fetchMicrosoftStatus(serviceSlug: string): Promise<FetchRe
 
     const html = await res.text();
     const $ = cheerio.load(html);
-
-    const statusTexts: string[] = [];
-    $('[class*="status"], [class*="Status"], [data-status]').each((_, el) => {
-      statusTexts.push($(el).text().trim());
-    });
-
-    // Look for status indicators in common patterns
     const pageText = $('body').text();
+
     let worstStatus: ServiceStatus = 'operational';
+    if (source.degradedRe.test(pageText)) worstStatus = 'degraded';
+    if (source.majorRe.test(pageText)) worstStatus = 'major_outage';
 
-    if (pageText.toLowerCase().includes('service incident') || pageText.toLowerCase().includes('service degradation')) {
-      worstStatus = 'degraded';
-    }
-    if (pageText.toLowerCase().includes('extended outage') || pageText.toLowerCase().includes('service interruption')) {
-      worstStatus = 'major_outage';
-    }
-
-    // Parse any visible status sections
     $('tr, .service-status-row, [class*="service"]').each((_, el) => {
       const text = $(el).text().trim();
       if (text.length > 5 && text.length < 500) {
         const status = parseStatusFromText(text);
         if (status === 'major_outage' || status === 'down') {
-          worstStatus = status;
+          worstStatus = worseOf(worstStatus, status);
         } else if (status === 'degraded' && worstStatus === 'operational') {
           worstStatus = 'degraded';
         }
       }
     });
 
-    statusResult.status = worstStatus;
-    statusResult.details = worstStatus === 'operational'
-      ? 'All Microsoft 365 services operational'
-      : `Some services experiencing issues`;
+    result.status = worstStatus;
+    result.reachable = true;
 
-    // Try to extract incident information
     $('[class*="incident"], [class*="advisory"], [class*="message"]').each((_, el) => {
       const title = $(el).find('h3, h4, .title, [class*="title"]').first().text().trim();
       const desc = $(el).find('p, .description, [class*="desc"]').first().text().trim();
       if (title && title.length > 5) {
         const startedAt = new Date().toISOString();
-        const hash = crypto.createHash('sha256').update(`${title}|${startedAt}`).digest('hex').slice(0, 16);
-        incidents.push({
+        const hash = crypto
+          .createHash('sha256')
+          .update(`${source.name}|${title}|${startedAt}`)
+          .digest('hex')
+          .slice(0, 16);
+        result.incidents.push({
           serviceSlug,
           incidentId: `ms-${hash}`,
-          title,
+          title: `[${source.name}] ${title}`,
           status: 'investigating',
           severity: worstStatus === 'major_outage' || worstStatus === 'down' ? 'major' : 'minor',
           startedAt,
           resolvedAt: null,
           description: desc || null,
-          sourceUrl: 'https://status.office365.com/',
+          sourceUrl: source.url,
         });
       }
     });
   } catch (err) {
-    console.error('[microsoft] Failed to fetch status:', err);
-    statusResult.details = 'Unable to fetch Microsoft 365 status';
+    console.error(`[microsoft] Failed to fetch ${source.name}:`, err);
   }
+
+  return result;
+}
+
+export async function fetchMicrosoftStatus(serviceSlug: string): Promise<FetchResult> {
+  const statusResult: StatusResult = {
+    serviceSlug,
+    source: 'official',
+    status: 'unknown',
+    details: null,
+    reportCount: null,
+  };
+  const incidents: IncidentResult[] = [];
+
+  const results = await Promise.all(SOURCES.map((src) => fetchSource(src, serviceSlug)));
+
+  const reachable = results.filter((r) => r.reachable);
+  if (reachable.length === 0) {
+    statusResult.details = 'Unable to fetch Microsoft 365 status';
+    return { status: statusResult, incidents };
+  }
+
+  let worstStatus: ServiceStatus = 'operational';
+  const impacted: string[] = [];
+  for (const r of reachable) {
+    worstStatus = worseOf(worstStatus, r.status);
+    if (r.status !== 'operational' && r.status !== 'unknown') {
+      impacted.push(r.source.name);
+    }
+    incidents.push(...r.incidents);
+  }
+
+  statusResult.status = worstStatus;
+  statusResult.details =
+    worstStatus === 'operational'
+      ? 'All Microsoft 365 and Azure services operational'
+      : `Issues reported on ${impacted.join(', ') || 'one or more Microsoft platforms'}`;
 
   return { status: statusResult, incidents };
 }

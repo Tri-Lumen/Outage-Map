@@ -123,6 +123,62 @@ export async function sendIncidentAlert(incident: IncidentResult): Promise<boole
   }
 }
 
+export interface TestAlertResult {
+  ok: boolean;
+  reason?: 'smtp_not_configured' | 'invalid_email' | 'send_failed';
+  detail?: string;
+}
+
+export async function sendTestAlert(email: string): Promise<TestAlertResult> {
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { ok: false, reason: 'invalid_email' };
+  }
+
+  const transporter = getTransporter();
+  if (!transporter) {
+    return { ok: false, reason: 'smtp_not_configured' };
+  }
+
+  const sentAt = new Date().toISOString();
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: #1e293b; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+        <h2 style="margin: 0;">Test notification</h2>
+      </div>
+      <div style="border: 1px solid #e2e8f0; padding: 20px; border-radius: 0 0 8px 8px;">
+        <p style="margin: 0 0 12px 0; color: #1e293b;">
+          This is a test alert from the Outage Dashboard. If you're seeing it,
+          your email channel is wired up correctly.
+        </p>
+        <p style="margin: 0; color: #64748b; font-size: 13px;">
+          No service is currently affected — this message was triggered manually.
+        </p>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 16px 0;">
+        <p style="font-size: 12px; color: #94a3b8; margin: 0;">
+          Sent at ${escapeHtml(sentAt)}
+        </p>
+      </div>
+    </div>
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: process.env.ALERT_FROM || process.env.SMTP_USER,
+      to: email,
+      subject: sanitizeHeader('[TEST] Outage Dashboard notification'),
+      html,
+    });
+    return { ok: true };
+  } catch (err) {
+    console.error('[email] Test alert send failed:', err);
+    return {
+      ok: false,
+      reason: 'send_failed',
+      detail: err instanceof Error ? err.message : undefined,
+    };
+  }
+}
+
 export async function sendStatusChangeAlert(
   serviceSlug: string,
   oldStatus: ServiceStatus,

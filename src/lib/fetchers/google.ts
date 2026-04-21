@@ -83,7 +83,17 @@ export async function fetchGoogleStatus(serviceSlug: string): Promise<FetchResul
       const tracked = GOOGLE_SERVICES.some((gs) => serviceName.includes(gs));
       if (!tracked) continue;
 
-      const isOpen = !inc.end;
+      const updateText = (inc.most_recent_update?.text || '').toLowerCase();
+      // Google sometimes leaves `end` null for hours after posting a
+      // "resolved / back to normal" update. Treating those as still-open
+      // inflates historical downtime (services look like they were degraded
+      // for days when they weren't). If the latest update text clearly
+      // signals resolution, close the incident ourselves.
+      const looksResolved =
+        /\b(resolved|restored|back to normal|no longer affected|issue (?:is|has been) fixed)\b/i.test(
+          updateText,
+        );
+      const isOpen = !inc.end && !looksResolved;
       const statusNum = inc.most_recent_update?.status ?? 1;
       const mapped = severityFromStatus(statusNum);
 

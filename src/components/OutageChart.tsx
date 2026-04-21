@@ -49,28 +49,28 @@ function CustomTooltip({ active, payload, label }: {
   const data = payload[0].payload;
 
   return (
-    <div className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 shadow-xl">
-      <p className="text-xs text-gray-300 mb-1">{label}</p>
+    <div className="surface-elevated rounded-lg px-3 py-2 shadow-xl">
+      <p className="text-xs text-gray-400 mb-1">{label}</p>
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <span
             className="w-2 h-2 rounded-full"
             style={{ backgroundColor: statusToColor(data.status) }}
           />
-          <span className="text-xs text-white capitalize">
+          <span className="text-xs text-foreground capitalize">
             {data.status.replace('_', ' ')}
           </span>
         </div>
-        <p className="text-xs text-gray-200">
-          Reports: <span className="text-white font-medium">{data.reports}</span>
+        <p className="text-xs text-gray-300">
+          Reports: <span className="text-foreground font-medium">{data.reports}</span>
         </p>
         {data.incidents > 0 && (
-          <p className="text-xs text-gray-200">
-            Incidents: <span className="text-white font-medium">{data.incidents}</span>
+          <p className="text-xs text-gray-300">
+            Incidents: <span className="text-foreground font-medium">{data.incidents}</span>
           </p>
         )}
         {data.outageMinutes > 0 && (
-          <p className="text-xs text-gray-200">
+          <p className="text-xs text-gray-300">
             Outage: <span className="text-orange-400 font-medium">{data.outageMinutes}min</span>
           </p>
         )}
@@ -82,8 +82,8 @@ function CustomTooltip({ active, payload, label }: {
 export default function OutageChart({ serviceName, serviceColor, data }: OutageChartProps) {
   if (!data || data.length === 0) {
     return (
-      <div className="bg-gray-800/30 rounded-xl border border-gray-700/50 p-4">
-        <h3 className="text-sm font-semibold text-white mb-3">{serviceName}</h3>
+      <div className="surface-card rounded-xl p-4">
+        <h3 className="text-sm font-semibold text-foreground mb-3">{serviceName}</h3>
         <div className="h-32 flex items-center justify-center text-gray-400 text-xs">
           No history data yet. Data will populate as the dashboard polls services.
         </div>
@@ -103,9 +103,9 @@ export default function OutageChart({ serviceName, serviceColor, data }: OutageC
   const incidentGradId = `grad-incidents-${serviceName.replace(/\s/g, '')}`;
 
   return (
-    <div className="bg-gray-800/30 rounded-xl border border-gray-700/50 p-4">
+    <div className="surface-card rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-white flex items-center gap-2 tracking-tight">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 tracking-tight">
           <span
             className="w-3 h-3 rounded"
             style={{ backgroundColor: serviceColor }}
