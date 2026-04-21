@@ -9,9 +9,35 @@ import {
   usePreferences,
   writePreferences,
 } from '@/hooks/usePreferences';
-import { useTheme } from './ThemeProvider';
+import { useTheme, THEMES, type Theme } from './ThemeProvider';
 import PageHeader from './ui/PageHeader';
 import Card from './ui/Card';
+
+const THEME_PREVIEWS: Record<Theme, {
+  wrapper: string;
+  primaryBar: string;
+  secondaryBar: string;
+  accentBar: string;
+}> = {
+  'solarized-dark': {
+    wrapper: 'bg-[#002b36] border-[#073642]',
+    primaryBar: 'bg-[#93a1a1]',
+    secondaryBar: 'bg-[#586e75]',
+    accentBar: 'bg-[#268bd2]',
+  },
+  'solarized-light': {
+    wrapper: 'bg-[#fdf6e3] border-[#eee8d5]',
+    primaryBar: 'bg-[#586e75]',
+    secondaryBar: 'bg-[#93a1a1]',
+    accentBar: 'bg-[#268bd2]',
+  },
+  'black-grey': {
+    wrapper: 'bg-[#0a0a0a] border-[#1f1f1f]',
+    primaryBar: 'bg-neutral-200',
+    secondaryBar: 'bg-neutral-500',
+    accentBar: 'bg-blue-500',
+  },
+};
 
 export default function SettingsView() {
   const { theme, setTheme } = useTheme();
@@ -51,7 +77,7 @@ export default function SettingsView() {
       /* ignore */
     }
     setPrefs(DEFAULT_PREFERENCES);
-    setTheme('dark');
+    setTheme('solarized-dark');
   };
 
   return (
@@ -74,31 +100,31 @@ export default function SettingsView() {
 
       <Card>
         <h3 className="text-sm font-semibold text-foreground mb-4">Appearance</h3>
-        <div className="grid grid-cols-2 gap-3">
-          {(['dark', 'light'] as const).map((t) => (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {THEMES.map(({ value, label, description }) => (
             <button
-              key={t}
-              onClick={() => setTheme(t)}
-              className={`relative rounded-xl p-4 border-2 transition-colors ${
-                theme === t ? 'border-accent' : 'border-subtle hover:border-strong'
+              key={value}
+              onClick={() => setTheme(value as Theme)}
+              className={`relative rounded-xl p-4 border-2 text-left transition-colors ${
+                theme === value ? 'border-accent' : 'border-subtle hover:border-strong'
               }`}
             >
               <div
-                className={`h-20 rounded-lg mb-3 ${
-                  t === 'dark' ? 'bg-gradient-to-br from-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-100 to-white'
-                } border ${t === 'dark' ? 'border-white/5' : 'border-slate-300'}`}
+                className={`h-20 rounded-lg mb-3 border ${THEME_PREVIEWS[value].wrapper}`}
               >
                 <div className="p-2 space-y-1.5">
-                  <div className={`h-2 w-12 rounded ${t === 'dark' ? 'bg-white/20' : 'bg-slate-400'}`} />
-                  <div className={`h-2 w-20 rounded ${t === 'dark' ? 'bg-white/10' : 'bg-slate-300'}`} />
+                  <div className={`h-2 w-12 rounded ${THEME_PREVIEWS[value].primaryBar}`} />
+                  <div className={`h-2 w-20 rounded ${THEME_PREVIEWS[value].secondaryBar}`} />
+                  <div className={`h-2 w-6 rounded ${THEME_PREVIEWS[value].accentBar}`} />
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-foreground capitalize">{t}</span>
-                {theme === t && (
+                <span className="text-sm font-medium text-foreground">{label}</span>
+                {theme === value && (
                   <span className="text-xs text-accent-cyan">● Active</span>
                 )}
               </div>
+              <p className="text-[11px] text-gray-400 mt-1">{description}</p>
             </button>
           ))}
         </div>

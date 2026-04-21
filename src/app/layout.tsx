@@ -66,7 +66,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" className="solarized-dark" suppressHydrationWarning>
       <body
         className={`${notoSans.variable} ${notoSansMono.variable} ${brandInter.variable} ${brandRoboto.variable} ${brandSourceSans.variable} ${brandLato.variable} font-sans antialiased`}
       >

@@ -71,6 +71,15 @@ export async function fetchSalesforceStatus(serviceSlug: string): Promise<FetchR
             worstStatus = 'major_outage';
           }
 
+          // Deep-link to the Trust incident page. The bare
+          // https://status.salesforce.com/ SPA occasionally renders a blank
+          // shell when opened directly, whereas the /incidents/{id} route
+          // reliably loads the incident detail view.
+          const publicId = inc.externalId || inc.id;
+          const sourceUrl = publicId
+            ? `https://status.salesforce.com/incidents/${encodeURIComponent(publicId)}`
+            : 'https://status.salesforce.com/';
+
           incidents.push({
             serviceSlug,
             incidentId: inc.id || inc.externalId || `sf-${Date.now()}`,
@@ -80,7 +89,7 @@ export async function fetchSalesforceStatus(serviceSlug: string): Promise<FetchR
             startedAt: inc.IncidentImpacts?.[0]?.startTime || new Date().toISOString(),
             resolvedAt: inc.IncidentImpacts?.[0]?.endTime || null,
             description: inc.IncidentEvents?.[0]?.message || null,
-            sourceUrl: 'https://status.salesforce.com/',
+            sourceUrl,
           });
         }
 

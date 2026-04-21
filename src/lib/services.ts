@@ -32,7 +32,9 @@ export const SERVICES: ServiceConfig[] = [
     name: 'Salesforce',
     slug: 'salesforce',
     color: '#00A1E0',
-    statusUrl: 'https://api.status.salesforce.com',
+    // The user-facing Trust dashboard. api.status.salesforce.com returns
+    // JSON-only and renders as a blank page when opened in a browser.
+    statusUrl: 'https://status.salesforce.com',
     downdetectorSlug: 'salesforce',
     fetcher: 'salesforce',
     brandFont: 'var(--font-brand-inter), Inter, system-ui, sans-serif',

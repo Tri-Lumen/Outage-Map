@@ -125,9 +125,9 @@ export default function AnalyticsView() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-sm font-semibold text-foreground">Uptime by service</h2>
-              <p className="text-xs text-gray-500 mt-0.5">30-day rolling window</p>
+              <p className="text-xs text-gray-400 mt-0.5">30-day rolling window</p>
             </div>
-            <span className="text-xs text-gray-500">SLA target: {aggregate.slaTarget}%</span>
+            <span className="text-xs text-gray-400">SLA target: {aggregate.slaTarget}%</span>
           </div>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={uptimeChartData} margin={{ top: 10, right: 20, bottom: 0, left: -10 }}>
@@ -147,10 +147,11 @@ export default function AnalyticsView() {
               />
               <Tooltip
                 contentStyle={{
-                  background: '#0f1320',
-                  border: '1px solid rgba(148,163,184,0.2)',
+                  background: 'var(--surface-elevated)',
+                  border: '1px solid var(--border-strong)',
                   borderRadius: 8,
                   fontSize: 12,
+                  color: 'var(--foreground)',
                 }}
                 formatter={(val) => [`${val}%`, 'Uptime']}
               />
@@ -173,7 +174,7 @@ export default function AnalyticsView() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-white/[0.02] border-b border-subtle">
-                <tr className="text-left text-xs uppercase tracking-wider text-gray-500">
+                <tr className="text-left text-xs uppercase tracking-wider text-gray-400">
                   <th className="px-5 py-3 font-medium">Service</th>
                   <th className="px-5 py-3 font-medium text-right">Uptime</th>
                   <th className="px-5 py-3 font-medium text-right">Downtime</th>
@@ -209,12 +210,12 @@ export default function AnalyticsView() {
                           {r.uptimeLabel}%
                         </span>
                       </td>
-                      <td className="px-5 py-3 text-right text-gray-400 tabular-nums">
+                      <td className="px-5 py-3 text-right text-gray-300 tabular-nums">
                         {r.totalDowntime > 60
                           ? `${(r.totalDowntime / 60).toFixed(1)}h`
                           : `${r.totalDowntime}m`}
                       </td>
-                      <td className="px-5 py-3 text-right text-gray-400 tabular-nums">
+                      <td className="px-5 py-3 text-right text-gray-300 tabular-nums">
                         {r.mttr > 0 ? `${r.mttr}m` : '—'}
                       </td>
                       <td className="px-5 py-3 text-right">
