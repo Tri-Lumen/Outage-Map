@@ -111,9 +111,12 @@ async function fetchSource(source: MsSource, serviceSlug: string): Promise<Sourc
       const desc = $(el).find('p, .description, [class*="desc"]').first().text().trim();
       if (title && title.length > 5) {
         const startedAt = new Date().toISOString();
+        // Hash on a stable identity only — including the per-poll timestamp
+        // would give the same incident a new ID on every poll and flood the
+        // DB with duplicates.
         const hash = crypto
           .createHash('sha256')
-          .update(`${source.name}|${title}|${startedAt}`)
+          .update(`${source.name}|${title}`)
           .digest('hex')
           .slice(0, 16);
         result.incidents.push({

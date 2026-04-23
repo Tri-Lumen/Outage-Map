@@ -76,11 +76,22 @@ export default function IncidentFeed({ incidents }: IncidentFeedProps) {
             const statusInfo = STATUS_LABELS[incident.status] || STATUS_LABELS.investigating;
             const isExpanded = expandedId === incident.id;
 
+            const toggle = () => setExpandedId(isExpanded ? null : incident.id);
             return (
               <div
                 key={incident.id}
-                className={`px-5 py-3 border-l-2 ${severity.border} cursor-pointer hover:bg-gray-700/20 transition-colors`}
-                onClick={() => setExpandedId(isExpanded ? null : incident.id)}
+                role="button"
+                tabIndex={0}
+                aria-expanded={isExpanded}
+                className={`px-5 py-3 border-l-2 ${severity.border} cursor-pointer hover:bg-gray-700/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 transition-colors`}
+                onClick={toggle}
+                onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget) return;
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggle();
+                  }
+                }}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">

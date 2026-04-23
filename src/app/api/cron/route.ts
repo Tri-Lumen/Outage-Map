@@ -5,11 +5,18 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
-  // Verify authorization
+  // Verify authorization. A missing or empty CRON_SECRET must NOT open
+  // the endpoint — reject so an unconfigured deployment isn't a free
+  // poll-trigger for the public internet.
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret) {
+    console.error('[api/cron] CRON_SECRET is not configured; refusing request');
+    return NextResponse.json({ error: 'Not configured' }, { status: 503 });
+  }
+
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
