@@ -76,11 +76,14 @@ function aggregateByDay(
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const days = parseInt(searchParams.get('days') || '30', 10);
+    const daysParam = Number(searchParams.get('days'));
+    const days = Number.isFinite(daysParam) && daysParam > 0
+      ? Math.min(Math.floor(daysParam), 90)
+      : 30;
     const serviceFilter = searchParams.get('service') || null;
 
     const serviceSlug = serviceFilter && serviceFilter !== 'all' ? serviceFilter : null;
-    const rows = getStatusHistory(serviceSlug, Math.min(days, 90));
+    const rows = getStatusHistory(serviceSlug, days);
 
     const history = aggregateByDay(rows);
 
