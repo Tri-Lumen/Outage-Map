@@ -201,13 +201,15 @@ export default function Dashboard() {
                 className="w-44 sm:w-56 pl-9 pr-3 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground placeholder:text-gray-500 focus:outline-none focus:border-accent/50 focus:bg-white/10 transition-colors"
               />
             </div>
-            <div className="flex bg-white/5 rounded-md p-0.5">
+            <div className="flex items-center gap-0.5 p-1 rounded-lg bg-surface border border-subtle">
               {(['all', 'operational', 'issues'] as const).map((f) => (
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
-                  className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-                    filter === f ? 'bg-accent-soft text-foreground' : 'text-gray-400 hover:text-foreground'
+                  className={`px-3 py-1 text-xs rounded-md transition-all duration-150 ${
+                    filter === f
+                      ? 'bg-surface-elevated text-foreground font-semibold shadow-sm'
+                      : 'font-medium text-muted hover:text-foreground'
                   }`}
                 >
                   {f === 'all' ? 'All' : f === 'operational' ? 'OK' : 'Issues'}

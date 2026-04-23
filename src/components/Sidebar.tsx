@@ -131,10 +131,10 @@ export default function Sidebar() {
               key={item.href}
               href={item.href}
               title={collapsed ? item.label : undefined}
-              className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+              className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 ${
                 active
-                  ? 'bg-accent-soft text-foreground'
-                  : 'text-gray-400 hover:text-foreground hover:bg-white/5'
+                  ? 'bg-surface-elevated text-foreground shadow-sm'
+                  : 'text-muted hover:text-foreground hover:bg-white/5'
               }`}
             >
               {active && (
