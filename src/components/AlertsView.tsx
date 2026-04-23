@@ -230,15 +230,15 @@ export default function AlertsView() {
 
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-2">Minimum severity</label>
-              <div className="flex gap-1 bg-white/5 rounded-md p-0.5">
+              <div className="flex items-center gap-0.5 p-1 rounded-lg bg-surface border border-subtle">
                 {SEVERITY_ORDER.map((s) => (
                   <button
                     key={s}
                     onClick={() => setDraft({ ...draft, minSeverity: s })}
-                    className={`flex-1 px-3 py-1.5 rounded text-xs font-medium capitalize transition-colors ${
+                    className={`flex-1 px-3 py-1.5 rounded-md text-xs capitalize transition-all duration-150 ${
                       draft.minSeverity === s
-                        ? 'bg-accent-soft text-foreground'
-                        : 'text-gray-400 hover:text-foreground'
+                        ? 'bg-surface-elevated text-foreground font-semibold shadow-sm'
+                        : 'font-medium text-muted hover:text-foreground'
                     }`}
                   >
                     {s}
@@ -258,10 +258,10 @@ export default function AlertsView() {
                     <button
                       key={s.slug}
                       onClick={() => toggleService(s.slug)}
-                      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150 ${
                         selected
-                          ? 'border-accent/50 bg-accent-soft text-foreground'
-                          : 'border-subtle text-gray-400 hover:border-strong hover:text-foreground'
+                          ? 'border-accent bg-surface-elevated text-foreground shadow-sm'
+                          : 'border-subtle text-muted hover:border-strong hover:text-foreground'
                       }`}
                     >
                       <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.color }} />

@@ -13,14 +13,15 @@ const GOOGLE_SERVICES = [
 const MAJOR_RE = /\b(service disruption|outage in progress|service outage)\b/i;
 const DEGRADED_RE = /\b(service information|minor issue|degraded performance|disrupted)\b/i;
 
-// Google's incidents.json status numbers. 1 = available/normal, higher = worse.
+// Treat any unknown or out-of-range status code as operational to avoid
+// false positives when Google changes their status numbering.
 function severityFromStatus(status: number): ServiceStatus {
   switch (status) {
     case 1: return 'operational';
     case 2: return 'degraded';
     case 3: return 'major_outage';
     case 4: return 'down';
-    default: return 'unknown';
+    default: return 'operational';
   }
 }
 
@@ -90,12 +91,26 @@ export async function fetchGoogleStatus(serviceSlug: string): Promise<FetchResul
       // for days when they weren't). If the latest update text clearly
       // signals resolution, close the incident ourselves.
       const looksResolved =
-        /\b(resolved|restored|back to normal|no longer affected|issue (?:is|has been) fixed)\b/i.test(
+        /\b(resolved|restored|back to normal|no longer affected|issue (?:is|has been) fixed|service (?:is|has been) restored|available|complete)\b/i.test(
           updateText,
         );
-      const isOpen = !inc.end && !looksResolved;
+
+      // Skip incidents whose last update is more than 48 hours old with no end
+      // date — these are zombie incidents that Google never formally closed.
+      const lastUpdateMs = inc.most_recent_update?.when
+        ? new Date(inc.most_recent_update.when).getTime()
+        : null;
+      const isStale = lastUpdateMs !== null && Date.now() - lastUpdateMs > 48 * 60 * 60 * 1000;
+
+      const isOpen = !inc.end && !looksResolved && !isStale;
       const statusNum = inc.most_recent_update?.status ?? 1;
       const mapped = severityFromStatus(statusNum);
+
+      // Use a stable begin time that does not change between polls.
+      // Falling back to new Date() would generate a new incident ID every cycle.
+      const stableBegin = inc.begin || inc.most_recent_update?.when;
+      const startedAt = stableBegin || null;
+      const idSeed = String(inc.id ?? `${serviceName}|${stableBegin ?? 'unknown'}`);
 
       if (isOpen && mapped !== 'operational') {
         affectedServices.add(serviceName);
@@ -105,11 +120,10 @@ export async function fetchGoogleStatus(serviceSlug: string): Promise<FetchResul
           worstStatus = 'degraded';
         }
 
-        const startedAt = inc.begin || new Date().toISOString();
         const title = inc.external_desc?.slice(0, 140) || `${serviceName} incident`;
         incidents.push({
           serviceSlug,
-          incidentId: `gws-${hashId(String(inc.id ?? `${serviceName}|${startedAt}`))}`,
+          incidentId: `gws-${hashId(idSeed)}`,
           title,
           status: 'investigating',
           severity: mapped === 'major_outage' || mapped === 'down' ? 'major' : 'minor',
