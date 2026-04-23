@@ -55,20 +55,6 @@ function mapIncidentStatus(status: string): IncidentStatus {
   }
 }
 
-// Derive overall service status from a list of unresolved incidents.
-// Incidents with impact 'none' are informational and don't affect service status.
-function deriveStatusFromUnresolved(incidents: StatuspageIncident[]): ServiceStatus {
-  let worst: ServiceStatus = 'operational';
-  for (const inc of incidents) {
-    if (inc.impact === 'none') continue;
-    const sev = mapImpactToSeverity(inc.impact);
-    if (sev === 'critical') return 'down';
-    if (sev === 'major') { worst = 'major_outage'; }
-    else if (worst === 'operational') { worst = 'degraded'; }
-  }
-  return worst;
-}
-
 export async function fetchStatuspageStatus(baseUrl: string, serviceSlug: string): Promise<FetchResult> {
   const statusResult: StatusResult = {
     serviceSlug,
@@ -79,41 +65,49 @@ export async function fetchStatuspageStatus(baseUrl: string, serviceSlug: string
   };
   const incidents: IncidentResult[] = [];
 
-  // Primary status source: unresolved incidents endpoint.
-  // The status.json indicator includes scheduled maintenance windows which can
-  // show 'minor' even when no real service disruption exists. Using unresolved
-  // incidents as the source of truth avoids those false "degraded" reports.
-  let statusDetermined = false;
-  try {
-    const unresolvedRes = await fetch(`${baseUrl}/api/v2/incidents/unresolved.json`, {
+  // Fetch status.json (overall indicator) and incidents/unresolved.json in parallel.
+  // status.json is the primary source of truth; unresolved.json is used only to
+  // correct a false "minor/degraded" reading caused by scheduled maintenance —
+  // Statuspage rolls maintenance windows into the overall indicator even when no
+  // actual service disruption exists. If unresolved incidents are empty while the
+  // indicator says "minor", we downgrade to operational.
+  const [statusRes, unresolvedRes] = await Promise.allSettled([
+    fetch(`${baseUrl}/api/v2/status.json`, {
       headers: { 'Accept': 'application/json' },
       signal: AbortSignal.timeout(10000),
-    });
+    }),
+    fetch(`${baseUrl}/api/v2/incidents/unresolved.json`, {
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(10000),
+    }),
+  ]);
 
-    if (unresolvedRes.ok) {
-      const data: StatuspageIncidentsResponse = await unresolvedRes.json();
-      statusResult.status = deriveStatusFromUnresolved(data.incidents);
-      statusDetermined = true;
+  // Parse status.json
+  if (statusRes.status === 'fulfilled' && statusRes.value.ok) {
+    try {
+      const data: StatuspageStatus = await statusRes.value.json();
+      statusResult.status = mapIndicatorToStatus(data.status.indicator);
+      statusResult.details = data.status.description;
+    } catch (err) {
+      console.error(`[statuspage] Failed to parse status.json for ${serviceSlug}:`, err);
     }
-  } catch (err) {
-    console.error(`[statuspage] Failed to fetch unresolved incidents for ${serviceSlug}:`, err);
+  } else if (statusRes.status === 'rejected') {
+    console.error(`[statuspage] Network error fetching status.json for ${serviceSlug}:`, statusRes.reason);
+  } else {
+    console.error(`[statuspage] HTTP ${statusRes.value.status} from status.json for ${serviceSlug} — check that ${baseUrl}/api/v2/status.json is reachable and returns valid Statuspage v2 JSON`);
   }
 
-  // Fallback: use status.json indicator if the unresolved endpoint failed.
-  if (!statusDetermined) {
+  // Apply maintenance-aware correction: if the indicator says degraded but there
+  // are no active incidents, the elevation is from maintenance only — drop it.
+  if (statusResult.status === 'degraded' && unresolvedRes.status === 'fulfilled' && unresolvedRes.value.ok) {
     try {
-      const statusRes = await fetch(`${baseUrl}/api/v2/status.json`, {
-        headers: { 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(10000),
-      });
-
-      if (statusRes.ok) {
-        const data: StatuspageStatus = await statusRes.json();
-        statusResult.status = mapIndicatorToStatus(data.status.indicator);
-        statusResult.details = data.status.description;
+      const data: StatuspageIncidentsResponse = await unresolvedRes.value.json();
+      const realIncidents = (data.incidents || []).filter((inc) => inc.impact !== 'none');
+      if (realIncidents.length === 0) {
+        statusResult.status = 'operational';
       }
-    } catch (err) {
-      console.error(`[statuspage] Failed to fetch status for ${serviceSlug}:`, err);
+    } catch {
+      // Ignore parse errors — keep the indicator-derived status
     }
   }
 
@@ -126,7 +120,7 @@ export async function fetchStatuspageStatus(baseUrl: string, serviceSlug: string
 
     if (incidentsRes.ok) {
       const data: StatuspageIncidentsResponse = await incidentsRes.json();
-      const recentIncidents = data.incidents.slice(0, 10);
+      const recentIncidents = (data.incidents || []).slice(0, 10);
 
       for (const inc of recentIncidents) {
         const latestUpdate = inc.incident_updates?.[0];
