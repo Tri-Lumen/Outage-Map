@@ -175,14 +175,35 @@ If you host your own prebuilt image in a registry (e.g. GHCR, Docker
 Hub), change the `image:` tag in `docker-compose.yml` to point at it and
 remove `pull_policy: build` (and optionally the `build:` block).
 
+## Environment variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DATABASE_PATH` | `./data/outage.db` | SQLite file location. Mounted as a volume in Docker. |
+| `POLL_INTERVAL_MINUTES` | `3` | Poll cadence. Must divide 60 (`1,2,3,4,5,6,10,12,15,20,30,60`); other values are clamped to 3. |
+| `CRON_SECRET` | _required_ | Bearer token guarding `POST /api/cron` and — unless `ENABLE_RULES_API=true` — writes on `/api/alerts/rules`. Endpoint returns `503` if unset. |
+| `ENABLE_RULES_API` | `false` | When `true`, allows the dashboard UI to write to `/api/alerts/rules` without a token. Use only on trusted networks. |
+| `DOWNDETECTOR_ENABLED` | `true` | Set to `false` to skip Downdetector scraping entirely. |
+| `DD_REPORT_THRESHOLD_DEGRADED` | `100` | DD reports at or above this number flip the service to `degraded`. |
+| `DD_REPORT_THRESHOLD_MAJOR` | `500` | DD reports at or above this number flip the service to `major_outage` (only when an official incident is also active). |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | _unset_ | SMTP transport. Email alerts are skipped if any of these are missing. |
+| `SMTP_REJECT_UNAUTHORIZED` | `true` | Enforce TLS certificate validation. Set to `false` only for self-signed dev servers. |
+| `ALERT_FROM` | `SMTP_USER` | `From:` address on outgoing alert emails. |
+| `ALERT_EMAILS` | _empty_ | Comma-separated fallback recipients used when no alert rule matches an incident. |
+| `DEBUG` | `false` | Set to `true` for verbose poller logs (per-service status lines). |
+| `APP_PORT` | `3100` | Host port published by `docker-compose.yml`. |
+
 ## API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/status` | GET | Current status for all 14 services |
-| `/api/incidents?days=7` | GET | Recent incidents feed |
+| `/api/incidents?days=7&service=slack` | GET | Recent incidents feed. `days` clamped to 1–90; unknown service slugs return empty. |
 | `/api/history?days=30` | GET | 30-day outage history for charts |
-| `/api/cron` | POST | Manually trigger a poll cycle (requires `Bearer $CRON_SECRET` when set) |
+| `/api/cron` | POST | Manually trigger a poll cycle. Requires `Bearer $CRON_SECRET`; rate-limited to 1 request / 30s per IP. |
+| `/api/alerts/rules` | GET / POST | List / create alert rules. Writes need Bearer auth (or `ENABLE_RULES_API=true`). |
+| `/api/alerts/rules/:id` | PATCH / DELETE | Update or remove a rule. Same auth as POST. |
+| `/api/alerts/test` | POST | Send a test email to verify SMTP wiring. |
 
 ## Architecture
 

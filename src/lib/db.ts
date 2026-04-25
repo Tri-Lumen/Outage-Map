@@ -63,6 +63,12 @@ function initTables(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_history_service_date
       ON status_history(service_slug, recorded_at);
 
+    CREATE INDEX IF NOT EXISTS idx_incidents_service_created
+      ON incidents(service_slug, created_at);
+
+    CREATE INDEX IF NOT EXISTS idx_incidents_resolved
+      ON incidents(resolved_at);
+
     CREATE TABLE IF NOT EXISTS alert_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       service_slug TEXT NOT NULL,
@@ -70,6 +76,23 @@ function initTables(db: Database.Database) {
       alert_type TEXT NOT NULL,
       sent_at DATETIME NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE INDEX IF NOT EXISTS idx_alert_log_lookup
+      ON alert_log(service_slug, alert_type, sent_at);
+
+    CREATE TABLE IF NOT EXISTS alert_rules (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      services TEXT NOT NULL DEFAULT '[]',
+      min_severity TEXT NOT NULL DEFAULT 'major',
+      email_enabled INTEGER NOT NULL DEFAULT 1,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at DATETIME NOT NULL DEFAULT (datetime('now')),
+      updated_at DATETIME NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_alert_rules_enabled
+      ON alert_rules(enabled);
   `);
 
   // Safe migration for pre-existing databases — add incident_count if missing.
@@ -246,4 +269,102 @@ export function cleanupOldHistory(days: number = 35) {
   db.prepare(`
     DELETE FROM status_history WHERE recorded_at < datetime('now', '-' || ? || ' days')
   `).run(days);
+}
+
+export function cleanupOldIncidents(days: number = 90) {
+  const db = getDb();
+  // Only prune resolved incidents past the retention window — unresolved ones
+  // must stay visible regardless of age.
+  const result = db.prepare(`
+    DELETE FROM incidents
+    WHERE resolved_at IS NOT NULL
+      AND created_at < datetime('now', '-' || ? || ' days')
+  `).run(days);
+  return result.changes;
+}
+
+export function vacuumDb() {
+  const db = getDb();
+  db.exec('VACUUM;');
+}
+
+export interface AlertRuleRow {
+  id: string;
+  email: string;
+  services: string;
+  min_severity: string;
+  email_enabled: number;
+  enabled: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export function listAlertRules(): AlertRuleRow[] {
+  const db = getDb();
+  return db.prepare(`
+    SELECT id, email, services, min_severity, email_enabled, enabled, created_at, updated_at
+    FROM alert_rules
+    ORDER BY created_at DESC
+  `).all() as AlertRuleRow[];
+}
+
+export function listEnabledAlertRules(): AlertRuleRow[] {
+  const db = getDb();
+  return db.prepare(`
+    SELECT id, email, services, min_severity, email_enabled, enabled, created_at, updated_at
+    FROM alert_rules
+    WHERE enabled = 1
+  `).all() as AlertRuleRow[];
+}
+
+export function insertAlertRule(row: {
+  id: string;
+  email: string;
+  services: string;
+  minSeverity: string;
+  emailEnabled: boolean;
+  enabled: boolean;
+}) {
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO alert_rules (id, email, services, min_severity, email_enabled, enabled)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    row.id,
+    row.email,
+    row.services,
+    row.minSeverity,
+    row.emailEnabled ? 1 : 0,
+    row.enabled ? 1 : 0,
+  );
+}
+
+export function updateAlertRule(
+  id: string,
+  patch: Partial<{
+    email: string;
+    services: string;
+    minSeverity: string;
+    emailEnabled: boolean;
+    enabled: boolean;
+  }>,
+): boolean {
+  const db = getDb();
+  const fields: string[] = [];
+  const values: Array<string | number> = [];
+  if (patch.email !== undefined) { fields.push('email = ?'); values.push(patch.email); }
+  if (patch.services !== undefined) { fields.push('services = ?'); values.push(patch.services); }
+  if (patch.minSeverity !== undefined) { fields.push('min_severity = ?'); values.push(patch.minSeverity); }
+  if (patch.emailEnabled !== undefined) { fields.push('email_enabled = ?'); values.push(patch.emailEnabled ? 1 : 0); }
+  if (patch.enabled !== undefined) { fields.push('enabled = ?'); values.push(patch.enabled ? 1 : 0); }
+  if (fields.length === 0) return false;
+  fields.push(`updated_at = datetime('now')`);
+  values.push(id);
+  const result = db.prepare(`UPDATE alert_rules SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return result.changes > 0;
+}
+
+export function deleteAlertRule(id: string): boolean {
+  const db = getDb();
+  return db.prepare('DELETE FROM alert_rules WHERE id = ?').run(id).changes > 0;
 }

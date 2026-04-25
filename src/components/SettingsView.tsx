@@ -105,7 +105,8 @@ export default function SettingsView() {
             <button
               key={value}
               onClick={() => setTheme(value as Theme)}
-              className={`relative rounded-xl p-4 border-2 text-left transition-colors ${
+              aria-pressed={theme === value}
+              className={`relative rounded-xl p-4 border-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                 theme === value ? 'border-accent' : 'border-subtle hover:border-strong'
               }`}
             >
@@ -158,11 +159,11 @@ export default function SettingsView() {
           <div className="flex items-center justify-between py-2 border-t border-subtle">
             <div>
               <p className="text-sm text-foreground">Show Downdetector reports</p>
-              <p className="text-[11px] text-gray-500">Include crowd-sourced data alongside official statuses</p>
+              <p className="text-[11px] text-muted-strong">Include crowd-sourced data alongside official statuses. Thresholds are configured server-side via <code className="text-foreground">DD_REPORT_THRESHOLD_DEGRADED</code> and <code className="text-foreground">DD_REPORT_THRESHOLD_MAJOR</code>.</p>
             </div>
             <button
               onClick={() => update('showDowndetector', !prefs.showDowndetector)}
-              className={`relative w-11 h-6 rounded-full transition-colors ${
+              className={`relative w-11 h-6 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                 prefs.showDowndetector ? 'bg-accent' : 'bg-white/10'
               }`}
               aria-label="Toggle Downdetector"
@@ -182,7 +183,7 @@ export default function SettingsView() {
             </div>
             <button
               onClick={() => update('compactCards', !prefs.compactCards)}
-              className={`relative w-11 h-6 rounded-full transition-colors ${
+              className={`relative w-11 h-6 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                 prefs.compactCards ? 'bg-accent' : 'bg-white/10'
               }`}
               aria-label="Toggle compact"

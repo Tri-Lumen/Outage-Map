@@ -6,8 +6,11 @@ import {
   upsertIncident,
   getServiceStatuses,
   cleanupOldHistory,
+  cleanupOldIncidents,
+  vacuumDb,
 } from './db';
 import { sendIncidentAlert, sendStatusChangeAlert } from './email';
+import { evaluateRulesForIncident } from './alerts/rules';
 import { fetchStatuspageStatus } from './fetchers/statuspage';
 import { fetchMicrosoftStatus } from './fetchers/microsoft';
 import { fetchSalesforceStatus } from './fetchers/salesforce';
@@ -57,7 +60,9 @@ function getPreviousStatus(serviceSlug: string): ServiceStatus | null {
 }
 
 async function pollService(service: ServiceConfig): Promise<{ ddReports: number }> {
-  console.log(`[poller] Polling ${service.name}...`);
+  if (process.env.DEBUG === 'true') {
+    console.log(`[poller] Polling ${service.name}...`);
+  }
 
   const previousStatus = getPreviousStatus(service.slug);
 
@@ -95,9 +100,12 @@ async function pollService(service: ServiceConfig): Promise<{ ddReports: number 
         incident.sourceUrl
       );
 
-      // Send alert for new major/critical incidents
+      // Send alert for new major/critical incidents. Recipients come from the
+      // alert_rules table; if no rule matches, fall back to ALERT_EMAILS so
+      // env-only deployments keep working.
       if (isNew && (incident.severity === 'major' || incident.severity === 'critical')) {
-        await sendIncidentAlert(incident);
+        const ruleRecipients = evaluateRulesForIncident(incident);
+        await sendIncidentAlert(incident, ruleRecipients);
       }
     }
 
@@ -131,14 +139,18 @@ async function pollService(service: ServiceConfig): Promise<{ ddReports: number 
   const reportCount = ddStatus?.reportCount || 0;
   insertStatusHistory(service.slug, effectiveStatus, reportCount, activeIncidentCount);
 
-  console.log(
-    `[poller] ${service.name}: ${effectiveStatus} (DD: ${reportCount} reports, active incidents: ${activeIncidentCount})`
-  );
+  if (process.env.DEBUG === 'true') {
+    console.log(
+      `[poller] ${service.name}: ${effectiveStatus} (DD: ${reportCount} reports, active incidents: ${activeIncidentCount})`,
+    );
+  }
 
   return { ddReports: reportCount };
 }
 
 let isPolling = false;
+let lastVacuumAt = 0;
+const VACUUM_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 export async function runPollCycle(): Promise<{ success: boolean; polled: number; errors: number }> {
   if (isPolling) {
@@ -147,7 +159,9 @@ export async function runPollCycle(): Promise<{ success: boolean; polled: number
   }
 
   isPolling = true;
-  console.log(`[poller] Starting poll cycle at ${new Date().toISOString()}`);
+  if (process.env.DEBUG === 'true') {
+    console.log(`[poller] Starting poll cycle at ${new Date().toISOString()}`);
+  }
 
   let polled = 0;
   let errors = 0;
@@ -176,10 +190,22 @@ export async function runPollCycle(): Promise<{ success: boolean; polled: number
       );
     }
 
-    // Cleanup old history data
+    // Cleanup old history + resolved incidents; VACUUM at most once per day.
     cleanupOldHistory(35);
-
-    console.log(`[poller] Poll cycle complete: ${polled} succeeded, ${errors} failed`);
+    const prunedIncidents = cleanupOldIncidents(90);
+    if (Date.now() - lastVacuumAt > VACUUM_INTERVAL_MS) {
+      try {
+        vacuumDb();
+        lastVacuumAt = Date.now();
+      } catch (err) {
+        console.error('[poller] VACUUM failed:', err);
+      }
+    }
+    if (process.env.DEBUG === 'true' || prunedIncidents > 0) {
+      console.log(
+        `[poller] Poll cycle complete: ${polled} succeeded, ${errors} failed, ${prunedIncidents} incidents pruned`,
+      );
+    }
   } finally {
     isPolling = false;
   }
