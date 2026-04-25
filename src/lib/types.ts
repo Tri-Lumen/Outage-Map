@@ -80,3 +80,35 @@ export interface HistoryPoint {
 export interface HistoryResponse {
   history: Record<string, HistoryPoint[]>;
 }
+
+export interface AlertRule {
+  id: string;
+  email: string;
+  services: string[];
+  minSeverity: IncidentSeverity;
+  emailEnabled: boolean;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const INCIDENT_STATUSES: ReadonlyArray<IncidentStatus> = [
+  'investigating', 'identified', 'monitoring', 'resolved',
+];
+const INCIDENT_SEVERITIES: ReadonlyArray<IncidentSeverity> = ['minor', 'major', 'critical'];
+
+export function isIncidentStatus(value: unknown): value is IncidentStatus {
+  return typeof value === 'string' && (INCIDENT_STATUSES as ReadonlyArray<string>).includes(value);
+}
+
+export function isIncidentSeverity(value: unknown): value is IncidentSeverity {
+  return typeof value === 'string' && (INCIDENT_SEVERITIES as ReadonlyArray<string>).includes(value);
+}
+
+export function asIncidentStatus(value: unknown): IncidentStatus {
+  return isIncidentStatus(value) ? value : 'investigating';
+}
+
+export function asIncidentSeverity(value: unknown): IncidentSeverity {
+  return isIncidentSeverity(value) ? value : 'minor';
+}

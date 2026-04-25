@@ -42,18 +42,19 @@ export default function IncidentFeed({ incidents }: IncidentFeedProps) {
   });
 
   return (
-    <div className="bg-gray-800/30 rounded-xl border border-gray-700/50 overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-700/50 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-white">Recent Incidents</h2>
+    <div className="surface-card rounded-xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-subtle flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-foreground">Recent Incidents</h2>
         <div className="flex gap-1">
           {(['all', 'active', 'resolved'] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+              aria-pressed={filter === f}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                 filter === f
-                  ? 'bg-blue-500/20 text-blue-400'
-                  : 'text-gray-400 hover:text-gray-300 hover:bg-gray-700/50'
+                  ? 'bg-accent-soft text-foreground'
+                  : 'text-muted hover:text-foreground hover:bg-surface-elevated'
               }`}
             >
               {f.charAt(0).toUpperCase() + f.slice(1)}
@@ -62,10 +63,10 @@ export default function IncidentFeed({ incidents }: IncidentFeedProps) {
         </div>
       </div>
 
-      <div className="divide-y divide-gray-700/30 max-h-96 overflow-y-auto">
+      <div className="divide-y divide-[var(--border-subtle)] max-h-96 overflow-y-auto">
         {filtered.length === 0 ? (
-          <div className="px-5 py-8 text-center text-gray-500">
-            <svg className="w-12 h-12 mx-auto mb-3 text-gray-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+          <div className="px-5 py-8 text-center text-muted">
+            <svg className="w-12 h-12 mx-auto mb-3 text-muted-strong" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <p>No incidents to display</p>
@@ -83,7 +84,7 @@ export default function IncidentFeed({ incidents }: IncidentFeedProps) {
                 role="button"
                 tabIndex={0}
                 aria-expanded={isExpanded}
-                className={`px-5 py-3 border-l-2 ${severity.border} cursor-pointer hover:bg-gray-700/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 transition-colors`}
+                className={`px-5 py-3 border-l-2 ${severity.border} cursor-pointer hover:bg-surface-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors`}
                 onClick={toggle}
                 onKeyDown={(e) => {
                   if (e.target !== e.currentTarget) return;
@@ -97,18 +98,18 @@ export default function IncidentFeed({ incidents }: IncidentFeedProps) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`w-1.5 h-1.5 rounded-full ${severity.dot} flex-shrink-0`} />
-                      <span className="text-xs font-medium text-gray-400">
+                      <span className="text-xs font-medium text-muted">
                         {incident.serviceName}
                       </span>
                       <span className={`text-xs font-medium ${statusInfo.color}`}>
                         {statusInfo.label}
                       </span>
                     </div>
-                    <p className="text-sm text-white font-medium truncate">
+                    <p className="text-sm text-foreground font-medium truncate">
                       {incident.title}
                     </p>
                   </div>
-                  <span className="text-xs text-gray-500 flex-shrink-0">
+                  <span className="text-xs text-muted-strong flex-shrink-0">
                     {formatDate(incident.startedAt)}
                   </span>
                 </div>
@@ -116,12 +117,12 @@ export default function IncidentFeed({ incidents }: IncidentFeedProps) {
                 {isExpanded && (
                   <div className="mt-2 ml-3.5 space-y-2">
                     {incident.description && (
-                      <p className="text-xs text-gray-400 leading-relaxed">
+                      <p className="text-xs text-muted leading-relaxed">
                         {incident.description}
                       </p>
                     )}
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span>Severity: <span className="text-gray-300 capitalize">{incident.severity}</span></span>
+                    <div className="flex items-center gap-4 text-xs text-muted-strong">
+                      <span>Severity: <span className="text-foreground capitalize">{incident.severity}</span></span>
                       {incident.resolvedAt && (
                         <span>Resolved: {formatDate(incident.resolvedAt)}</span>
                       )}
@@ -130,7 +131,7 @@ export default function IncidentFeed({ incidents }: IncidentFeedProps) {
                           href={incident.sourceUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-400 hover:text-blue-300"
+                          className="text-accent-cyan hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
                           onClick={(e) => e.stopPropagation()}
                         >
                           View source

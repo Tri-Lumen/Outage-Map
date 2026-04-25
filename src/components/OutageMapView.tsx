@@ -129,10 +129,9 @@ export default function OutageMapView() {
   const maxReports = Math.max(1, ...activeData.map((r) => r.total));
   const totalReports = activeData.reduce((s, r) => s + r.total, 0);
   const hotspotRegions = activeData.filter((r) => r.total > maxReports * 0.5).length;
-  const peak = activeData.reduce(
-    (a, b) => (b.total > a.total ? b : a),
-    activeData[0],
-  );
+  const peak = activeData.length
+    ? activeData.reduce((a, b) => (b.total > a.total ? b : a), activeData[0])
+    : null;
 
   return (
     <div className="space-y-8">
@@ -196,7 +195,7 @@ export default function OutageMapView() {
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap transition-colors ${
                 selectedService === 'all'
                   ? 'bg-accent-soft text-foreground'
-                  : 'text-gray-400 hover:text-foreground'
+                  : 'text-muted hover:text-foreground'
               }`}
             >
               All services
@@ -208,7 +207,7 @@ export default function OutageMapView() {
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap transition-colors ${
                   selectedService === s.slug
                     ? 'bg-accent-soft text-foreground'
-                    : 'text-gray-400 hover:text-foreground'
+                    : 'text-muted hover:text-foreground'
                 }`}
               >
                 <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.color }} />
@@ -235,16 +234,16 @@ export default function OutageMapView() {
             />
           )}
 
-          <div className="absolute bottom-4 left-4 flex items-center gap-3 px-3 py-2 rounded-lg bg-black/40 backdrop-blur-sm border border-subtle">
-            <span className="text-[10px] text-gray-400 uppercase tracking-wider">Scale</span>
-            <div className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded-full bg-slate-600" />
-              <span className="w-3 h-3 rounded-full bg-sky-500" />
-              <span className="w-3 h-3 rounded-full bg-yellow-500" />
-              <span className="w-3 h-3 rounded-full bg-orange-500" />
-              <span className="w-3 h-3 rounded-full bg-red-500" />
+          <div className="absolute bottom-4 left-4 flex items-center gap-3 px-3 py-2 rounded-lg surface-elevated">
+            <span className="text-[10px] text-muted uppercase tracking-wider">Scale</span>
+            <div className="flex items-center gap-1" aria-hidden="true">
+              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: heatColor(0) }} />
+              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: heatColor(0.2) }} />
+              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: heatColor(0.4) }} />
+              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: heatColor(0.6) }} />
+              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: heatColor(0.9) }} />
             </div>
-            <span className="text-[10px] text-gray-500">low → high</span>
+            <span className="text-[10px] text-muted-strong">low → high</span>
           </div>
         </div>
       </Card>
@@ -262,12 +261,12 @@ export default function OutageMapView() {
               const pct = r.total / maxReports;
               return (
                 <Card key={r.id} className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-xs font-mono text-gray-400">
+                  <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-xs font-mono text-muted">
                     #{i + 1}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-foreground font-medium truncate">{r.name}</p>
-                    <p className="text-xs text-gray-500">{r.total.toLocaleString()} reports</p>
+                    <p className="text-xs text-muted-strong">{r.total.toLocaleString()} reports</p>
                   </div>
                   <span
                     className="w-8 h-8 rounded-full"
@@ -418,7 +417,7 @@ function NorthAmericaMap({ data, maxReports, hoverRegion, setHoverRegion }: MapP
             <text
               x={hubX}
               y={hubY - 6}
-              fill="#f9fafb"
+              fill="var(--foreground)"
               fontSize="13"
               fontWeight={600}
               textAnchor="middle"
@@ -429,7 +428,7 @@ function NorthAmericaMap({ data, maxReports, hoverRegion, setHoverRegion }: MapP
             <text
               x={hubX}
               y={hubY + 10}
-              fill="#cbd5e1"
+              fill="var(--muted)"
               fontSize="11"
               textAnchor="middle"
               style={{ pointerEvents: 'none' }}
@@ -467,14 +466,22 @@ function Tooltip({
 }) {
   return (
     <g style={{ pointerEvents: 'none' }}>
-      <rect x={x} y={y} width={180} height={56} rx={6} fill="#0f1320" stroke="rgba(148,163,184,0.3)" />
-      <text x={x + 10} y={y + 18} fill="#f9fafb" fontSize="11" fontWeight={600}>
+      <rect
+        x={x}
+        y={y}
+        width={180}
+        height={56}
+        rx={6}
+        fill="var(--surface-elevated)"
+        stroke="var(--border-strong)"
+      />
+      <text x={x + 10} y={y + 18} fill="var(--foreground)" fontSize="11" fontWeight={600}>
         {name}
       </text>
-      <text x={x + 10} y={y + 34} fill="#94a3b8" fontSize="10">
+      <text x={x + 10} y={y + 34} fill="var(--muted)" fontSize="10">
         {total.toLocaleString()} reports
       </text>
-      <text x={x + 10} y={y + 48} fill="#64748b" fontSize="9">
+      <text x={x + 10} y={y + 48} fill="var(--muted-strong)" fontSize="9">
         {services} services tracked
       </text>
     </g>

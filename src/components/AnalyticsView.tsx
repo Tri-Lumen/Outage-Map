@@ -127,21 +127,21 @@ export default function AnalyticsView() {
               <h2 className="text-sm font-semibold text-foreground">Uptime by service</h2>
               <p className="text-xs text-gray-400 mt-0.5">30-day rolling window</p>
             </div>
-            <span className="text-xs text-gray-400">SLA target: {aggregate.slaTarget}%</span>
+            <span className="text-xs text-muted">SLA target: {aggregate.slaTarget}%</span>
           </div>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={uptimeChartData} margin={{ top: 10, right: 20, bottom: 0, left: -10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
               <XAxis
                 dataKey="name"
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
-                axisLine={{ stroke: 'rgba(148,163,184,0.2)' }}
+                tick={{ fill: 'var(--muted)', fontSize: 11 }}
+                axisLine={{ stroke: 'var(--border-strong)' }}
                 tickLine={false}
               />
               <YAxis
                 domain={[yMin, 100]}
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
-                axisLine={{ stroke: 'rgba(148,163,184,0.2)' }}
+                tick={{ fill: 'var(--muted)', fontSize: 11 }}
+                axisLine={{ stroke: 'var(--border-strong)' }}
                 tickLine={false}
                 tickFormatter={(v) => `${v}%`}
               />
@@ -174,7 +174,7 @@ export default function AnalyticsView() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-white/[0.02] border-b border-subtle">
-                <tr className="text-left text-xs uppercase tracking-wider text-gray-400">
+                <tr className="text-left text-xs uppercase tracking-wider text-muted">
                   <th className="px-5 py-3 font-medium">Service</th>
                   <th className="px-5 py-3 font-medium text-right">Uptime</th>
                   <th className="px-5 py-3 font-medium text-right">Downtime</th>

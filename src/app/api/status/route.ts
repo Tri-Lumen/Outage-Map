@@ -7,14 +7,18 @@ export const dynamic = 'force-dynamic';
 
 function deriveOverallStatus(
   official: ServiceStatus,
-  downdetector: ServiceStatus
+  downdetector: ServiceStatus,
+  officialIncidentCount: number,
 ): ServiceStatus {
-  // If official reports an issue, trust it
+  // Official outage signal always wins.
   if (official === 'down' || official === 'major_outage') return official;
-  if (downdetector === 'down' || downdetector === 'major_outage') return 'major_outage';
+  // Only escalate to major based on Downdetector alone if the official source
+  // also has an active incident — Downdetector spikes by themselves are noisy.
+  if ((downdetector === 'down' || downdetector === 'major_outage') && officialIncidentCount > 0) {
+    return 'major_outage';
+  }
   if (official === 'degraded' || downdetector === 'degraded') return 'degraded';
   if (official === 'operational') return 'operational';
-  // If official is unknown, use downdetector
   if (official === 'unknown' && downdetector !== 'unknown') return downdetector;
   return official;
 }
@@ -32,8 +36,9 @@ export async function GET() {
         (s) => s.service_slug === service.slug && s.source === 'downdetector'
       );
 
-      const officialStatus = (official?.status as ServiceStatus) || 'unknown';
-      const ddStatus = (dd?.status as ServiceStatus) || 'unknown';
+      const officialStatus: ServiceStatus = (official?.status as ServiceStatus) || 'unknown';
+      const ddStatus: ServiceStatus = (dd?.status as ServiceStatus) || 'unknown';
+      const incidentCount = activeIncidentCounts[service.slug] || 0;
 
       return {
         slug: service.slug,
@@ -42,8 +47,8 @@ export async function GET() {
         officialStatus,
         downdetectorStatus: ddStatus,
         downdetectorReports: dd?.report_count || 0,
-        incidentCount: activeIncidentCounts[service.slug] || 0,
-        overallStatus: deriveOverallStatus(officialStatus, ddStatus),
+        incidentCount,
+        overallStatus: deriveOverallStatus(officialStatus, ddStatus, incidentCount),
         details: official?.details || null,
         lastChecked: official?.checked_at || dd?.checked_at || null,
         statusUrl: service.statusUrl,

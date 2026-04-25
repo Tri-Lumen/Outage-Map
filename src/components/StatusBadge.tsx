@@ -29,9 +29,9 @@ const STATUS_CONFIG: Record<ServiceStatus, { label: string; bg: string; text: st
   },
   unknown: {
     label: 'Unknown',
-    bg: 'bg-gray-500/10',
-    text: 'text-gray-400',
-    dot: 'bg-gray-400',
+    bg: 'bg-[color:var(--surface-elevated)]',
+    text: 'text-muted',
+    dot: 'bg-muted',
   },
 };
 
@@ -57,9 +57,12 @@ export default function StatusBadge({ status, size = 'md' }: StatusBadgeProps) {
 
   return (
     <span
+      role="status"
+      aria-label={`Status: ${config.label}`}
       className={`inline-flex items-center gap-1.5 rounded-full font-medium ${config.bg} ${config.text} ${sizeClasses[size]}`}
     >
       <span
+        aria-hidden="true"
         className={`${dotSizes[size]} rounded-full ${config.dot} ${
           status !== 'operational' && status !== 'unknown' ? 'animate-pulse' : ''
         }`}

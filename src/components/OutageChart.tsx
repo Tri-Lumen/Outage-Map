@@ -50,7 +50,7 @@ function CustomTooltip({ active, payload, label }: {
 
   return (
     <div className="surface-elevated rounded-lg px-3 py-2 shadow-xl">
-      <p className="text-xs text-gray-400 mb-1">{label}</p>
+      <p className="text-xs text-muted mb-1">{label}</p>
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <span
@@ -61,16 +61,16 @@ function CustomTooltip({ active, payload, label }: {
             {data.status.replace('_', ' ')}
           </span>
         </div>
-        <p className="text-xs text-gray-300">
+        <p className="text-xs text-muted">
           Reports: <span className="text-foreground font-medium">{data.reports}</span>
         </p>
         {data.incidents > 0 && (
-          <p className="text-xs text-gray-300">
+          <p className="text-xs text-muted">
             Incidents: <span className="text-foreground font-medium">{data.incidents}</span>
           </p>
         )}
         {data.outageMinutes > 0 && (
-          <p className="text-xs text-gray-300">
+          <p className="text-xs text-muted">
             Outage: <span className="text-orange-400 font-medium">{data.outageMinutes}min</span>
           </p>
         )}
@@ -84,8 +84,8 @@ export default function OutageChart({ serviceName, serviceColor, data }: OutageC
     return (
       <div className="surface-card rounded-xl p-4">
         <h3 className="text-sm font-semibold text-foreground mb-3">{serviceName}</h3>
-        <div className="h-32 flex items-center justify-center text-gray-400 text-xs">
-          No history data yet. Data will populate as the dashboard polls services.
+        <div className="h-32 flex items-center justify-center text-muted text-xs text-center px-2">
+          No history yet — first data point appears after the next poll cycle.
         </div>
       </div>
     );
@@ -112,7 +112,7 @@ export default function OutageChart({ serviceName, serviceColor, data }: OutageC
           />
           {serviceName}
         </h3>
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-muted">
           {data.length} days
         </span>
       </div>
@@ -128,17 +128,17 @@ export default function OutageChart({ serviceName, serviceColor, data }: OutageC
               <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-strong)" />
           <XAxis
             dataKey="date"
-            tick={{ fill: '#9ca3af', fontSize: 10 }}
-            axisLine={{ stroke: '#4b5563' }}
+            tick={{ fill: 'var(--muted)', fontSize: 10 }}
+            axisLine={{ stroke: 'var(--border-strong)' }}
             tickLine={false}
             interval="preserveStartEnd"
           />
           <YAxis
-            tick={{ fill: '#9ca3af', fontSize: 10 }}
-            axisLine={{ stroke: '#4b5563' }}
+            tick={{ fill: 'var(--muted)', fontSize: 10 }}
+            axisLine={{ stroke: 'var(--border-strong)' }}
             tickLine={false}
           />
           <Tooltip content={<CustomTooltip />} />

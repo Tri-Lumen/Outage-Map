@@ -71,7 +71,7 @@ function getOverallHealth(statuses: string[]): { label: string; tone: string; do
   if (statuses.includes('down')) return { label: 'Critical', tone: 'text-red-400', dot: 'bg-red-400' };
   if (statuses.includes('major_outage')) return { label: 'Major outages', tone: 'text-orange-400', dot: 'bg-orange-400' };
   if (statuses.includes('degraded')) return { label: 'Degraded', tone: 'text-yellow-400', dot: 'bg-yellow-400' };
-  if (statuses.length === 0 || statuses.every((s) => s === 'unknown')) return { label: 'Checking…', tone: 'text-gray-400', dot: 'bg-gray-400' };
+  if (statuses.length === 0 || statuses.every((s) => s === 'unknown')) return { label: 'Checking…', tone: 'text-muted', dot: 'bg-muted' };
   return { label: 'All systems normal', tone: 'text-emerald-400', dot: 'bg-emerald-400' };
 }
 
@@ -104,14 +104,15 @@ export default function Sidebar() {
           {!collapsed && (
             <div>
               <p className="text-sm font-semibold text-foreground leading-none">Outage Map</p>
-              <p className="text-[11px] text-gray-500 mt-1">Enterprise · v2</p>
+              <p className="text-[11px] text-muted-strong mt-1">Enterprise · v2</p>
             </div>
           )}
         </Link>
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="p-1.5 rounded-md text-gray-500 hover:text-foreground hover:bg-white/5 transition-colors"
-          aria-label="Toggle sidebar"
+          className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!collapsed}
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             {collapsed ? (
@@ -131,7 +132,8 @@ export default function Sidebar() {
               key={item.href}
               href={item.href}
               title={collapsed ? item.label : undefined}
-              className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 ${
+              aria-current={active ? 'page' : undefined}
+              className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                 active
                   ? 'bg-surface-elevated text-foreground shadow-sm'
                   : 'text-muted hover:text-foreground hover:bg-white/5'
@@ -144,7 +146,7 @@ export default function Sidebar() {
               {!collapsed && (
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium leading-none">{item.label}</div>
-                  <div className="text-[11px] text-gray-500 mt-1 truncate">{item.description}</div>
+                  <div className={`text-[11px] mt-1 truncate ${active ? 'text-muted' : 'text-muted-strong'}`}>{item.description}</div>
                 </div>
               )}
             </Link>
@@ -158,7 +160,7 @@ export default function Sidebar() {
             <span className={`w-2 h-2 rounded-full ${health.dot} ${health.label.includes('normal') ? '' : 'animate-pulse'}`} />
             <span className={`text-xs font-medium ${health.tone}`}>{health.label}</span>
           </div>
-          <div className="text-[11px] text-gray-500">
+          <div className="text-[11px] text-muted">
             {operational}/{services.length || SERVICES.length} services operational
           </div>
           <div className="mt-2 w-full h-1 rounded-full bg-white/5 overflow-hidden">

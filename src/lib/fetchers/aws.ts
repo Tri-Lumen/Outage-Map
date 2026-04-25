@@ -45,7 +45,10 @@ export async function fetchAwsStatus(serviceSlug: string): Promise<FetchResult> 
       const link = $(el).find('link').first().text().trim();
       const guid = $(el).find('guid').first().text().trim();
       const pubDateText = $(el).find('pubDate').first().text().trim();
-      const pubDate = pubDateText ? new Date(pubDateText) : null;
+      // new Date(badString) yields an Invalid Date — truthy but .getTime() is NaN
+      // and .toISOString() throws. Validate explicitly before using.
+      const parsed = pubDateText ? new Date(pubDateText) : null;
+      const pubDate = parsed && !Number.isNaN(parsed.getTime()) ? parsed : null;
       const ageMs = pubDate ? now - pubDate.getTime() : Infinity;
 
       if (!title || !pubDate || ageMs > TWO_HOURS_MS) return;

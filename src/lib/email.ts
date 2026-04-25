@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer';
 import { hasRecentAlert, logAlert } from './db';
 import { getServiceBySlug } from './services';
 import { IncidentResult, ServiceStatus } from './types';
+import { statusHex, statusLabel } from './statusColors';
 
 function escapeHtml(value: unknown): string {
   return String(value ?? '')
@@ -26,53 +27,52 @@ function getTransporter() {
   const port = parseInt(process.env.SMTP_PORT || '587', 10);
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
+  const rejectUnauthorized = process.env.SMTP_REJECT_UNAUTHORIZED !== 'false';
 
   if (!host || !user || !pass) {
     return null;
   }
 
+  const isImplicitTls = port === 465;
   return nodemailer.createTransport({
     host,
     port,
-    secure: port === 465,
+    secure: isImplicitTls,
+    requireTLS: !isImplicitTls,
     auth: { user, pass },
+    tls: { rejectUnauthorized },
   });
 }
 
-function getRecipients(): string[] {
+function getEnvRecipients(): string[] {
   const emails = process.env.ALERT_EMAILS || '';
   return emails.split(',').map((e) => e.trim()).filter(Boolean);
 }
 
+function dedupe(emails: string[]): string[] {
+  return Array.from(new Set(emails.filter(Boolean)));
+}
+
 function statusColor(status: ServiceStatus): string {
-  switch (status) {
-    case 'operational': return '#22c55e';
-    case 'degraded': return '#eab308';
-    case 'major_outage': return '#f97316';
-    case 'down': return '#ef4444';
-    default: return '#6b7280';
-  }
+  return statusHex(status);
 }
 
-function statusLabel(status: ServiceStatus): string {
-  switch (status) {
-    case 'operational': return 'Operational';
-    case 'degraded': return 'Degraded Performance';
-    case 'major_outage': return 'Major Outage';
-    case 'down': return 'Service Down';
-    default: return 'Unknown';
-  }
-}
-
-export async function sendIncidentAlert(incident: IncidentResult): Promise<boolean> {
+export async function sendIncidentAlert(
+  incident: IncidentResult,
+  recipientsOverride?: string[],
+): Promise<boolean> {
   if (hasRecentAlert(incident.serviceSlug, incident.incidentId, 'new_incident')) {
     return false;
   }
 
   const transporter = getTransporter();
-  const recipients = getRecipients();
+  const recipients = dedupe(recipientsOverride && recipientsOverride.length > 0
+    ? recipientsOverride
+    : getEnvRecipients());
   if (!transporter || recipients.length === 0) {
-    console.log('[email] SMTP not configured or no recipients - skipping alert');
+    if (process.env.DEBUG === 'true') {
+      console.log('[email] SMTP not configured or no recipients - skipping alert');
+    }
     return false;
   }
 
@@ -193,7 +193,7 @@ export async function sendStatusChangeAlert(
   }
 
   const transporter = getTransporter();
-  const recipients = getRecipients();
+  const recipients = dedupe(getEnvRecipients());
   if (!transporter || recipients.length === 0) return false;
 
   const service = getServiceBySlug(serviceSlug);

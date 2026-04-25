@@ -81,11 +81,12 @@ export async function fetchDowndetectorStatus(
       }
     });
 
-    // Pattern 3: Check the status indicator on the page
-    const statusText = $('.entry-title, .main-title, [class*="status"]').first().text().toLowerCase();
-    if (statusText.includes('problems') || statusText.includes('outage')) {
-      if (reportCount === 0) reportCount = THRESHOLD_DEGRADED; // Assume degraded if we can't parse count
-    } else if (statusText.includes('no problems') || statusText.includes('no issues')) {
+    // Pattern 3: Check the status indicator on the page. We only trust this
+    // as a *negative* signal (no-problems pulls counts down). Forcing the
+    // count up based on the word "problems" appearing somewhere in a class
+    // matching [class*="status"] produced false positives in the past.
+    const statusText = $('.entry-title, .main-title').first().text().toLowerCase();
+    if (statusText.includes('no problems') || statusText.includes('no issues')) {
       reportCount = Math.min(reportCount, THRESHOLD_DEGRADED - 1);
     }
 

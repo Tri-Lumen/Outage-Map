@@ -22,7 +22,8 @@ export default function MobileNav() {
             <Link
               key={item.href}
               href={item.href}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-all duration-150 ${
+              aria-current={active ? 'page' : undefined}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                 active
                   ? 'bg-accent text-white shadow-sm'
                   : 'text-muted hover:text-foreground hover:bg-white/5'

@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useServiceStatus, useIncidents, useHistory } from '@/hooks/useStatus';
 import { usePreferences } from '@/hooks/usePreferences';
 import { SERVICES } from '@/lib/services';
@@ -11,29 +12,43 @@ import ServiceDetailModal from './ServiceDetailModal';
 import PageHeader from './ui/PageHeader';
 import StatTile from './ui/StatTile';
 import Card from './ui/Card';
+import { formatRelativeTime } from '@/lib/format';
 
 type StatusFilter = 'all' | 'operational' | 'issues';
 
-function formatTimestamp(ts: string | null | undefined): string {
-  if (!ts) return 'never';
-  const date = new Date(ts);
-  const diffMin = Math.floor((Date.now() - date.getTime()) / 60000);
-  if (diffMin < 1) return 'just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return `${diffH}h ago`;
-  return date.toLocaleDateString();
+function isStatusFilter(v: string | null): v is StatusFilter {
+  return v === 'all' || v === 'operational' || v === 'issues';
 }
 
 export default function Dashboard() {
   const prefs = usePreferences();
   const refreshMs = prefs.refreshInterval * 1000;
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: statusData, error: statusError, isLoading: statusLoading } = useServiceStatus(refreshMs);
   const { data: incidentData } = useIncidents(7);
   const { data: historyData } = useHistory(30);
   const [selectedService, setSelectedService] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<StatusFilter>('all');
+
+  const initialFilter = isStatusFilter(searchParams.get('filter')) ? (searchParams.get('filter') as StatusFilter) : 'all';
+  const initialSearch = searchParams.get('q') ?? '';
+  const [search, setSearch] = useState(initialSearch);
+  const [filter, setFilter] = useState<StatusFilter>(initialFilter);
+
+  // Sync filter + search to the URL so links are shareable.
+  useEffect(() => {
+    const params = new URLSearchParams(Array.from(searchParams.entries()));
+    if (filter === 'all') params.delete('filter'); else params.set('filter', filter);
+    if (!search) params.delete('q'); else params.set('q', search);
+    const next = params.toString();
+    const current = searchParams.toString();
+    if (next !== current) {
+      router.replace(next ? `?${next}` : '?', { scroll: false });
+    }
+    // We deliberately depend on filter/search only — re-syncing on every searchParams
+    // change would create a feedback loop with the router.replace above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, search]);
 
   const services = useMemo(() => statusData?.services || [], [statusData]);
   const incidents = useMemo(() => incidentData?.incidents || [], [incidentData]);
@@ -70,12 +85,28 @@ export default function Dashboard() {
 
   if (statusLoading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-accent/20 border-t-accent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-400 text-sm">Loading dashboard…</p>
-          <p className="text-gray-600 text-xs mt-1">Fetching service statuses</p>
+      <div className="space-y-8" aria-busy="true">
+        <div className="h-20 surface-card rounded-2xl animate-pulse" />
+        <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-24 surface-card rounded-2xl animate-pulse" />
+          ))}
+        </section>
+        <div
+          className={
+            prefs.compactCards
+              ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3'
+              : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'
+          }
+        >
+          {Array.from({ length: SERVICES.length }).map((_, i) => (
+            <div
+              key={i}
+              className={`surface-card rounded-2xl animate-pulse ${prefs.compactCards ? 'h-24' : 'h-44'}`}
+            />
+          ))}
         </div>
+        <span className="sr-only">Loading dashboard…</span>
       </div>
     );
   }
@@ -90,12 +121,12 @@ export default function Dashboard() {
             </svg>
           </div>
           <h2 className="text-lg font-semibold tracking-tight text-foreground mb-1">Unable to load dashboard</h2>
-          <p className="text-gray-400 text-sm mb-4">
+          <p className="text-muted text-sm mb-4">
             Could not fetch service statuses. The polling service may not have run yet.
           </p>
           <button
             onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-accent hover:opacity-90 text-white text-sm rounded-lg transition-opacity"
+            className="px-4 py-2 bg-accent hover:opacity-90 text-white text-sm rounded-lg transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             Retry
           </button>
@@ -111,7 +142,7 @@ export default function Dashboard() {
       <PageHeader
         eyebrow="Live Overview"
         title="Status command center"
-        description={`Monitoring ${stats.total} enterprise services. Last updated ${formatTimestamp(statusData?.lastUpdated)}.`}
+        description={`Monitoring ${stats.total} enterprise services. Last updated ${formatRelativeTime(statusData?.lastUpdated)}.`}
         actions={
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -146,7 +177,7 @@ export default function Dashboard() {
           }
         />
         <StatTile
-          label="Degraded"
+          label="Services with issues"
           value={stats.degraded + stats.outage}
           accent={stats.outage > 0 ? 'red' : stats.degraded > 0 ? 'amber' : 'cyan'}
           hint={`${stats.outage} major · ${stats.degraded} minor`}
@@ -191,22 +222,26 @@ export default function Dashboard() {
           </h2>
           <div className="flex items-center gap-2">
             <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <label className="sr-only" htmlFor="dashboard-service-search">Search services</label>
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-strong" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
               </svg>
               <input
+                id="dashboard-service-search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search services…"
-                className="w-44 sm:w-56 pl-9 pr-3 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground placeholder:text-gray-500 focus:outline-none focus:border-accent/50 focus:bg-white/10 transition-colors"
+                className="w-44 sm:w-56 pl-9 pr-3 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground placeholder:text-muted-strong focus:outline-none focus:border-accent/50 focus:bg-white/10 transition-colors"
               />
             </div>
-            <div className="flex items-center gap-0.5 p-1 rounded-lg bg-surface border border-subtle">
+            <div role="tablist" aria-label="Service filter" className="flex items-center gap-0.5 p-1 rounded-lg bg-surface border border-subtle">
               {(['all', 'operational', 'issues'] as const).map((f) => (
                 <button
                   key={f}
+                  role="tab"
+                  aria-selected={filter === f}
                   onClick={() => setFilter(f)}
-                  className={`px-3 py-1 text-xs rounded-md transition-all duration-150 ${
+                  className={`px-3 py-1 text-xs rounded-md transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                     filter === f
                       ? 'bg-surface-elevated text-foreground font-semibold shadow-sm'
                       : 'font-medium text-muted hover:text-foreground'
@@ -219,7 +254,7 @@ export default function Dashboard() {
           </div>
         </div>
         {filteredServices.length === 0 ? (
-          <Card className="text-center text-sm text-gray-500">
+          <Card className="text-center text-sm text-muted">
             No services match your filters.
           </Card>
         ) : (

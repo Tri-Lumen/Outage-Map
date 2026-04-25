@@ -120,7 +120,10 @@ export async function fetchStatuspageStatus(baseUrl: string, serviceSlug: string
 
     if (incidentsRes.ok) {
       const data: StatuspageIncidentsResponse = await incidentsRes.json();
-      const recentIncidents = (data.incidents || []).slice(0, 10);
+      // Statuspage's incidents.json returns the most recent first. 25 covers
+      // the active-incident window plus a healthy chunk of recently-resolved
+      // history without exploding the DB on busy services.
+      const recentIncidents = (data.incidents || []).slice(0, 25);
 
       for (const inc of recentIncidents) {
         const latestUpdate = inc.incident_updates?.[0];

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { ServiceStatusResponse } from '@/lib/types';
 import StatusBadge from './StatusBadge';
+import { formatRelativeTime } from '@/lib/format';
 
 interface ServiceCardProps {
   service: ServiceStatusResponse;
@@ -28,15 +29,6 @@ const SERVICE_ICONS: Record<string, string> = {
   'dropbox': 'Db',
   'aws': 'AWS',
 };
-
-function formatTimestamp(ts: string | null): string {
-  if (!ts) return 'Never checked';
-  const date = new Date(ts);
-  const diffMin = Math.floor((Date.now() - date.getTime()) / 60000);
-  if (diffMin < 1) return 'Just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
-  return `${Math.floor(diffMin / 60)}h ago`;
-}
 
 function getStatusAccent(status: string): string {
   switch (status) {
@@ -83,12 +75,12 @@ export default function ServiceCard({
             >
               {service.name}
             </h3>
-            <p className="text-gray-500 text-[11px] mt-0.5">
-              {formatTimestamp(service.lastChecked)}
+            <p className="text-muted-strong text-[11px] mt-0.5">
+              {formatRelativeTime(service.lastChecked, 'Never checked')}
             </p>
           </div>
         </div>
-        <svg className="w-4 h-4 text-gray-600 group-hover:text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+        <svg className="w-4 h-4 text-muted-strong group-hover:text-foreground transition-colors" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
         </svg>
       </div>
@@ -99,14 +91,14 @@ export default function ServiceCard({
 
       {!compact && (
         <div className="flex items-center justify-between text-xs">
-          <div className="text-gray-400">
-            <span className="text-gray-500">Official:</span>{' '}
+          <div className="text-muted">
+            <span className="text-muted-strong">Official:</span>{' '}
             <span className={
               service.officialStatus === 'operational' ? 'text-emerald-400' :
               service.officialStatus === 'degraded' ? 'text-yellow-400' :
               service.officialStatus === 'major_outage' ? 'text-orange-400' :
               service.officialStatus === 'down' ? 'text-red-400' :
-              'text-gray-400'
+              'text-muted'
             }>
               {service.officialStatus === 'operational' ? 'OK' :
                service.officialStatus === 'unknown' ? '--' :
@@ -114,13 +106,13 @@ export default function ServiceCard({
             </span>
           </div>
           {showDowndetector && (
-            <div className="text-gray-400">
-              <span className="text-gray-500">DD:</span>{' '}
+            <div className="text-muted">
+              <span className="text-muted-strong">DD:</span>{' '}
               <span className={
                 service.downdetectorReports >= 500 ? 'text-red-400 font-semibold' :
                 service.downdetectorReports >= 100 ? 'text-yellow-400' :
-                service.downdetectorStatus === 'unknown' ? 'text-gray-500 italic' :
-                'text-gray-300'
+                service.downdetectorStatus === 'unknown' ? 'text-muted-strong italic' :
+                'text-foreground'
               }>
                 {service.downdetectorStatus === 'unknown'
                   ? 'no data'
@@ -134,7 +126,7 @@ export default function ServiceCard({
       )}
 
       {!compact && service.details && service.overallStatus !== 'operational' && (
-        <p className="text-xs text-gray-400 mt-2 truncate border-t border-subtle pt-2">
+        <p className="text-xs text-muted mt-2 truncate border-t border-subtle pt-2">
           {service.details}
         </p>
       )}
@@ -154,7 +146,7 @@ export default function ServiceCard({
           </a>
           {showDowndetector && (
             <>
-              <span className="text-gray-700">·</span>
+              <span className="text-muted-strong">·</span>
               <a
                 href={service.downdetectorUrl}
                 target="_blank"
