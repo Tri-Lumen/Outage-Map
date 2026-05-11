@@ -125,7 +125,7 @@ export default function SettingsView() {
                   <span className="text-xs text-accent-cyan">● Active</span>
                 )}
               </div>
-              <p className="text-[11px] text-gray-400 mt-1">{description}</p>
+              <p className="text-[11px] text-muted mt-1">{description}</p>
             </button>
           ))}
         </div>
@@ -135,7 +135,7 @@ export default function SettingsView() {
         <h3 className="text-sm font-semibold text-foreground mb-4">Data & refresh</h3>
         <div className="space-y-5">
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-2">Refresh interval</label>
+            <label className="block text-xs font-medium text-muted mb-2">Refresh interval</label>
             <div className="flex items-center gap-0.5 p-1 rounded-lg bg-surface border border-subtle">
               {([15, 30, 60, 300] as const).map((v) => (
                 <button
@@ -151,7 +151,7 @@ export default function SettingsView() {
                 </button>
               ))}
             </div>
-            <p className="text-[11px] text-gray-500 mt-1.5">
+            <p className="text-[11px] text-muted mt-1.5">
               How often the overview polls for new status data.
             </p>
           </div>
@@ -162,15 +162,17 @@ export default function SettingsView() {
               <p className="text-[11px] text-muted-strong">Include crowd-sourced data alongside official statuses. Thresholds are configured server-side via <code className="text-foreground">DD_REPORT_THRESHOLD_DEGRADED</code> and <code className="text-foreground">DD_REPORT_THRESHOLD_MAJOR</code>.</p>
             </div>
             <button
+              role="switch"
+              aria-checked={prefs.showDowndetector}
               onClick={() => update('showDowndetector', !prefs.showDowndetector)}
-              className={`relative w-11 h-6 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                 prefs.showDowndetector ? 'bg-accent' : 'bg-white/10'
               }`}
               aria-label="Toggle Downdetector"
             >
               <span
-                className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                  prefs.showDowndetector ? 'translate-x-5' : 'translate-x-0.5'
+                className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                  prefs.showDowndetector ? 'translate-x-[22px]' : 'translate-x-0.5'
                 }`}
               />
             </button>
@@ -179,18 +181,20 @@ export default function SettingsView() {
           <div className="flex items-center justify-between py-2 border-t border-subtle">
             <div>
               <p className="text-sm text-foreground">Compact service cards</p>
-              <p className="text-[11px] text-gray-500">Denser layout on the overview page</p>
+              <p className="text-[11px] text-muted">Denser layout on the overview page</p>
             </div>
             <button
+              role="switch"
+              aria-checked={prefs.compactCards}
               onClick={() => update('compactCards', !prefs.compactCards)}
-              className={`relative w-11 h-6 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                 prefs.compactCards ? 'bg-accent' : 'bg-white/10'
               }`}
               aria-label="Toggle compact"
             >
               <span
-                className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                  prefs.compactCards ? 'translate-x-5' : 'translate-x-0.5'
+                className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                  prefs.compactCards ? 'translate-x-[22px]' : 'translate-x-0.5'
                 }`}
               />
             </button>
@@ -202,11 +206,11 @@ export default function SettingsView() {
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-sm font-semibold text-foreground">Pinned services</h3>
-            <p className="text-[11px] text-gray-500 mt-1">
+            <p className="text-[11px] text-muted mt-1">
               Pinned services appear first on the overview.
             </p>
           </div>
-          <span className="text-xs text-gray-500">{prefs.pinnedServices.length} pinned</span>
+          <span className="text-xs text-muted">{prefs.pinnedServices.length} pinned</span>
         </div>
         <div className="flex flex-wrap gap-2">
           {SERVICES.map((s) => {
@@ -232,7 +236,7 @@ export default function SettingsView() {
 
       <Card elevated>
         <h3 className="text-sm font-semibold text-foreground mb-1">Reset preferences</h3>
-        <p className="text-[11px] text-gray-500 mb-4">
+        <p className="text-[11px] text-muted mb-4">
           Clears stored preferences and alert rules on this device.
         </p>
         <button

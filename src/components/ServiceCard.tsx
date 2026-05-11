@@ -41,7 +41,7 @@ function getStatusAccent(status: string): string {
     case 'down':
       return 'before:bg-red-400/70';
     default:
-      return 'before:bg-gray-500/40';
+      return 'before:bg-white/20';
   }
 }
 
@@ -63,7 +63,7 @@ export default function ServiceCard({
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
           <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg"
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg ring-1 ring-white/20"
             style={{ backgroundColor: service.color }}
           >
             {icon}
@@ -85,7 +85,7 @@ export default function ServiceCard({
         </svg>
       </div>
 
-      <div className="mb-3">
+      <div className={compact ? '' : 'mb-3'}>
         <StatusBadge status={service.overallStatus} size="md" />
       </div>
 
@@ -112,7 +112,7 @@ export default function ServiceCard({
                 service.downdetectorReports >= 500 ? 'text-red-400 font-semibold' :
                 service.downdetectorReports >= 100 ? 'text-yellow-400' :
                 service.downdetectorStatus === 'unknown' ? 'text-muted-strong italic' :
-                'text-foreground'
+                service.downdetectorReports > 0 ? 'text-foreground' : 'text-muted'
               }>
                 {service.downdetectorStatus === 'unknown'
                   ? 'no data'

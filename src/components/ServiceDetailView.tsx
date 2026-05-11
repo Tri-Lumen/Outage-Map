@@ -58,7 +58,7 @@ export default function ServiceDetailView({ slug }: Props) {
   if (!config) {
     return (
       <Card className="text-center py-14">
-        <p className="text-sm text-gray-400">Service not found.</p>
+        <p className="text-sm text-muted">Service not found.</p>
         <Link href="/" className="text-xs text-accent-cyan mt-3 inline-block">
           ← Back to overview
         </Link>
@@ -80,7 +80,7 @@ export default function ServiceDetailView({ slug }: Props) {
 
   return (
     <div className="space-y-8">
-      <Link href="/" className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-foreground">
+      <Link href="/" className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-foreground">
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
         </svg>
@@ -97,7 +97,7 @@ export default function ServiceDetailView({ slug }: Props) {
               {config.name.charAt(0)}
             </div>
             <div>
-              <p className="text-[11px] uppercase tracking-widest text-gray-500 mb-1">
+              <p className="text-[11px] uppercase tracking-widest text-muted mb-1">
                 {config.fetcher} · {config.slug}
               </p>
               <h1
@@ -109,7 +109,7 @@ export default function ServiceDetailView({ slug }: Props) {
               <div className="mt-3 flex items-center gap-3">
                 <StatusBadge status={heroStatus} size="md" />
                 {service?.details && (
-                  <span className="text-xs text-gray-400 max-w-md truncate">{service.details}</span>
+                  <span className="text-xs text-muted max-w-md truncate">{service.details}</span>
                 )}
               </div>
             </div>
@@ -170,24 +170,22 @@ export default function ServiceDetailView({ slug }: Props) {
 
       <section>
         <h2 className="text-base font-semibold text-foreground mb-3">History</h2>
-        <Card>
-          <OutageChart
-            serviceName={config.name}
-            serviceColor={config.color}
-            data={history}
-          />
-        </Card>
+        <OutageChart
+          serviceName={config.name}
+          serviceColor={config.color}
+          data={history}
+        />
       </section>
 
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-semibold text-foreground">Recent incidents</h2>
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-muted">
             {incidents.length} in last 30 days · {metrics.critical} critical
           </span>
         </div>
         {incidents.length === 0 ? (
-          <Card className="text-center py-10 text-sm text-gray-500">
+          <Card className="text-center py-10 text-sm text-muted">
             No incidents reported in the last 30 days.
           </Card>
         ) : (
@@ -220,18 +218,18 @@ export default function ServiceDetailView({ slug }: Props) {
                       className={`text-[10px] uppercase px-1.5 py-0.5 rounded ${
                         inc.status === 'resolved'
                           ? 'bg-emerald-500/10 text-emerald-400'
-                          : 'bg-white/5 text-gray-400'
+                          : 'bg-white/5 text-muted'
                       }`}
                     >
                       {inc.status}
                     </span>
-                    <span className="text-[11px] text-gray-500">
+                    <span className="text-[11px] text-muted">
                       {formatDateTime(inc.startedAt)}
                     </span>
                   </div>
                   <p className="text-sm text-foreground font-medium mt-1.5">{inc.title}</p>
                   {inc.description && (
-                    <p className="text-xs text-gray-400 mt-1 line-clamp-2">{inc.description}</p>
+                    <p className="text-xs text-muted mt-1 line-clamp-2">{inc.description}</p>
                   )}
                   {inc.sourceUrl && (
                     <a
