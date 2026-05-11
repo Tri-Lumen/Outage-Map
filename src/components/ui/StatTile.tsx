@@ -29,7 +29,7 @@ export default function StatTile({
 }: StatTileProps) {
   const accentClasses = ACCENT_BG[accent];
   const trendColor =
-    trend === 'up' ? 'text-emerald-400' : trend === 'down' ? 'text-red-400' : 'text-gray-500';
+    trend === 'up' ? 'text-emerald-400' : trend === 'down' ? 'text-red-400' : 'text-muted';
 
   return (
     <div className="relative rounded-2xl surface-card p-5 overflow-hidden">
@@ -37,7 +37,7 @@ export default function StatTile({
       <div className="relative">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">{label}</p>
+            <p className="text-xs font-medium text-muted uppercase tracking-wider">{label}</p>
             <p className="text-3xl font-semibold tracking-tight mt-2 text-foreground tabular-nums">{value}</p>
           </div>
           {icon && (
@@ -53,7 +53,7 @@ export default function StatTile({
                 {trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→'} {trendLabel}
               </span>
             )}
-            {hint && <span className="text-gray-500">{hint}</span>}
+            {hint && <span className="text-muted">{hint}</span>}
           </div>
         )}
       </div>

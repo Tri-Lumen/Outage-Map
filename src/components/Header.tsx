@@ -25,7 +25,7 @@ function getOverallHealth(services: ServiceStatusResponse[]): {
     return { label: 'Some Services Degraded', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10' };
   }
   if (statuses.every((s) => s === 'unknown')) {
-    return { label: 'Checking Services...', color: 'text-gray-400', bgColor: 'bg-gray-500/10' };
+    return { label: 'Checking Services...', color: 'text-muted', bgColor: 'bg-white/5' };
   }
   return { label: 'All Systems Operational', color: 'text-green-400', bgColor: 'bg-green-500/10' };
 }

@@ -125,7 +125,7 @@ export default function AnalyticsView() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-sm font-semibold text-foreground">Uptime by service</h2>
-              <p className="text-xs text-gray-400 mt-0.5">30-day rolling window</p>
+              <p className="text-xs text-muted mt-0.5">30-day rolling window</p>
             </div>
             <span className="text-xs text-muted">SLA target: {aggregate.slaTarget}%</span>
           </div>
@@ -210,16 +210,16 @@ export default function AnalyticsView() {
                           {r.uptimeLabel}%
                         </span>
                       </td>
-                      <td className="px-5 py-3 text-right text-gray-300 tabular-nums">
+                      <td className="px-5 py-3 text-right text-foreground tabular-nums">
                         {r.totalDowntime > 60
                           ? `${(r.totalDowntime / 60).toFixed(1)}h`
                           : `${r.totalDowntime}m`}
                       </td>
-                      <td className="px-5 py-3 text-right text-gray-300 tabular-nums">
+                      <td className="px-5 py-3 text-right text-foreground tabular-nums">
                         {r.mttr > 0 ? `${r.mttr}m` : '—'}
                       </td>
                       <td className="px-5 py-3 text-right">
-                        <span className="text-gray-300 tabular-nums">{r.incidents}</span>
+                        <span className="text-foreground tabular-nums">{r.incidents}</span>
                         {r.criticalIncidents > 0 && (
                           <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">
                             {r.criticalIncidents} critical

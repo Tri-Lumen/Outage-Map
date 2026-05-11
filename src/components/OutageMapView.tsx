@@ -170,7 +170,7 @@ export default function OutageMapView() {
               <h2 className="text-sm font-semibold text-foreground">
                 {scope === 'global' ? 'Report density by region' : 'US regional breakdown'}
               </h2>
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className="text-xs text-muted mt-0.5">
                 {scope === 'global'
                   ? 'Redder fill = higher concentration of reports.'
                   : 'Reports distributed across us-east, us-west, us-central, us-south.'}
@@ -294,7 +294,7 @@ function ScopeButton({
     <button
       onClick={onClick}
       className={`px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap transition-colors ${
-        active ? 'bg-accent-soft text-foreground' : 'text-gray-400 hover:text-foreground'
+        active ? 'bg-accent-soft text-foreground' : 'text-muted hover:text-foreground'
       }`}
     >
       {label}

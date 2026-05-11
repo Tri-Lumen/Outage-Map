@@ -20,7 +20,7 @@ export default function PageHeader({ eyebrow, title, description, actions }: Pag
           {title}
         </h1>
         {description && (
-          <p className="text-sm text-gray-400 mt-2 max-w-2xl">{description}</p>
+          <p className="text-sm text-muted mt-2 max-w-2xl">{description}</p>
         )}
       </div>
       {actions && <div className="flex items-center gap-2 flex-wrap">{actions}</div>}
