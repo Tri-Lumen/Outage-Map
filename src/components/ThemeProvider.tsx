@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
-export type Theme = 'solarized-dark' | 'solarized-light' | 'black-grey';
+export type Theme = 'solarized-dark' | 'solarized-light' | 'black-grey' | 'midnight';
 
 export const THEMES: { value: Theme; label: string; description: string }[] = [
   {
@@ -19,6 +19,11 @@ export const THEMES: { value: Theme; label: string; description: string }[] = [
     value: 'black-grey',
     label: 'Classic Dark',
     description: 'Traditional near-black background with neutral greys.',
+  },
+  {
+    value: 'midnight',
+    label: 'Midnight',
+    description: 'Deep navy blue with slate accents.',
   },
 ];
 
@@ -42,6 +47,15 @@ function isTheme(value: string | null): value is Theme {
   return !!value && (VALID_THEMES as string[]).includes(value);
 }
 
+function applyTheme(theme: Theme) {
+  const root = document.documentElement;
+  // Remove all theme classes and set the new one
+  root.classList.remove(...VALID_THEMES);
+  root.classList.add(theme);
+  // Also set data-theme attribute for CSS selectors in the new design
+  root.dataset.theme = theme;
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(DEFAULT_THEME);
 
@@ -56,9 +70,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const root = document.documentElement;
-    root.classList.remove(...VALID_THEMES);
-    root.classList.add(theme);
+    applyTheme(theme);
     try {
       localStorage.setItem(STORAGE_KEY, theme);
     } catch {

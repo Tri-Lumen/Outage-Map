@@ -17,7 +17,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     href: '/',
     label: 'Overview',
-    description: 'Live status of every service',
+    description: 'Your modular board',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.6} stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25A2.25 2.25 0 018.25 10.5H6A2.25 2.25 0 013.75 8.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 018.25 20.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6A2.25 2.25 0 0115.75 3.75H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25A2.25 2.25 0 0113.5 8.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
@@ -36,8 +36,8 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     href: '/map',
-    label: 'Outage Map',
-    description: 'Geographic report density',
+    label: 'Heat Map',
+    description: 'Geographic density',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.6} stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m0-8.25l-3.388-1.694a.75.75 0 00-1.087.671v9.795a.75.75 0 00.415.671L9 18m0-11.25l6 3M9 18l6-3m0 0l3.388 1.694a.75.75 0 001.087-.671V6.228a.75.75 0 00-.415-.67L15 3.75M15 15V6.75" />
@@ -47,10 +47,20 @@ const NAV_ITEMS: NavItem[] = [
   {
     href: '/alerts',
     label: 'Alerts',
-    description: 'Subscriptions & rules',
+    description: 'Rules & subscriptions',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.6} stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+      </svg>
+    ),
+  },
+  {
+    href: '/sources',
+    label: 'Sources',
+    description: 'Imported services',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.6} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 11a9 9 0 019 9M4 4a16 16 0 0116 16M5 19a1 1 0 11-2 0 1 1 0 012 0z" />
       </svg>
     ),
   },
@@ -104,7 +114,7 @@ export default function Sidebar() {
           {!collapsed && (
             <div>
               <p className="text-sm font-semibold text-foreground leading-none">Outage Map</p>
-              <p className="text-[11px] text-muted-strong mt-1">Enterprise · v2</p>
+              <p className="text-[11px] text-muted-strong mt-1">Enterprise · v3</p>
             </div>
           )}
         </Link>
