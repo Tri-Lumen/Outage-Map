@@ -8,6 +8,7 @@ const ITEMS = [
   { href: '/analytics', label: 'Analytics' },
   { href: '/map', label: 'Map' },
   { href: '/alerts', label: 'Alerts' },
+  { href: '/sources', label: 'Sources' },
   { href: '/settings', label: 'Settings' },
 ];
 
