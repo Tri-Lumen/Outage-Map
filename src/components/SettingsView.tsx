@@ -37,6 +37,12 @@ const THEME_PREVIEWS: Record<Theme, {
     secondaryBar: 'bg-neutral-500',
     accentBar: 'bg-blue-500',
   },
+  'midnight': {
+    wrapper: 'bg-[#0b1220] border-[#1e2d45]',
+    primaryBar: 'bg-[#cbd5e1]',
+    secondaryBar: 'bg-[#64748b]',
+    accentBar: 'bg-[#38bdf8]',
+  },
 };
 
 export default function SettingsView() {

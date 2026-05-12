@@ -22,7 +22,7 @@ export default function StatusMapTile({ editing, onResize, onRemove, live }: Til
   const issueServices = live.services.filter((s) => s.overallStatus !== 'operational').length;
   const baseHeat = issueServices / totalServices;
 
-  const regions = REGIONS.map((r, i) => ({
+  const regions = REGIONS.map((r) => ({
     ...r,
     hot: Math.min(1, r.hot * (1 + baseHeat) * (activeIncidents > 0 ? 1.2 : 1)),
   }));
