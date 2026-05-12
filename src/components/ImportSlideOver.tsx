@@ -44,7 +44,7 @@ const STATUS_COLORS: Record<string, { dot: string; text: string; label: string }
 
 export default function ImportSlideOver({ open, onClose, onAdd }: Props) {
   const [step, setStep]         = useState(0);
-  const [kind, setKind]         = useState('auto');
+  const [, setKind]             = useState('auto');
   const [url, setUrl]           = useState('');
   const [detected, setDetected] = useState<{ kind: string; name: string; color?: string } | null>(null);
   const [name, setName]         = useState('');
@@ -61,9 +61,9 @@ export default function ImportSlideOver({ open, onClose, onAdd }: Props) {
       setDetected(d);
       if (d && !name) setName(d.name);
     }
-  }, [url, step]);
+  }, [url, step, name]);
 
-  const usePreset = (p: (typeof PRESETS)[0]) => {
+  const applyPreset = (p: (typeof PRESETS)[0]) => {
     setUrl(p.url);
     setKind(p.kind);
     setName(p.name);
@@ -178,7 +178,7 @@ export default function ImportSlideOver({ open, onClose, onAdd }: Props) {
 
               <div className="preset-list">
                 {filteredPresets.map((p) => (
-                  <button key={p.id} className="preset-row" onClick={() => usePreset(p)}>
+                  <button key={p.id} className="preset-row" onClick={() => applyPreset(p)}>
                     <div className="preset-logo" style={{ background: p.logo }}>{p.name.charAt(0)}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>{p.name}</div>
