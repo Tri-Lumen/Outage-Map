@@ -37,7 +37,7 @@ USER nextjs
 EXPOSE 3100
 VOLUME ["/app/data"]
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD wget -qO- http://127.0.0.1:3100/api/status >/dev/null 2>&1 || exit 1
 
 CMD ["node", "server.js"]
