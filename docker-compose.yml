@@ -1,10 +1,15 @@
 services:
   outage-map:
-    image: outage-map:local
-    pull_policy: build
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # Prebuilt image published by .github/workflows/docker-publish.yml on every
+    # push to main. Using a prebuilt image instead of `pull_policy: build` keeps
+    # Portainer redeploys fast (seconds, not minutes), which avoids the
+    # "Saving..." spinner hanging past Portainer's HTTP/proxy timeout while a
+    # local Dockerfile build is still running in the background.
+    #
+    # To build from source instead (offline or development), run
+    # `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d`.
+    image: ${OUTAGE_MAP_IMAGE:-ghcr.io/tri-lumen/outage-map:latest}
+    pull_policy: always
     container_name: outage-map
     restart: unless-stopped
     ports:

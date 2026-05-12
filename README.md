@@ -97,16 +97,34 @@ Open [http://localhost:3100](http://localhost:3100) to view the dashboard.
 
 ## Docker
 
-Build and run with the bundled `Dockerfile` and `docker-compose.yml`:
+The default `docker-compose.yml` pulls a prebuilt image from GitHub Container
+Registry (`ghcr.io/tri-lumen/outage-map:latest`). Every push to `main`
+publishes a new image via the `Build and publish Docker image` workflow.
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
 The SQLite database is persisted in the named volume `outage-map-data`
 (mounted at `/app/data` inside the container). Configure the container by
 creating a `.env` file next to `docker-compose.yml` (the compose file reads
 the same variables as `.env.example`).
+
+To pin a specific build instead of `:latest`, set `OUTAGE_MAP_IMAGE`:
+
+```bash
+OUTAGE_MAP_IMAGE=ghcr.io/tri-lumen/outage-map:sha-1a2b3c4 docker compose up -d
+```
+
+### Building locally (offline / development)
+
+If GHCR is unreachable or you want to test an unpushed change, layer in the
+`docker-compose.build.yml` overlay to switch back to building from the bundled
+`Dockerfile`:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
 
 ### Changing the host port
 
@@ -148,32 +166,54 @@ The stack can be deployed as a Portainer Stack in one of two ways:
    - `SMTP_*` and `ALERT_*` if you want email alerts
 6. Click **Deploy the stack**.
 
-Portainer will clone the repo, build the image via the Dockerfile, and
+Portainer will clone the repo, pull the prebuilt image from GHCR, and
 start the container. The `outage-map-data` volume will keep the SQLite
 database across redeploys.
+
+> **Note**: the published GHCR package must be public for Portainer to
+> pull it without credentials. After the first run of the
+> `Build and publish Docker image` workflow, open
+> `https://github.com/orgs/Tri-Lumen/packages/container/outage-map/settings`
+> and set the package visibility to **Public**. If you'd rather keep it
+> private, add a GHCR registry under **Registries** in Portainer with a
+> PAT that has `read:packages`.
 
 ### Option 2 — Web editor
 
 1. In Portainer, go to **Stacks → Add stack**.
 2. Choose **Build method: Web editor**.
 3. Paste the contents of `docker-compose.yml` into the editor.
-4. Because Portainer's web editor cannot build from a local Dockerfile, you
-   will need to point `image:` at a prebuilt image (for example a GHCR or
-   Docker Hub tag you've pushed) and remove the `build:` block.
-5. Add the same environment variables as in Option 1 and deploy.
+4. Add the same environment variables as in Option 1 and deploy.
+
+The compose file references the prebuilt GHCR image directly, so the web
+editor flow works without any further changes — Portainer just pulls and
+runs.
+
+### Option 3 — Local build (offline / air-gapped)
+
+If your Portainer host can't reach GHCR, point the **Compose path** at
+both files, comma-separated:
+
+```
+docker-compose.yml,docker-compose.build.yml
+```
+
+The overlay swaps the image source from GHCR back to a local Dockerfile
+build. Note: this is significantly slower than the prebuilt path (often
+3–7 minutes vs. seconds) and can exceed Portainer's HTTP proxy timeouts,
+leaving the "Saving..." spinner hanging even though the build is still
+running in the background.
 
 ### Updating
 
 From the stack page, click **Update the stack** (repository-based
-deployment) and enable **Re-pull image and redeploy** to rebuild with the
-latest code. The compose file sets `pull_policy: build`, so Portainer
-will build the image from the bundled `Dockerfile` rather than trying to
-pull a prebuilt image from a registry — this avoids "image not found"
-errors during re-pull. The SQLite volume is preserved automatically.
+deployment) and enable **Re-pull image and redeploy** to pull the latest
+GHCR image and recreate the container. The SQLite volume is preserved
+automatically.
 
-If you host your own prebuilt image in a registry (e.g. GHCR, Docker
-Hub), change the `image:` tag in `docker-compose.yml` to point at it and
-remove `pull_policy: build` (and optionally the `build:` block).
+The default compose file sets `pull_policy: always`, so every redeploy
+fetches the latest tag from GHCR even if the local Docker daemon has a
+cached copy.
 
 ## Environment variables
 
