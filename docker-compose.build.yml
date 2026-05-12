@@ -1,0 +1,18 @@
+# Overlay that switches docker-compose.yml from pulling the prebuilt GHCR
+# image to building from the local Dockerfile. Use this when you can't reach
+# GHCR (offline / air-gapped environments) or when you want to test a local
+# code change without pushing it through CI.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+# In Portainer (Repository deploy), set the Compose path to both files
+# separated by a comma:
+#   docker-compose.yml,docker-compose.build.yml
+services:
+  outage-map:
+    image: outage-map:local
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: Dockerfile

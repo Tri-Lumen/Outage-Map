@@ -7,14 +7,21 @@ FROM base AS deps
 WORKDIR /app
 RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json ./
-RUN npm ci
+# Cache the npm download cache between builds — saves ~30s on rebuilds when
+# package-lock.json hasn't changed and the layer is being recreated (e.g.
+# Portainer's "re-pull and redeploy" with build context invalidation).
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm ci
 
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+# Persist Next.js's incremental build cache so unchanged routes don't
+# recompile on every redeploy.
+RUN --mount=type=cache,target=/app/.next/cache,sharing=locked \
+    npm run build
 
 FROM base AS runner
 WORKDIR /app
