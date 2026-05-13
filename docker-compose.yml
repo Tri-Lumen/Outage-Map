@@ -9,7 +9,17 @@ services:
     # To build from source instead (offline or development), run
     # `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d`.
     image: ${OUTAGE_MAP_IMAGE:-ghcr.io/tri-lumen/outage-map:latest}
-    pull_policy: always
+    # `missing` (not `always`) so a redeploy uses the cached image when GHCR
+    # is slow or unreachable. With `always`, the daemon blocks every redeploy
+    # on a synchronous registry fetch — if ghcr.io's token endpoint exceeds
+    # the Docker client timeout the whole deploy aborts with:
+    #   Get "https://ghcr.io/v2/": ... net/http: request canceled
+    #   (Client.Timeout exceeded while awaiting headers)
+    # even though a perfectly good cached image is sitting on the host. To
+    # pull updates explicitly, tick Portainer's "Re-pull image and redeploy"
+    # checkbox (runs `docker compose pull` first, then recreates), or run
+    # `docker compose pull && docker compose up -d` from a shell.
+    pull_policy: missing
     container_name: outage-map
     restart: unless-stopped
     ports:
