@@ -211,9 +211,20 @@ deployment) and enable **Re-pull image and redeploy** to pull the latest
 GHCR image and recreate the container. The SQLite volume is preserved
 automatically.
 
-The default compose file sets `pull_policy: always`, so every redeploy
-fetches the latest tag from GHCR even if the local Docker daemon has a
-cached copy.
+The compose file sets `pull_policy: missing`, so a redeploy will use the
+locally cached image when one exists. This keeps redeploys fast and
+resilient: if GHCR is slow or briefly unreachable, the stack still comes
+back up on the cached image instead of failing with a registry timeout
+like:
+
+```
+Get "https://ghcr.io/v2/": ... net/http: request canceled
+(Client.Timeout exceeded while awaiting headers)
+```
+
+To force a refresh to the latest published build, either tick
+**Re-pull image and redeploy** in Portainer or run
+`docker compose pull && docker compose up -d` from a shell.
 
 ## Environment variables
 
