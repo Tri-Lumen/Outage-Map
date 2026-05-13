@@ -82,6 +82,7 @@ export interface BoardActions {
   addTile: (type: TileType, extraConfig?: Record<string, unknown>) => void;
   swapTiles: (srcId: string, tgtId: string) => void;
   resetBoard: () => void;
+  setBoard: (next: TileConfig[]) => void;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -216,6 +217,10 @@ export function useBoard(): [TileConfig[], BoardActions] {
     mutate(() => DEFAULT_BOARD);
   }, [mutate]);
 
+  const setBoard = useCallback((next: TileConfig[]) => {
+    mutate(() => next);
+  }, [mutate]);
+
   const undo = useCallback(() => {
     setHistory((h) => {
       if (h.past.length === 0) return h;
@@ -248,6 +253,7 @@ export function useBoard(): [TileConfig[], BoardActions] {
     addTile,
     swapTiles,
     resetBoard,
+    setBoard,
     undo,
     redo,
     canUndo: history.past.length > 0,

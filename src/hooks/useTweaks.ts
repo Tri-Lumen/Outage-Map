@@ -37,12 +37,17 @@ function applyTweaks(t: Tweaks) {
   root.dataset.gridLines = t.showGridLines ? 'on' : 'off';
 }
 
-export function useTweaks(): [Tweaks, (key: keyof Tweaks, value: unknown) => void] {
-  const [tweaks, setTweaks] = useState<Tweaks>(DEFAULT_TWEAKS);
+export interface TweaksApi {
+  setTweak: (key: keyof Tweaks, value: unknown) => void;
+  setTweaks: (next: Tweaks) => void;
+}
+
+export function useTweaks(): [Tweaks, TweaksApi] {
+  const [tweaks, setTweaksState] = useState<Tweaks>(DEFAULT_TWEAKS);
 
   useEffect(() => {
     const stored = readTweaks();
-    setTweaks(stored);
+    setTweaksState(stored);
     applyTweaks(stored);
   }, []);
 
@@ -56,8 +61,12 @@ export function useTweaks(): [Tweaks, (key: keyof Tweaks, value: unknown) => voi
   }, [tweaks]);
 
   const setTweak = useCallback((key: keyof Tweaks, value: unknown) => {
-    setTweaks((prev) => ({ ...prev, [key]: value }));
+    setTweaksState((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  return [tweaks, setTweak];
+  const setTweaks = useCallback((next: Tweaks) => {
+    setTweaksState({ ...DEFAULT_TWEAKS, ...next });
+  }, []);
+
+  return [tweaks, { setTweak, setTweaks }];
 }

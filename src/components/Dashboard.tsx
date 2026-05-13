@@ -16,7 +16,8 @@ import TweaksPanel from './TweaksPanel';
 
 export default function Dashboard() {
   const { theme, setTheme } = useTheme();
-  const [tweaks, setTweak] = useTweaks();
+  const [tweaks, tweaksApi] = useTweaks();
+  const { setTweak, setTweaks } = tweaksApi;
   const [board, actions]   = useBoard();
   const prefs              = usePreferences();
 
@@ -216,6 +217,9 @@ export default function Dashboard() {
         onClose={() => setTweaksOpen(false)}
         tweaks={tweaks}
         setTweak={setTweak}
+        setTweaks={setTweaks}
+        board={board}
+        setBoard={actions.setBoard}
         theme={theme}
         setTheme={setTheme}
       />

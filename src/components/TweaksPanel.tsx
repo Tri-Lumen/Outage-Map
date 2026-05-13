@@ -1,7 +1,9 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import type { Tweaks } from '@/hooks/useTweaks';
+import type { TileConfig } from '@/hooks/useBoard';
+import { serializeBoard, parseBoardFile } from '@/lib/board/io';
 import { THEMES, type Theme } from './ThemeProvider';
 
 interface Props {
@@ -9,15 +11,22 @@ interface Props {
   onClose: () => void;
   tweaks: Tweaks;
   setTweak: (key: keyof Tweaks, value: unknown) => void;
+  setTweaks: (next: Tweaks) => void;
+  board: TileConfig[];
+  setBoard: (next: TileConfig[]) => void;
   theme: Theme;
   setTheme: (t: Theme) => void;
 }
 
 const ACCENT_OPTIONS = ['#268bd2', '#2aa198', '#b58900', '#d33682', '#859900', '#3b82f6'];
 
-export default function TweaksPanel({ open, onClose, tweaks, setTweak, theme, setTheme }: Props) {
+export default function TweaksPanel({ open, onClose, tweaks, setTweak, setTweaks, board, setBoard, theme, setTheme }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
   const offsetRef = useRef({ x: 16, y: 16 });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pasting, setPasting] = useState(false);
+  const [pasteValue, setPasteValue] = useState('');
+  const [importError, setImportError] = useState<string | null>(null);
 
   const onDragStart = (e: React.MouseEvent) => {
     const panel = panelRef.current;
@@ -43,6 +52,39 @@ export default function TweaksPanel({ open, onClose, tweaks, setTweak, theme, se
     };
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
+  };
+
+  const handleExport = () => {
+    const json = serializeBoard({ board, tweaks });
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'outage-board.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const applyImport = (raw: string) => {
+    const parsed = parseBoardFile(raw);
+    if (!parsed) {
+      setImportError('That doesn’t look like an outage-board export.');
+      return false;
+    }
+    setBoard(parsed.board);
+    if (parsed.tweaks) setTweaks(parsed.tweaks);
+    setImportError(null);
+    setPasting(false);
+    setPasteValue('');
+    onClose();
+    return true;
+  };
+
+  const handleFile = async (file: File) => {
+    const text = await file.text();
+    applyImport(text);
   };
 
   if (!open) return null;
@@ -140,6 +182,81 @@ export default function TweaksPanel({ open, onClose, tweaks, setTweak, theme, se
             ))}
           </div>
         </div>
+
+        {/* Backup section */}
+        <div className="twk-sect">Backup</div>
+
+        <div className="twk-row twk-row-h">
+          <div className="twk-lbl"><span>Export &amp; import</span></div>
+          <div className="twk-seg">
+            <button onClick={handleExport} title="Download outage-board.json">Export</button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              title="Import from a file"
+            >
+              Import
+            </button>
+          </div>
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleFile(f);
+            e.target.value = '';
+          }}
+        />
+
+        <div className="twk-row" style={{ marginTop: -4 }}>
+          <button
+            type="button"
+            onClick={() => { setPasting((p) => !p); setImportError(null); }}
+            style={{
+              background: 'transparent',
+              border: 0,
+              color: 'var(--muted)',
+              fontSize: 11,
+              textDecoration: 'underline',
+              cursor: 'pointer',
+              padding: 0,
+              alignSelf: 'flex-start',
+              fontFamily: 'inherit',
+            }}
+          >
+            {pasting ? 'Cancel paste' : 'Or paste JSON…'}
+          </button>
+        </div>
+
+        {pasting && (
+          <div className="twk-row">
+            <textarea
+              className="twk-field"
+              rows={4}
+              placeholder="Paste exported JSON here"
+              value={pasteValue}
+              onChange={(e) => setPasteValue(e.target.value)}
+              style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11 }}
+            />
+            <button
+              type="button"
+              className="board-btn board-btn-primary"
+              style={{ marginTop: 6 }}
+              onClick={() => applyImport(pasteValue)}
+            >
+              Apply
+            </button>
+          </div>
+        )}
+
+        {importError && (
+          <div className="twk-row" role="alert" style={{ fontSize: 11, color: 'var(--accent-rose, #f87171)' }}>
+            {importError}
+          </div>
+        )}
       </div>
     </div>
   );
