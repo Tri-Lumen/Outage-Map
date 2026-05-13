@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import * as layout from '@/lib/board/layout';
 
 export type TileType =
   | 'stat'
@@ -85,6 +86,7 @@ export interface BoardActions {
   setBoard: (next: TileConfig[]) => void;
   duplicateTile: (id: string) => void;
   renameTile: (id: string, label: string | null) => void;
+  moveTile: (id: string, x: number, y: number) => void;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -95,9 +97,13 @@ export function useBoard(): [TileConfig[], BoardActions] {
   const [history, setHistory] = useState<History>({ past: [], present: DEFAULT_BOARD, future: [] });
   const hydrated = useRef(false);
 
-  // Hydrate from localStorage after mount
+  // Hydrate from localStorage after mount. Compact once on load so any
+  // historical overlaps (the DEFAULT_BOARD relied on grid auto-flow, and
+  // older saves used y=99 as a "place at end" sentinel) collapse into
+  // valid (x, y) positions before we switch to explicit grid placement.
   useEffect(() => {
-    setHistory({ past: [], present: readBoard(), future: [] });
+    const stored = readBoard();
+    setHistory({ past: [], present: layout.compactDown(stored), future: [] });
     hydrated.current = true;
   }, []);
 
@@ -186,19 +192,22 @@ export function useBoard(): [TileConfig[], BoardActions] {
     };
     const id = 't' + Date.now();
     const size = defaultSizes[type];
-    mutate((b) => [
-      ...b,
-      {
-        id,
-        type,
-        x: 0,
-        y: 99,
-        w: size.w,
-        h: size.h,
-        config: { ...defaultConfigs[type], ...extraConfig },
-        dataPoints: defaultDataPoints[type],
-      },
-    ]);
+    mutate((b) => {
+      const bottom = b.reduce((m, t) => Math.max(m, t.y + t.h), 0);
+      return [
+        ...b,
+        {
+          id,
+          type,
+          x: 0,
+          y: bottom,
+          w: size.w,
+          h: size.h,
+          config: { ...defaultConfigs[type], ...extraConfig },
+          dataPoints: defaultDataPoints[type],
+        },
+      ];
+    });
   }, [mutate]);
 
   const swapTiles = useCallback((srcId: string, tgtId: string) => {
@@ -227,16 +236,21 @@ export function useBoard(): [TileConfig[], BoardActions] {
     mutate((b) => {
       const src = b.find((t) => t.id === id);
       if (!src) return b;
+      const bottom = b.reduce((m, t) => Math.max(m, t.y + t.h), 0);
       const clone: TileConfig = {
         ...src,
         id: 't' + Date.now(),
         x: 0,
-        y: 99,
+        y: bottom,
         config: { ...src.config },
         dataPoints: [...src.dataPoints],
       };
       return [...b, clone];
     });
+  }, [mutate]);
+
+  const moveTile = useCallback((id: string, x: number, y: number) => {
+    mutate((b) => layout.moveTile(b, id, x, y));
   }, [mutate]);
 
   const renameTile = useCallback((id: string, label: string | null) => {
@@ -286,6 +300,7 @@ export function useBoard(): [TileConfig[], BoardActions] {
     setBoard,
     duplicateTile,
     renameTile,
+    moveTile,
     undo,
     redo,
     canUndo: history.past.length > 0,
