@@ -134,6 +134,9 @@ export interface BoardActions {
   renameTile: (id: string, label: string | null) => void;
   moveTile: (id: string, x: number, y: number) => void;
   resizeTile: (id: string, w: number, h: number) => void;
+  bulkMove: (ids: string[], dx: number, dy: number) => void;
+  bulkDelete: (ids: string[]) => void;
+  bulkDuplicate: (ids: string[]) => void;
   tidy: () => void;
   lastTidyDelta: number | null;
   undo: () => void;
@@ -370,6 +373,54 @@ export function useBoard({ bp = 'desktop', boardId, tiles, onCommit }: UseBoardP
     runLayoutOp((effective, c) => layout.resizeTile(effective, id, w, h, c));
   }, [runLayoutOp]);
 
+  const bulkMove = useCallback((ids: string[], dx: number, dy: number) => {
+    if (ids.length === 0 || (dx === 0 && dy === 0)) return;
+    runLayoutOp((effective, c) => {
+      let next = effective;
+      for (const id of ids) {
+        const t = next.find((x) => x.id === id);
+        if (!t) continue;
+        next = layout.moveTile(next, id, t.x + dx, t.y + dy, c);
+      }
+      return next;
+    });
+  }, [runLayoutOp]);
+
+  const bulkDelete = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    mutate((b) => b.filter((t) => !ids.includes(t.id)));
+  }, [mutate]);
+
+  const bulkDuplicate = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    mutate((b) => {
+      const bottomStart = b.reduce((m, t) => {
+        const r = effectiveRect(t, bp);
+        return Math.max(m, r.y + r.h);
+      }, 0);
+      const additions: TileConfig[] = [];
+      let yCursor = bottomStart;
+      ids.forEach((id, i) => {
+        const src = b.find((t) => t.id === id);
+        if (!src) return;
+        const w = Math.min(src.w, cols);
+        const clone: TileConfig = {
+          ...src,
+          id: 't' + Date.now() + '_' + i,
+          x: 0,
+          y: yCursor,
+          w,
+          config: { ...src.config },
+          dataPoints: [...src.dataPoints],
+          layouts: bp !== 'desktop' ? { [bp]: { x: 0, y: yCursor, w, h: src.h } } : src.layouts,
+        };
+        yCursor += src.h;
+        additions.push(clone);
+      });
+      return [...b, ...additions];
+    });
+  }, [mutate, bp, cols]);
+
   const tidy = useCallback(() => {
     setHistory((h) => {
       const effective = h.present.map((t) => asEffective(t, bp));
@@ -440,6 +491,9 @@ export function useBoard({ bp = 'desktop', boardId, tiles, onCommit }: UseBoardP
     renameTile,
     moveTile,
     resizeTile,
+    bulkMove,
+    bulkDelete,
+    bulkDuplicate,
     tidy,
     lastTidyDelta,
     undo,

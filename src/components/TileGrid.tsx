@@ -22,6 +22,9 @@ interface TileGridProps {
   cols: number;
   editing: boolean;
   live: LiveData;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
+  onClearSelection: () => void;
   onUpdateTile: (id: string, patch: Partial<TileConfig>) => void;
   onRemoveTile: (id: string) => void;
   onCycleResize: (id: string) => void;
@@ -79,6 +82,9 @@ export default function TileGrid({
   cols,
   editing,
   live,
+  selectedIds,
+  onToggleSelect,
+  onClearSelection,
   onUpdateTile,
   onRemoveTile,
   onCycleResize,
@@ -198,6 +204,7 @@ export default function TileGrid({
             dragId === tile.id ? 'tile-dragging' : '',
             dragOverId === tile.id && dragId !== tile.id ? 'tile-drag-over' : '',
             resizePreview?.id === tile.id ? 'tile-resizing' : '',
+            selectedIds.has(tile.id) ? 'tile-selected' : '',
           ]
             .filter(Boolean)
             .join(' ')}
@@ -212,6 +219,19 @@ export default function TileGrid({
           onDragOver={(e) => { e.preventDefault(); setDragOverId(tile.id); }}
           onDragLeave={() => setDragOverId(null)}
           onDragEnd={() => { setDragId(null); setDragOverId(null); dropTargetRef.current = null; }}
+          onClickCapture={(e) => {
+            if (!editing) return;
+            // Don't hijack clicks on action buttons / inputs inside the tile.
+            const target = e.target as HTMLElement;
+            if (target.closest('button, input, select, textarea, a, .tile-resize-handle')) return;
+            if (e.shiftKey) {
+              e.preventDefault();
+              e.stopPropagation();
+              onToggleSelect(tile.id);
+            } else if (selectedIds.size > 0) {
+              onClearSelection();
+            }
+          }}
         >
           {editing && (
             <div className="drag-handle" aria-hidden="true">

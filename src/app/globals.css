@@ -1403,3 +1403,27 @@ select.twk-field {
   overflow-y: auto;
   font-family: inherit;
 }
+
+.tile-selected {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.tile-selected.tile-edit-mode { border-style: solid; }
+
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 9px;
+  font-size: 12px;
+  color: var(--foreground);
+  flex-wrap: wrap;
+}
+.bulk-bar-hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+}

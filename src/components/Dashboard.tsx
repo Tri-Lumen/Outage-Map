@@ -44,6 +44,23 @@ export default function Dashboard() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [configTileId, setConfigTileId]   = useState<string | null>(null);
   const configTile = configTileId ? board.find((t) => t.id === configTileId) ?? null : null;
+  const [selectedIds, setSelectedIds]     = useState<Set<string>>(new Set());
+  const selectedArr = useMemo(() => Array.from(selectedIds), [selectedIds]);
+
+  // Clear selection when leaving edit mode.
+  useEffect(() => {
+    if (!editing && selectedIds.size > 0) setSelectedIds(new Set());
+  }, [editing, selectedIds.size]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const clearSelection = () => setSelectedIds(new Set());
 
   // Force-disable edit + overlays in present mode.
   useEffect(() => {
@@ -66,6 +83,19 @@ export default function Dashboard() {
     return () => clearInterval(id);
   }, [present.present, present.rotateMs, boardSet]);
 
+  // Bulk-action shortcuts when tiles are selected.
+  useShortcuts(
+    {
+      'ArrowLeft':  () => actions.bulkMove(selectedArr, -1, 0),
+      'ArrowRight': () => actions.bulkMove(selectedArr,  1, 0),
+      'ArrowUp':    () => actions.bulkMove(selectedArr,  0, -1),
+      'ArrowDown':  () => actions.bulkMove(selectedArr,  0,  1),
+      'Backspace':  () => { actions.bulkDelete(selectedArr); clearSelection(); },
+      'mod+d':      () => actions.bulkDuplicate(selectedArr),
+    },
+    { enabled: editing && selectedIds.size > 0 },
+  );
+
   // Fullscreen shortcut (F) in present mode.
   useShortcuts(
     {
@@ -83,6 +113,7 @@ export default function Dashboard() {
     setTweaksOpen(false);
     setShortcutsOpen(false);
     setConfigTileId(null);
+    if (selectedIds.size > 0) setSelectedIds(new Set());
     if (present.present) exitPresent();
   };
 
@@ -268,6 +299,23 @@ export default function Dashboard() {
       </div>
       )}
 
+      {!present.present && editing && selectedIds.size > 0 && (
+        <div className="bulk-bar">
+          <span><b>{selectedIds.size}</b> selected</span>
+          <button
+            className="board-btn"
+            onClick={() => actions.bulkDuplicate(selectedArr)}
+          >Duplicate</button>
+          <button
+            className="board-btn"
+            style={{ color: '#ef5350' }}
+            onClick={() => { actions.bulkDelete(selectedArr); clearSelection(); }}
+          >Delete</button>
+          <span className="bulk-bar-hint">Arrow keys move · ⇧Click toggle · Esc clear</span>
+          <button className="board-btn" onClick={clearSelection}>Done</button>
+        </div>
+      )}
+
       {/* ── Tile grid ── */}
       {isLoading && board.length === 0 ? (
         <div
@@ -294,6 +342,9 @@ export default function Dashboard() {
           cols={COLS_FOR[breakpoint]}
           editing={editing}
           live={live}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelect}
+          onClearSelection={clearSelection}
           onUpdateTile={actions.updateTile}
           onRemoveTile={actions.removeTile}
           onCycleResize={actions.cycleResize}
