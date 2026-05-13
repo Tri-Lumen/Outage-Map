@@ -41,7 +41,14 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 EXPOSE 3100
 VOLUME ["/app/data"]
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+# Tight interval + short start-period so docker marks the container healthy
+# within ~5–10s of the Next.js server binding the port. Portainer's redeploy
+# call gates on healthy state (via `docker compose up --wait` semantics); if
+# the first check doesn't fire until 30s in and start-period is 60s, a stack
+# update can run past the default HTTP/proxy timeout (~60s) and the "Saving…"
+# spinner hangs even though the deploy itself succeeded. /api/status is a
+# cheap SELECT against a small SQLite db, so a 5s interval is fine.
+HEALTHCHECK --interval=5s --timeout=5s --start-period=15s --retries=3 \
   CMD wget -qO- http://127.0.0.1:3100/api/status >/dev/null 2>&1 || exit 1
 
 ENTRYPOINT ["docker-entrypoint.sh"]
