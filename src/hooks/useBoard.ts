@@ -88,6 +88,8 @@ export interface BoardActions {
   renameTile: (id: string, label: string | null) => void;
   moveTile: (id: string, x: number, y: number) => void;
   resizeTile: (id: string, w: number, h: number) => void;
+  tidy: () => void;
+  lastTidyDelta: number | null;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -96,6 +98,7 @@ export interface BoardActions {
 
 export function useBoard(): [TileConfig[], BoardActions] {
   const [history, setHistory] = useState<History>({ past: [], present: DEFAULT_BOARD, future: [] });
+  const [lastTidyDelta, setLastTidyDelta] = useState<number | null>(null);
   const hydrated = useRef(false);
 
   // Hydrate from localStorage after mount. Compact once on load so any
@@ -258,6 +261,14 @@ export function useBoard(): [TileConfig[], BoardActions] {
     mutate((b) => layout.resizeTile(b, id, w, h));
   }, [mutate]);
 
+  const tidy = useCallback(() => {
+    setHistory((h) => {
+      const { next, rowsSaved } = layout.tidy(h.present);
+      setLastTidyDelta(rowsSaved);
+      return pushHistory(h, next);
+    });
+  }, []);
+
   const renameTile = useCallback((id: string, label: string | null) => {
     mutate((b) =>
       b.map((t) => {
@@ -307,6 +318,8 @@ export function useBoard(): [TileConfig[], BoardActions] {
     renameTile,
     moveTile,
     resizeTile,
+    tidy,
+    lastTidyDelta,
     undo,
     redo,
     canUndo: history.past.length > 0,

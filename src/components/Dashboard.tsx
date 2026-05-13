@@ -145,6 +145,25 @@ export default function Dashboard() {
             {editing ? 'Done editing' : 'Edit board'}
           </button>
 
+          {editing && (
+            <button
+              className="board-btn"
+              onClick={actions.tidy}
+              title={
+                actions.lastTidyDelta === null
+                  ? 'Auto-arrange tiles'
+                  : actions.lastTidyDelta === 0
+                  ? 'Already tidy'
+                  : `Saved ${actions.lastTidyDelta} row${actions.lastTidyDelta === 1 ? '' : 's'}`
+              }
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z" />
+              </svg>
+              Tidy
+            </button>
+          )}
+
           <button className="board-btn" onClick={() => setAddOpen(true)}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M12 5v14M5 12h14" />
