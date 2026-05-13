@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useServiceStatus, useIncidents, useHistory } from '@/hooks/useStatus';
 import { usePreferences } from '@/hooks/usePreferences';
 import { useBoard } from '@/hooks/useBoard';
+import { useBoardSet } from '@/hooks/useBoardSet';
 import { useBreakpoint, COLS_FOR } from '@/hooks/useBreakpoint';
 import { useTweaks } from '@/hooks/useTweaks';
 import { useShortcuts } from '@/hooks/useShortcuts';
@@ -12,6 +13,7 @@ import { formatRelativeTime } from '@/lib/format';
 import type { LiveData } from './tiles/types';
 import type { TileType } from '@/hooks/useBoard';
 import TileGrid from './TileGrid';
+import BoardTabs from './BoardTabs';
 import ImportSlideOver from './ImportSlideOver';
 import AddTilePopover from './AddTilePopover';
 import TweaksPanel from './TweaksPanel';
@@ -22,7 +24,13 @@ export default function Dashboard() {
   const [tweaks, tweaksApi] = useTweaks();
   const { setTweak, setTweaks } = tweaksApi;
   const breakpoint         = useBreakpoint();
-  const [board, actions]   = useBoard(breakpoint);
+  const boardSet           = useBoardSet();
+  const [board, actions]   = useBoard({
+    bp: breakpoint,
+    boardId: boardSet.activeId,
+    tiles: boardSet.active.tiles,
+    onCommit: boardSet.setActiveTiles,
+  });
   const prefs              = usePreferences();
 
   const [editing, setEditing]             = useState(false);
@@ -82,6 +90,9 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* ── Board tabs ── */}
+      <BoardTabs boardSet={boardSet} />
+
       {/* ── Board toolbar ── */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-4">
         {/* Left: headline */}

@@ -30,7 +30,7 @@ export interface TileConfig {
 const BOARD_STORAGE_KEY = 'outage-board-v3';
 const HISTORY_LIMIT = 50;
 
-const DEFAULT_BOARD: TileConfig[] = [
+export const DEFAULT_BOARD: TileConfig[] = [
   { id: 't1', type: 'stat',          x: 0, y: 0, w: 1, h: 2, config: { metric: 'uptime' },     dataPoints: [] },
   { id: 't2', type: 'stat',          x: 1, y: 0, w: 1, h: 2, config: { metric: 'incidents' },   dataPoints: [] },
   { id: 't3', type: 'stat',          x: 2, y: 0, w: 1, h: 2, config: { metric: 'mttr' },        dataPoints: [] },
@@ -46,24 +46,11 @@ const TILE_SIZES: { w: number; h: number }[] = [
   { w: 1, h: 1 }, { w: 1, h: 2 }, { w: 2, h: 1 }, { w: 2, h: 2 }, { w: 3, h: 2 }, { w: 2, h: 3 },
 ];
 
-function readBoard(): TileConfig[] {
-  if (typeof window === 'undefined') return DEFAULT_BOARD;
-  try {
-    const raw = localStorage.getItem(BOARD_STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as TileConfig[];
-  } catch {
-    // ignore
-  }
-  return DEFAULT_BOARD;
-}
-
-function writeBoard(board: TileConfig[]) {
-  try {
-    localStorage.setItem(BOARD_STORAGE_KEY, JSON.stringify(board));
-  } catch {
-    // ignore
-  }
-}
+// Persistence now lives in `useBoardSet` (storage key 'outage-boards-v4').
+// useBoard is controlled by an external (tiles, onCommit) pair and no longer
+// reads or writes localStorage itself. BOARD_STORAGE_KEY is retained only as
+// a doc-string anchor so the historical key shows up in code search.
+void BOARD_STORAGE_KEY;
 
 interface History {
   past: TileConfig[][];
@@ -155,33 +142,56 @@ export interface BoardActions {
   canRedo: boolean;
 }
 
-export function useBoard(bp: Breakpoint = 'desktop'): [TileConfig[], BoardActions] {
-  const [history, setHistory] = useState<History>({ past: [], present: DEFAULT_BOARD, future: [] });
+export interface UseBoardParams {
+  bp?: Breakpoint;
+  boardId: string;
+  tiles: TileConfig[];
+  onCommit: (tiles: TileConfig[]) => void;
+}
+
+export function useBoard({ bp = 'desktop', boardId, tiles, onCommit }: UseBoardParams): [TileConfig[], BoardActions] {
+  const [history, setHistory] = useState<History>(() => ({
+    past: [],
+    present: layout.compactDown(tiles),
+    future: [],
+  }));
   const [lastTidyDelta, setLastTidyDelta] = useState<number | null>(null);
-  const hydrated = useRef(false);
   const cols = COLS_FOR[bp];
 
-  // Hydrate from localStorage after mount. Compact once on load so any
-  // historical overlaps (the DEFAULT_BOARD relied on grid auto-flow, and
-  // older saves used y=99 as a "place at end" sentinel) collapse into
-  // valid (x, y) positions before we switch to explicit grid placement.
-  useEffect(() => {
-    const stored = readBoard();
-    setHistory({ past: [], present: layout.compactDown(stored), future: [] });
-    hydrated.current = true;
-  }, []);
+  // Track which tiles array reference came from our own commits, so we can
+  // distinguish an external tiles change (active-board switch, import) from
+  // the parent echoing our last commit back at us.
+  const ownCommit = useRef<TileConfig[] | null>(null);
+  const lastBoardId = useRef(boardId);
 
-  // Persist whenever the present board changes (after hydration)
+  // External tiles change: either the active board id changed, or the parent
+  // replaced the tiles outside our knowledge (e.g. an import). Reset history
+  // to the new tiles.
   useEffect(() => {
-    if (!hydrated.current) return;
-    writeBoard(history.present);
-  }, [history.present]);
+    if (boardId !== lastBoardId.current) {
+      const next = layout.compactDown(tiles);
+      setHistory({ past: [], present: next, future: [] });
+      lastBoardId.current = boardId;
+      ownCommit.current = tiles;
+      return;
+    }
+    if (ownCommit.current === tiles) return;
+    // Parent changed tiles by a hand that wasn't us — reset.
+    setHistory({ past: [], present: tiles, future: [] });
+    ownCommit.current = tiles;
+  }, [boardId, tiles]);
 
-  // When the breakpoint changes (or after hydration), auto-generate any
-  // missing per-breakpoint layouts so tablet / mobile have something to
-  // render before the user touches the board.
+  // Notify parent whenever our present changes.
   useEffect(() => {
-    if (!hydrated.current) return;
+    if (history.present === ownCommit.current) return;
+    ownCommit.current = history.present;
+    onCommit(history.present);
+  }, [history.present, onCommit]);
+
+  // When the breakpoint changes, auto-generate any missing per-breakpoint
+  // layouts so tablet / mobile have something to render before the user
+  // touches the board.
+  useEffect(() => {
     setHistory((h) => {
       const generated = ensureBreakpointLayouts(h.present, bp);
       return generated === h.present ? h : { ...h, present: generated };
