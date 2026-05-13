@@ -1303,3 +1303,34 @@ select.twk-field {
   line-height: 1;
 }
 .board-tab-add:hover { color: var(--foreground); border-color: var(--accent); }
+
+/* ============================================================
+   PRESENT MODE
+   ============================================================ */
+
+.present-controls {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 40;
+  display: flex;
+  gap: 6px;
+  background: var(--surface-glass);
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  padding: 4px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 20px -8px rgba(0, 0, 0, 0.5);
+}
+.present-controls button {
+  background: transparent;
+  border: 0;
+  color: var(--foreground);
+  font: inherit;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.present-controls button:hover { background: var(--surface-elevated); }

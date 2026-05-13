@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useServiceStatus, useIncidents, useHistory } from '@/hooks/useStatus';
 import { usePreferences } from '@/hooks/usePreferences';
 import { useBoard } from '@/hooks/useBoard';
@@ -8,6 +8,7 @@ import { useBoardSet } from '@/hooks/useBoardSet';
 import { useBreakpoint, COLS_FOR } from '@/hooks/useBreakpoint';
 import { useTweaks } from '@/hooks/useTweaks';
 import { useShortcuts } from '@/hooks/useShortcuts';
+import { usePresentMode, enterPresent, exitPresent } from '@/hooks/usePresentMode';
 import { useTheme } from './ThemeProvider';
 import { formatRelativeTime } from '@/lib/format';
 import type { LiveData } from './tiles/types';
@@ -18,6 +19,7 @@ import ImportSlideOver from './ImportSlideOver';
 import AddTilePopover from './AddTilePopover';
 import TweaksPanel from './TweaksPanel';
 import ShortcutsOverlay from './ShortcutsOverlay';
+import PresentControls from './PresentControls';
 
 export default function Dashboard() {
   const { theme, setTheme } = useTheme();
@@ -32,6 +34,7 @@ export default function Dashboard() {
     onCommit: boardSet.setActiveTiles,
   });
   const prefs              = usePreferences();
+  const present            = usePresentMode();
 
   const [editing, setEditing]             = useState(false);
   const [importOpen, setImportOpen]       = useState(false);
@@ -39,11 +42,44 @@ export default function Dashboard() {
   const [tweaksOpen, setTweaksOpen]       = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
+  // Force-disable edit + overlays in present mode.
+  useEffect(() => {
+    if (!present.present) return;
+    setEditing(false);
+    setImportOpen(false);
+    setAddOpen(false);
+    setTweaksOpen(false);
+    setShortcutsOpen(false);
+  }, [present.present]);
+
+  // Auto-rotate active board in present mode.
+  useEffect(() => {
+    if (!present.present || !present.rotateMs || boardSet.boards.length <= 1) return;
+    const id = setInterval(() => {
+      const i = boardSet.boards.findIndex((b) => b.id === boardSet.activeId);
+      const next = boardSet.boards[(i + 1) % boardSet.boards.length];
+      if (next) boardSet.setActive(next.id);
+    }, present.rotateMs);
+    return () => clearInterval(id);
+  }, [present.present, present.rotateMs, boardSet]);
+
+  // Fullscreen shortcut (F) in present mode.
+  useShortcuts(
+    {
+      'f': () => {
+        if (document.fullscreenElement) document.exitFullscreen().catch(() => { /* ignore */ });
+        else document.documentElement.requestFullscreen().catch(() => { /* ignore */ });
+      },
+    },
+    { enabled: present.present },
+  );
+
   const closeAllOverlays = () => {
     setImportOpen(false);
     setAddOpen(false);
     setTweaksOpen(false);
     setShortcutsOpen(false);
+    if (present.present) exitPresent();
   };
 
   useShortcuts({
@@ -90,10 +126,11 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* ── Board tabs ── */}
-      <BoardTabs boardSet={boardSet} />
+      {/* ── Board tabs (hidden in present mode) ── */}
+      {!present.present && <BoardTabs boardSet={boardSet} />}
 
-      {/* ── Board toolbar ── */}
+      {/* ── Board toolbar (hidden in present mode) ── */}
+      {!present.present && (
       <div className="flex flex-col sm:flex-row sm:items-center gap-4">
         {/* Left: headline */}
         <div className="flex-1 min-w-0">
@@ -215,8 +252,17 @@ export default function Dashboard() {
             </svg>
             Tweaks
           </button>
+
+          <button className="board-btn" onClick={enterPresent} title="Presentation mode">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="2" y="3" width="20" height="14" rx="2" />
+              <path d="M8 21h8M12 17v4" />
+            </svg>
+            Present
+          </button>
         </div>
       </div>
+      )}
 
       {/* ── Tile grid ── */}
       {isLoading && board.length === 0 ? (
@@ -289,6 +335,8 @@ export default function Dashboard() {
         theme={theme}
         setTheme={setTheme}
       />
+
+      {present.present && <PresentControls />}
     </div>
   );
 }

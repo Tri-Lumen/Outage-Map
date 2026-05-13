@@ -4,9 +4,20 @@ import { ReactNode } from 'react';
 import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
 import { SidebarProvider, useSidebar } from './SidebarContext';
+import { usePresentMode } from '@/hooks/usePresentMode';
 
 function ShellInner({ children }: { children: ReactNode }) {
   const { collapsed } = useSidebar();
+  const { present } = usePresentMode();
+
+  if (present) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <main className="px-4 py-4">{children}</main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex bg-background text-foreground">
       <Sidebar />
