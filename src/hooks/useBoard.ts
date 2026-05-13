@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import * as layout from '@/lib/board/layout';
+import type { BoxRect } from '@/lib/board/layout';
+import { COLS_FOR, type Breakpoint } from './useBreakpoint';
 
 export type TileType =
   | 'stat'
@@ -22,6 +24,7 @@ export interface TileConfig {
   h: number;
   config: Record<string, unknown>;
   dataPoints: string[];
+  layouts?: Partial<Record<Breakpoint, BoxRect>>;
 }
 
 const BOARD_STORAGE_KEY = 'outage-board-v3';
@@ -75,6 +78,62 @@ function pushHistory(h: History, next: TileConfig[]): History {
   return { past, present: next, future: [] };
 }
 
+function effectiveRect(t: TileConfig, bp: Breakpoint): BoxRect {
+  const stored = t.layouts?.[bp];
+  if (stored) return stored;
+  return { x: t.x, y: t.y, w: t.w, h: t.h };
+}
+
+/** Return a synthetic TileConfig view where (x,y,w,h) reflect the breakpoint. */
+function asEffective(t: TileConfig, bp: Breakpoint): TileConfig {
+  if (bp === 'desktop') return t;
+  const r = effectiveRect(t, bp);
+  return { ...t, x: r.x, y: r.y, w: r.w, h: r.h };
+}
+
+/** Write a new rect for tile `id` at breakpoint `bp`. */
+function writeRect(tile: TileConfig, bp: Breakpoint, rect: BoxRect): TileConfig {
+  if (bp === 'desktop') {
+    return { ...tile, x: rect.x, y: rect.y, w: rect.w, h: rect.h };
+  }
+  return { ...tile, layouts: { ...tile.layouts, [bp]: rect } };
+}
+
+/**
+ * Auto-generate a layout for `bp` for any tile that doesn't have one yet.
+ * Mobile = single-column stack sorted by current placement; tablet =
+ * clamp width to the tablet column count, then compact down.
+ */
+function ensureBreakpointLayouts(board: TileConfig[], bp: Breakpoint): TileConfig[] {
+  if (bp === 'desktop') return board;
+  if (board.every((t) => t.layouts?.[bp])) return board;
+  const cols = COLS_FOR[bp];
+  const sorted = [...board].sort((a, b) => a.y - b.y || a.x - b.x);
+  const generated: { id: string; rect: BoxRect }[] = [];
+  if (bp === 'mobile') {
+    let y = 0;
+    for (const t of sorted) {
+      generated.push({ id: t.id, rect: { x: 0, y, w: 1, h: t.h } });
+      y += t.h;
+    }
+  } else {
+    // tablet — clamp width, then compact down.
+    const widened = sorted.map((t) => ({
+      ...t,
+      w: Math.min(t.w, cols),
+      x: Math.min(t.x, cols - 1),
+    }));
+    const packed = layout.tidy(widened, cols).next;
+    for (const t of packed) generated.push({ id: t.id, rect: { x: t.x, y: t.y, w: t.w, h: t.h } });
+  }
+  const byId = new Map(generated.map((g) => [g.id, g.rect]));
+  return board.map((t) =>
+    t.layouts?.[bp]
+      ? t
+      : { ...t, layouts: { ...t.layouts, [bp]: byId.get(t.id) ?? effectiveRect(t, bp) } }
+  );
+}
+
 export interface BoardActions {
   updateTile: (id: string, patch: Partial<TileConfig>) => void;
   removeTile: (id: string) => void;
@@ -96,10 +155,11 @@ export interface BoardActions {
   canRedo: boolean;
 }
 
-export function useBoard(): [TileConfig[], BoardActions] {
+export function useBoard(bp: Breakpoint = 'desktop'): [TileConfig[], BoardActions] {
   const [history, setHistory] = useState<History>({ past: [], present: DEFAULT_BOARD, future: [] });
   const [lastTidyDelta, setLastTidyDelta] = useState<number | null>(null);
   const hydrated = useRef(false);
+  const cols = COLS_FOR[bp];
 
   // Hydrate from localStorage after mount. Compact once on load so any
   // historical overlaps (the DEFAULT_BOARD relied on grid auto-flow, and
@@ -117,9 +177,35 @@ export function useBoard(): [TileConfig[], BoardActions] {
     writeBoard(history.present);
   }, [history.present]);
 
+  // When the breakpoint changes (or after hydration), auto-generate any
+  // missing per-breakpoint layouts so tablet / mobile have something to
+  // render before the user touches the board.
+  useEffect(() => {
+    if (!hydrated.current) return;
+    setHistory((h) => {
+      const generated = ensureBreakpointLayouts(h.present, bp);
+      return generated === h.present ? h : { ...h, present: generated };
+    });
+  }, [bp]);
+
   const mutate = useCallback((producer: (b: TileConfig[]) => TileConfig[]) => {
     setHistory((h) => pushHistory(h, producer(h.present)));
   }, []);
+
+  // Run a layout-module operation against the effective view, then
+  // back-merge each tile's new rect into its appropriate breakpoint slot.
+  const runLayoutOp = useCallback((op: (effective: TileConfig[], cols: number) => TileConfig[]) => {
+    mutate((b) => {
+      const effective = b.map((t) => asEffective(t, bp));
+      const next = op(effective, cols);
+      const byId = new Map(next.map((t) => [t.id, { x: t.x, y: t.y, w: t.w, h: t.h }]));
+      return b.map((t) => {
+        const rect = byId.get(t.id);
+        if (!rect) return t;
+        return writeRect(t, bp, rect);
+      });
+    });
+  }, [mutate, bp, cols]);
 
   const updateTile = useCallback((id: string, patch: Partial<TileConfig>) => {
     mutate((b) =>
@@ -140,15 +226,15 @@ export function useBoard(): [TileConfig[], BoardActions] {
   }, [mutate]);
 
   const cycleResize = useCallback((id: string) => {
-    mutate((b) =>
-      b.map((t) => {
+    runLayoutOp((effective) =>
+      effective.map((t) => {
         if (t.id !== id) return t;
         const idx = TILE_SIZES.findIndex((s) => s.w === t.w && s.h === t.h);
         const next = TILE_SIZES[(idx + 1) % TILE_SIZES.length];
-        return { ...t, w: next.w, h: next.h };
+        return { ...t, w: Math.min(next.w, cols), h: next.h };
       })
     );
-  }, [mutate]);
+  }, [runLayoutOp, cols]);
 
   const toggleDataPoint = useCallback((id: string, key: string) => {
     mutate((b) =>
@@ -197,36 +283,43 @@ export function useBoard(): [TileConfig[], BoardActions] {
     const id = 't' + Date.now();
     const size = defaultSizes[type];
     mutate((b) => {
-      const bottom = b.reduce((m, t) => Math.max(m, t.y + t.h), 0);
-      return [
-        ...b,
-        {
-          id,
-          type,
-          x: 0,
-          y: bottom,
-          w: size.w,
-          h: size.h,
-          config: { ...defaultConfigs[type], ...extraConfig },
-          dataPoints: defaultDataPoints[type],
-        },
-      ];
+      const bottom = b.reduce((m, t) => {
+        const r = effectiveRect(t, bp);
+        return Math.max(m, r.y + r.h);
+      }, 0);
+      const w = Math.min(size.w, cols);
+      const newTile: TileConfig = {
+        id,
+        type,
+        x: 0,
+        y: bottom,
+        w,
+        h: size.h,
+        config: { ...defaultConfigs[type], ...extraConfig },
+        dataPoints: defaultDataPoints[type],
+      };
+      // For non-desktop, also seed the breakpoint layout so the tile
+      // doesn't render at its desktop coords on the active breakpoint.
+      if (bp !== 'desktop') {
+        newTile.layouts = { [bp]: { x: 0, y: bottom, w, h: size.h } };
+      }
+      return [...b, newTile];
     });
-  }, [mutate]);
+  }, [mutate, bp, cols]);
 
   const swapTiles = useCallback((srcId: string, tgtId: string) => {
     if (srcId === tgtId) return;
-    mutate((b) => {
-      const src = b.find((t) => t.id === srcId);
-      const tgt = b.find((t) => t.id === tgtId);
-      if (!src || !tgt) return b;
-      return b.map((t) => {
+    runLayoutOp((effective) => {
+      const src = effective.find((t) => t.id === srcId);
+      const tgt = effective.find((t) => t.id === tgtId);
+      if (!src || !tgt) return effective;
+      return effective.map((t) => {
         if (t.id === srcId) return { ...t, x: tgt.x, y: tgt.y, w: tgt.w, h: tgt.h };
         if (t.id === tgtId) return { ...t, x: src.x, y: src.y, w: src.w, h: src.h };
         return t;
       });
     });
-  }, [mutate]);
+  }, [runLayoutOp]);
 
   const resetBoard = useCallback(() => {
     mutate(() => DEFAULT_BOARD);
@@ -240,34 +333,46 @@ export function useBoard(): [TileConfig[], BoardActions] {
     mutate((b) => {
       const src = b.find((t) => t.id === id);
       if (!src) return b;
-      const bottom = b.reduce((m, t) => Math.max(m, t.y + t.h), 0);
+      const bottom = b.reduce((m, t) => {
+        const r = effectiveRect(t, bp);
+        return Math.max(m, r.y + r.h);
+      }, 0);
+      const w = Math.min(src.w, cols);
       const clone: TileConfig = {
         ...src,
         id: 't' + Date.now(),
         x: 0,
         y: bottom,
+        w,
         config: { ...src.config },
         dataPoints: [...src.dataPoints],
+        layouts: bp !== 'desktop' ? { [bp]: { x: 0, y: bottom, w, h: src.h } } : src.layouts,
       };
       return [...b, clone];
     });
-  }, [mutate]);
+  }, [mutate, bp, cols]);
 
   const moveTile = useCallback((id: string, x: number, y: number) => {
-    mutate((b) => layout.moveTile(b, id, x, y));
-  }, [mutate]);
+    runLayoutOp((effective, c) => layout.moveTile(effective, id, x, y, c));
+  }, [runLayoutOp]);
 
   const resizeTile = useCallback((id: string, w: number, h: number) => {
-    mutate((b) => layout.resizeTile(b, id, w, h));
-  }, [mutate]);
+    runLayoutOp((effective, c) => layout.resizeTile(effective, id, w, h, c));
+  }, [runLayoutOp]);
 
   const tidy = useCallback(() => {
     setHistory((h) => {
-      const { next, rowsSaved } = layout.tidy(h.present);
+      const effective = h.present.map((t) => asEffective(t, bp));
+      const { next, rowsSaved } = layout.tidy(effective, cols);
       setLastTidyDelta(rowsSaved);
-      return pushHistory(h, next);
+      const byId = new Map(next.map((t) => [t.id, { x: t.x, y: t.y, w: t.w, h: t.h }]));
+      const newRaw = h.present.map((t) => {
+        const rect = byId.get(t.id);
+        return rect ? writeRect(t, bp, rect) : t;
+      });
+      return pushHistory(h, newRaw);
     });
-  }, []);
+  }, [bp, cols]);
 
   const renameTile = useCallback((id: string, label: string | null) => {
     mutate((b) =>
@@ -305,6 +410,13 @@ export function useBoard(): [TileConfig[], BoardActions] {
     });
   }, []);
 
+  // The effective view that consumers render. Each tile's (x,y,w,h) is
+  // substituted with the active breakpoint's stored rect when present.
+  const effectiveBoard = useMemo(
+    () => history.present.map((t) => asEffective(t, bp)),
+    [history.present, bp],
+  );
+
   const actions: BoardActions = {
     updateTile,
     removeTile,
@@ -326,5 +438,5 @@ export function useBoard(): [TileConfig[], BoardActions] {
     canRedo: history.future.length > 0,
   };
 
-  return [history.present, actions];
+  return [effectiveBoard, actions];
 }

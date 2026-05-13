@@ -197,7 +197,7 @@ html[data-grid-lines="on"] .tile-grid-edit {
   background-image:
     linear-gradient(var(--border-subtle) 1px, transparent 1px),
     linear-gradient(90deg, var(--border-subtle) 1px, transparent 1px);
-  background-size: calc((100% - 80px) / 6) 88px;
+  background-size: calc((100% - 80px) / var(--grid-cols, 6)) 88px;
   border-radius: 8px;
 }
 

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useServiceStatus, useIncidents, useHistory } from '@/hooks/useStatus';
 import { usePreferences } from '@/hooks/usePreferences';
 import { useBoard } from '@/hooks/useBoard';
+import { useBreakpoint, COLS_FOR } from '@/hooks/useBreakpoint';
 import { useTweaks } from '@/hooks/useTweaks';
 import { useShortcuts } from '@/hooks/useShortcuts';
 import { useTheme } from './ThemeProvider';
@@ -20,7 +21,8 @@ export default function Dashboard() {
   const { theme, setTheme } = useTheme();
   const [tweaks, tweaksApi] = useTweaks();
   const { setTweak, setTweaks } = tweaksApi;
-  const [board, actions]   = useBoard();
+  const breakpoint         = useBreakpoint();
+  const [board, actions]   = useBoard(breakpoint);
   const prefs              = usePreferences();
 
   const [editing, setEditing]             = useState(false);
@@ -209,7 +211,7 @@ export default function Dashboard() {
       {isLoading && board.length === 0 ? (
         <div
           className="tile-grid"
-          style={{ gridTemplateColumns: 'repeat(6,1fr)' }}
+          style={{ gridTemplateColumns: `repeat(${COLS_FOR[breakpoint]},1fr)` }}
         >
           {[
             { col: 1, row: 2 }, { col: 1, row: 2 }, { col: 1, row: 2 }, { col: 1, row: 2 },
@@ -228,6 +230,7 @@ export default function Dashboard() {
       ) : (
         <TileGrid
           board={board}
+          cols={COLS_FOR[breakpoint]}
           editing={editing}
           live={live}
           onUpdateTile={actions.updateTile}

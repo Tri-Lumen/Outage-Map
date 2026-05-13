@@ -2,7 +2,6 @@
 
 import { useRef, useState } from 'react';
 import type { TileConfig } from '@/hooks/useBoard';
-import { DEFAULT_COLS } from '@/lib/board/layout';
 import type { LiveData } from './tiles/types';
 import ServiceWatchTile from './tiles/ServiceWatchTile';
 import ServiceGridTile from './tiles/ServiceGridTile';
@@ -13,7 +12,6 @@ import UptimeChartTile from './tiles/UptimeChartTile';
 import StatusMapTile from './tiles/StatusMapTile';
 import StatusPageTile from './tiles/StatusPageTile';
 
-const GRID_COLS = DEFAULT_COLS;
 const ROW_HEIGHT = 88;            // matches .tile-grid grid-auto-rows in globals.css
 const ROW_HEIGHT_COMPACT = 72;    // ".compact" density override
 const GAP = 16;
@@ -21,6 +19,7 @@ const GAP_COMPACT = 10;
 
 interface TileGridProps {
   board: TileConfig[];
+  cols: number;
   editing: boolean;
   live: LiveData;
   onUpdateTile: (id: string, patch: Partial<TileConfig>) => void;
@@ -74,6 +73,7 @@ function TileComponent({ tile, editing, live, onUpdate, onRemove, onResize, onTo
 
 export default function TileGrid({
   board,
+  cols,
   editing,
   live,
   onUpdateTile,
@@ -99,7 +99,7 @@ export default function TileGrid({
     const compact = typeof document !== 'undefined' && document.documentElement.dataset.density === 'compact';
     const rowH = compact ? ROW_HEIGHT_COMPACT : ROW_HEIGHT;
     const gap = compact ? GAP_COMPACT : GAP;
-    const colW = el ? (el.getBoundingClientRect().width - gap * (GRID_COLS - 1)) / GRID_COLS : 100;
+    const colW = el ? (el.getBoundingClientRect().width - gap * (cols - 1)) / cols : 100;
     return { colW, rowH, gap };
   };
 
@@ -116,7 +116,7 @@ export default function TileGrid({
     const move = (ev: MouseEvent) => {
       const dw = Math.round((ev.clientX - startX) / (colW + gap));
       const dh = Math.round((ev.clientY - startY) / (rowH + gap));
-      const w = Math.max(1, Math.min(GRID_COLS - tile.x, startW + dw));
+      const w = Math.max(1, Math.min(cols - tile.x, startW + dw));
       const h = Math.max(1, startH + dh);
       setResizePreview({ id: tile.id, w, h });
     };
@@ -148,7 +148,7 @@ export default function TileGrid({
     if (!el) return null;
     const r = el.getBoundingClientRect();
     const { colW, rowH, gap } = cellSize();
-    const x = Math.max(0, Math.min(GRID_COLS - 1, Math.floor((clientX - r.left) / (colW + gap))));
+    const x = Math.max(0, Math.min(cols - 1, Math.floor((clientX - r.left) / (colW + gap))));
     const y = Math.max(0, Math.floor((clientY - r.top) / (rowH + gap)));
     return { x, y };
   };
@@ -157,7 +157,10 @@ export default function TileGrid({
     <div
       ref={gridRef}
       className={`tile-grid ${editing ? 'tile-grid-edit' : ''}`}
-      style={{ gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)` }}
+      style={{
+        gridTemplateColumns: `repeat(${cols}, 1fr)`,
+        ['--grid-cols' as string]: cols,
+      } as React.CSSProperties}
       onDragOver={(e) => {
         if (!dragId) return;
         e.preventDefault();
@@ -196,7 +199,7 @@ export default function TileGrid({
             .join(' ')}
           style={{
             gridColumnStart: tile.x + 1,
-            gridColumnEnd: `span ${Math.min(previewSize.w, GRID_COLS - tile.x)}`,
+            gridColumnEnd: `span ${Math.min(previewSize.w, cols - tile.x)}`,
             gridRowStart: tile.y + 1,
             gridRowEnd: `span ${previewSize.h}`,
           }}
@@ -246,7 +249,7 @@ export default function TileGrid({
       {editing && (
         <button
           className="add-tile-slot"
-          style={{ gridColumn: 'span 2', gridRow: 'span 2' }}
+          style={{ gridColumn: `span ${Math.min(2, cols)}`, gridRow: 'span 2' }}
           onClick={onAddClick}
         >
           <div style={{ fontSize: 36, fontWeight: 200, color: 'var(--muted)' }}>＋</div>
