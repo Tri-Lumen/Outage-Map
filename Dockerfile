@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1.6
-
 FROM node:20-alpine AS base
 RUN apk add --no-cache libc6-compat
 
@@ -7,21 +5,18 @@ FROM base AS deps
 WORKDIR /app
 RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json ./
-# Cache the npm download cache between builds — saves ~30s on rebuilds when
-# package-lock.json hasn't changed and the layer is being recreated (e.g.
-# Portainer's "re-pull and redeploy" with build context invalidation).
-RUN --mount=type=cache,target=/root/.npm,sharing=locked \
-    npm ci
+# Plain RUN (no BuildKit cache mounts) so the Dockerfile builds on Portainer
+# hosts where BuildKit isn't enabled — the legacy builder rejects `--mount`
+# with "unknown flag". Layer caching alone still skips this step on rebuilds
+# when package-lock.json is unchanged.
+RUN npm ci
 
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-# Persist Next.js's incremental build cache so unchanged routes don't
-# recompile on every redeploy.
-RUN --mount=type=cache,target=/app/.next/cache,sharing=locked \
-    npm run build
+RUN npm run build
 
 FROM base AS runner
 WORKDIR /app
