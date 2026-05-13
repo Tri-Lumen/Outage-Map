@@ -183,6 +183,69 @@ export default function TweaksPanel({ open, onClose, tweaks, setTweak, setTweaks
           </div>
         </div>
 
+        <div className="twk-row twk-row-h">
+          <div className="twk-lbl"><span>Custom hex</span></div>
+          <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+            <input
+              type="color"
+              value={tweaks.accent}
+              onChange={(e) => setTweak('accent', e.target.value)}
+              className="twk-color"
+              aria-label="Pick accent color"
+            />
+            <input
+              type="text"
+              className="twk-field"
+              style={{ width: 90, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11 }}
+              value={tweaks.accent}
+              onChange={(e) => {
+                const v = e.target.value.trim();
+                if (/^#[0-9a-f]{6}$/i.test(v)) setTweak('accent', v);
+                else if (v.startsWith('#')) setTweak('accent', v);
+              }}
+              placeholder="#268bd2"
+              spellCheck={false}
+            />
+            {typeof window !== 'undefined' && 'EyeDropper' in window && (
+              <button
+                type="button"
+                className="board-btn board-btn-icon"
+                title="Eye-dropper"
+                onClick={async () => {
+                  try {
+                    const Picker = (window as unknown as { EyeDropper: new () => { open: () => Promise<{ sRGBHex: string }> } }).EyeDropper;
+                    const result = await new Picker().open();
+                    if (result?.sRGBHex) setTweak('accent', result.sRGBHex);
+                  } catch { /* user cancelled */ }
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M2 22l3-1 11-11-2-2L3 19l-1 3z" />
+                  <path d="M14 8l4-4a2.83 2.83 0 014 4l-4 4" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {tweaks.accentRecents && tweaks.accentRecents.length > 0 && (
+          <div className="twk-row">
+            <div className="twk-lbl"><span>Recents</span></div>
+            <div className="twk-chips">
+              {tweaks.accentRecents.map((color) => (
+                <button
+                  key={color}
+                  className="twk-chip"
+                  data-on={tweaks.accent === color}
+                  style={{ background: color }}
+                  onClick={() => setTweak('accent', color)}
+                  title={color}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Backup section */}
         <div className="twk-sect">Backup</div>
 

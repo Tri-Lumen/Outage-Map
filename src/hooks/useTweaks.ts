@@ -7,7 +7,11 @@ export interface Tweaks {
   density: 'compact' | 'comfortable';
   showGridLines: boolean;
   tileRadius: number;
+  /** Most-recent first, capped at 8. Front-padding/dedupe handled by setTweak. */
+  accentRecents?: string[];
 }
+
+const RECENTS_LIMIT = 8;
 
 const TWEAKS_STORAGE_KEY = 'outage-board-tweaks';
 
@@ -61,7 +65,14 @@ export function useTweaks(): [Tweaks, TweaksApi] {
   }, [tweaks]);
 
   const setTweak = useCallback((key: keyof Tweaks, value: unknown) => {
-    setTweaksState((prev) => ({ ...prev, [key]: value }));
+    setTweaksState((prev) => {
+      if (key === 'accent' && typeof value === 'string') {
+        const recents = [value, ...(prev.accentRecents ?? []).filter((c) => c !== value)]
+          .slice(0, RECENTS_LIMIT);
+        return { ...prev, accent: value, accentRecents: recents };
+      }
+      return { ...prev, [key]: value };
+    });
   }, []);
 
   const setTweaks = useCallback((next: Tweaks) => {

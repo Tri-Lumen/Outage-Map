@@ -1427,3 +1427,13 @@ select.twk-field {
   font-size: 11px;
   color: var(--muted);
 }
+
+.twk-color {
+  width: 36px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+}
