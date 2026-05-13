@@ -20,6 +20,7 @@ import AddTilePopover from './AddTilePopover';
 import TweaksPanel from './TweaksPanel';
 import ShortcutsOverlay from './ShortcutsOverlay';
 import PresentControls from './PresentControls';
+import TileConfigDrawer from './TileConfigDrawer';
 
 export default function Dashboard() {
   const { theme, setTheme } = useTheme();
@@ -41,6 +42,8 @@ export default function Dashboard() {
   const [addOpen, setAddOpen]             = useState(false);
   const [tweaksOpen, setTweaksOpen]       = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [configTileId, setConfigTileId]   = useState<string | null>(null);
+  const configTile = configTileId ? board.find((t) => t.id === configTileId) ?? null : null;
 
   // Force-disable edit + overlays in present mode.
   useEffect(() => {
@@ -79,6 +82,7 @@ export default function Dashboard() {
     setAddOpen(false);
     setTweaksOpen(false);
     setShortcutsOpen(false);
+    setConfigTileId(null);
     if (present.present) exitPresent();
   };
 
@@ -299,6 +303,7 @@ export default function Dashboard() {
           onRenameTile={actions.renameTile}
           onMoveTile={actions.moveTile}
           onResizeTile={actions.resizeTile}
+          onConfigureTile={(id) => setConfigTileId(id)}
           onAddClick={() => setAddOpen(true)}
         />
       )}
@@ -334,6 +339,15 @@ export default function Dashboard() {
         setBoard={actions.setBoard}
         theme={theme}
         setTheme={setTheme}
+      />
+
+      <TileConfigDrawer
+        tile={configTile}
+        live={live}
+        onClose={() => setConfigTileId(null)}
+        onUpdate={actions.updateTile}
+        onRemove={actions.removeTile}
+        onDuplicate={actions.duplicateTile}
       />
 
       {present.present && <PresentControls />}

@@ -14,7 +14,7 @@ const DEFAULT_COMPONENTS: Component[] = [
   { name: 'Search',    status: 'operational' },
 ];
 
-export default function StatusPageTile({ config, editing, onResize, onRemove, onDuplicate, onRename }: TileProps) {
+export default function StatusPageTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure }: TileProps) {
   const components = (config.components as Component[]) ?? DEFAULT_COMPONENTS;
   const name = (config.name as string) || 'Imported Status Page';
   const color = (config.color as string) || '#635BFF';
@@ -47,6 +47,7 @@ export default function StatusPageTile({ config, editing, onResize, onRemove, on
       onRemove={onRemove}
       onDuplicate={onDuplicate}
       onRename={onRename}
+      onConfigure={onConfigure}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', flex: 1 }}>
         {components.map((c, i) => {

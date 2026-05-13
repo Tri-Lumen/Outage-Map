@@ -2,7 +2,6 @@ import TileChrome from './TileChrome';
 import { relTime } from '@/lib/boardColors';
 import { useIncidents } from '@/hooks/useStatus';
 import type { TileProps } from './types';
-import RefreshSelect from './RefreshSelect';
 
 const SEV_COLOR: Record<string, string> = {
   critical: '#EF5350',
@@ -12,10 +11,7 @@ const SEV_COLOR: Record<string, string> = {
   resolved: '#7CB342',
 };
 
-const SEVERITIES = ['critical', 'major', 'minor'] as const;
-const STATUSES = ['investigating', 'identified', 'monitoring', 'resolved'] as const;
-
-export default function IncidentFeedTile({ config, editing, onConfigChange, onResize, onRemove, onDuplicate, onRename, live }: TileProps) {
+export default function IncidentFeedTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure, live }: TileProps) {
   const refreshMs = typeof config.refreshMs === 'number' ? config.refreshMs : undefined;
   const override = useIncidents(7, refreshMs);
   const allIncidents = refreshMs && override.data ? override.data.incidents : live.incidents;
@@ -33,14 +29,6 @@ export default function IncidentFeedTile({ config, editing, onConfigChange, onRe
     return true;
   });
   const activeCount = incidents.filter((i) => i.status !== 'resolved').length;
-
-  const toggleFilter = (key: 'severity' | 'statuses' | 'services', value: string) => {
-    const current = filters[key] ?? [];
-    const next = current.includes(value)
-      ? current.filter((v) => v !== value)
-      : [...current, value];
-    onConfigChange({ filters: { ...filters, [key]: next.length ? next : undefined } });
-  };
 
   return (
     <TileChrome
@@ -64,6 +52,7 @@ export default function IncidentFeedTile({ config, editing, onConfigChange, onRe
       onRemove={onRemove}
       onDuplicate={onDuplicate}
       onRename={onRename}
+      onConfigure={onConfigure}
     >
       <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', flex: 1 }}>
         {incidents.length === 0 ? (
@@ -94,40 +83,6 @@ export default function IncidentFeedTile({ config, editing, onConfigChange, onRe
           })
         )}
       </div>
-      {editing && (
-        <div className="tile-filters">
-          <div className="tile-filter-group">
-            <span className="tile-filter-label">Severity</span>
-            {SEVERITIES.map((s) => (
-              <button
-                key={s}
-                className={`chip ${filters.severity?.includes(s) ? 'chip-on' : ''}`}
-                onClick={() => toggleFilter('severity', s)}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-          <div className="tile-filter-group">
-            <span className="tile-filter-label">Status</span>
-            {STATUSES.map((s) => (
-              <button
-                key={s}
-                className={`chip ${filters.statuses?.includes(s) ? 'chip-on' : ''}`}
-                onClick={() => toggleFilter('statuses', s)}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      {editing && (
-        <RefreshSelect
-          value={refreshMs}
-          onChange={(ms) => onConfigChange({ refreshMs: ms })}
-        />
-      )}
     </TileChrome>
   );
 }

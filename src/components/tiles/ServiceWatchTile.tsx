@@ -1,6 +1,5 @@
 import TileChrome from './TileChrome';
 import Sparkline from '../Sparkline';
-import RefreshSelect from './RefreshSelect';
 import { getStatusColor, historyToSparkline } from '@/lib/boardColors';
 import { useServiceStatus } from '@/hooks/useStatus';
 import type { LiveData } from './types';
@@ -15,6 +14,7 @@ interface Props {
   onRemove?: () => void;
   onDuplicate?: () => void;
   onRename?: (label: string | null) => void;
+  onConfigure?: () => void;
   live: LiveData;
 }
 
@@ -70,13 +70,18 @@ export default function ServiceWatchTile({
   onRemove,
   onDuplicate,
   onRename,
+  onConfigure,
   live,
 }: Props) {
+  void onConfigChange;
   const refreshMs = config.refreshMs;
   const override = useServiceStatus(refreshMs);
   const services = refreshMs && override.data ? override.data.services : live.services;
   const slug = (config.service as string) || '';
   const svc = services.find((s) => s.slug === slug) || services[0];
+  // toggleDataPoint kept for the parent's onConfigChange API symmetry, but
+  // the inline chip UI has moved to the config drawer.
+  void toggleDataPoint;
 
   if (!svc) {
     return (
@@ -88,6 +93,7 @@ export default function ServiceWatchTile({
         onRemove={onRemove}
         onDuplicate={onDuplicate}
         onRename={onRename}
+        onConfigure={onConfigure}
       >
         <div style={{ color: 'var(--muted)', fontSize: 12 }}>No service data</div>
       </TileChrome>
@@ -137,10 +143,7 @@ export default function ServiceWatchTile({
       onRemove={onRemove}
       onDuplicate={onDuplicate}
       onRename={onRename}
-      onConfigure={() => {
-        const next = services[(services.findIndex((s) => s.slug === svc.slug) + 1) % services.length];
-        if (next) onConfigChange({ service: next.slug });
-      }}
+      onConfigure={onConfigure}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
@@ -214,30 +217,6 @@ export default function ServiceWatchTile({
           </div>
         )}
 
-        {editing && (
-          <div className="datapoint-chips">
-            {[
-              ['sparkline', '30d chart'],
-              ['uptime', 'Uptime %'],
-              ['official', 'Official'],
-              ['downdetector', 'DD reports'],
-            ].map(([k, label]) => (
-              <button
-                key={k}
-                onClick={() => toggleDataPoint(k)}
-                className={`chip ${dataPoints.includes(k) ? 'chip-on' : ''}`}
-              >
-                {dataPoints.includes(k) ? '●' : '○'} {label}
-              </button>
-            ))}
-          </div>
-        )}
-        {editing && (
-          <RefreshSelect
-            value={refreshMs}
-            onChange={(ms) => onConfigChange({ refreshMs: ms })}
-          />
-        )}
       </div>
     </TileChrome>
   );

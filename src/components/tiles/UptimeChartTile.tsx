@@ -3,10 +3,9 @@ import Sparkline from '../Sparkline';
 import { getStatusColor, historyToSparkline } from '@/lib/boardColors';
 import type { TileProps } from './types';
 
-const RANGE_OPTIONS = [7, 30, 90] as const;
-type RangeDays = typeof RANGE_OPTIONS[number];
+type RangeDays = 7 | 30 | 90;
 
-export default function UptimeChartTile({ config, editing, onConfigChange, onResize, onRemove, onDuplicate, onRename, live }: TileProps) {
+export default function UptimeChartTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure, live }: TileProps) {
   const slug = (config.service as string) || '';
   const svc = live.services.find((s) => s.slug === slug) ?? live.services[0];
   const filters = (config.filters ?? {}) as { rangeDays?: RangeDays };
@@ -70,6 +69,7 @@ export default function UptimeChartTile({ config, editing, onConfigChange, onRes
       onRemove={onRemove}
       onDuplicate={onDuplicate}
       onRename={onRename}
+      onConfigure={onConfigure}
     >
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -89,20 +89,6 @@ export default function UptimeChartTile({ config, editing, onConfigChange, onRes
           <span>{fmt(rangeAgo)}</span>
           <span>{fmt(today)}</span>
         </div>
-        {editing && (
-          <div className="tile-filters">
-            <span className="tile-filter-label">Range</span>
-            {RANGE_OPTIONS.map((d) => (
-              <button
-                key={d}
-                className={`chip ${rangeDays === d ? 'chip-on' : ''}`}
-                onClick={() => onConfigChange({ filters: { ...filters, rangeDays: d } })}
-              >
-                {d}d
-              </button>
-            ))}
-          </div>
-        )}
       </div>
     </TileChrome>
   );

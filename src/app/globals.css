@@ -1382,3 +1382,24 @@ select.twk-field {
   font-weight: 700;
   margin-right: 2px;
 }
+
+/* ============================================================
+   TILE CONFIG DRAWER
+   ============================================================ */
+
+.tile-config-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: min(360px, 100vw);
+  z-index: 70;
+  background: var(--surface);
+  border-left: 1px solid var(--border-strong);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -8px 0 24px -8px rgba(0, 0, 0, 0.4);
+  animation: slide-from-right 240ms ease;
+  overflow-y: auto;
+  font-family: inherit;
+}

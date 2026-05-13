@@ -15,7 +15,7 @@ function regionColor(hot: number): string {
   return '#7CB342';
 }
 
-export default function StatusMapTile({ config, editing, onResize, onRemove, onDuplicate, onRename, live }: TileProps) {
+export default function StatusMapTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure, live }: TileProps) {
   // Compute a rough "heat" per region based on active incidents
   const activeIncidents = live.incidents.filter((i) => i.status !== 'resolved').length;
   const totalServices = live.services.length || 1;
@@ -42,6 +42,7 @@ export default function StatusMapTile({ config, editing, onResize, onRemove, onD
       onRemove={onRemove}
       onDuplicate={onDuplicate}
       onRename={onRename}
+      onConfigure={onConfigure}
     >
       <div
         style={{

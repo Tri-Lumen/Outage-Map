@@ -2,7 +2,7 @@ import TileChrome from './TileChrome';
 import { getStatusColor } from '@/lib/boardColors';
 import type { TileProps } from './types';
 
-export default function ServiceGridTile({ config, editing, onConfigChange, onResize, onRemove, onDuplicate, onRename, live }: TileProps) {
+export default function ServiceGridTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure, live }: TileProps) {
   const filterSlugs = config.services as string[] | undefined;
   const filters = (config.filters ?? {}) as { hideOperational?: boolean };
   let shown = filterSlugs?.length
@@ -32,6 +32,7 @@ export default function ServiceGridTile({ config, editing, onConfigChange, onRes
       onRemove={onRemove}
       onDuplicate={onDuplicate}
       onRename={onRename}
+      onConfigure={onConfigure}
     >
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8, overflowY: 'auto', flex: 1 }}>
         {shown.map((s) => {
@@ -68,16 +69,6 @@ export default function ServiceGridTile({ config, editing, onConfigChange, onRes
           );
         })}
       </div>
-      {editing && (
-        <div className="tile-filters">
-          <button
-            className={`chip ${filters.hideOperational ? 'chip-on' : ''}`}
-            onClick={() => onConfigChange({ filters: { ...filters, hideOperational: !filters.hideOperational } })}
-          >
-            {filters.hideOperational ? '●' : '○'} Hide healthy
-          </button>
-        </div>
-      )}
     </TileChrome>
   );
 }

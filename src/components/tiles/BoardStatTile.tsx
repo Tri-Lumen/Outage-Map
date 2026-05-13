@@ -3,7 +3,7 @@ import type { TileProps } from './types';
 
 type MetricKey = 'uptime' | 'incidents' | 'dd' | 'mttr';
 
-export default function BoardStatTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigChange, live }: TileProps) {
+export default function BoardStatTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure, live }: TileProps) {
   const metric = (config.metric as MetricKey) || 'uptime';
   const { services, incidents } = live;
 
@@ -31,6 +31,7 @@ export default function BoardStatTile({ config, editing, onResize, onRemove, onD
       onRemove={onRemove}
       onDuplicate={onDuplicate}
       onRename={onRename}
+      onConfigure={onConfigure}
     >
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%', gap: 4 }}>
         <div
@@ -48,19 +49,6 @@ export default function BoardStatTile({ config, editing, onResize, onRemove, onD
         <div style={{ fontSize: 11, color: 'var(--muted)' }}>{m.sub}</div>
       </div>
 
-      {editing && (
-        <div className="datapoint-chips" style={{ marginTop: 8 }}>
-          {(Object.keys(metrics) as MetricKey[]).map((k) => (
-            <button
-              key={k}
-              onClick={() => onConfigChange({ metric: k })}
-              className={`chip ${metric === k ? 'chip-on' : ''}`}
-            >
-              {metrics[k].label}
-            </button>
-          ))}
-        </div>
-      )}
     </TileChrome>
   );
 }

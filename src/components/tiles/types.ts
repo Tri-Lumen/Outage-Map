@@ -18,5 +18,6 @@ export interface TileProps {
   onRemove?: () => void;
   onDuplicate?: () => void;
   onRename?: (label: string | null) => void;
+  onConfigure?: () => void;
   live: LiveData;
 }

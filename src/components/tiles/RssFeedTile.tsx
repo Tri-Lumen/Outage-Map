@@ -21,7 +21,7 @@ const FEEDS = [
   },
 ];
 
-export default function RssFeedTile({ config, editing, onResize, onRemove, onDuplicate, onRename }: TileProps) {
+export default function RssFeedTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure }: TileProps) {
   const feedId = (config.feed as string) || 'aws-blog';
   const feed = FEEDS.find((f) => f.id === feedId) ?? FEEDS[0];
 
@@ -41,6 +41,7 @@ export default function RssFeedTile({ config, editing, onResize, onRemove, onDup
       onRemove={onRemove}
       onDuplicate={onDuplicate}
       onRename={onRename}
+      onConfigure={onConfigure}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', flex: 1 }}>
         {feed.items.map((item, i) => (
