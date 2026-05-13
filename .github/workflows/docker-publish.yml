@@ -23,6 +23,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # QEMU lets the amd64 GitHub runner cross-build the arm64 image. Without
+      # this, `platforms: linux/arm64` below fails with "exec format error".
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -52,6 +59,10 @@ jobs:
         with:
           context: .
           push: true
+          # Build for both architectures so Portainer hosts on Raspberry Pi,
+          # Apple Silicon, Graviton, etc. can pull the same `:latest` tag.
+          # Without this, ARM hosts hit `no matching manifest for linux/arm64`.
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
