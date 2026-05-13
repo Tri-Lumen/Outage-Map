@@ -219,6 +219,7 @@ export default function Dashboard() {
           onDuplicateTile={actions.duplicateTile}
           onRenameTile={actions.renameTile}
           onMoveTile={actions.moveTile}
+          onResizeTile={actions.resizeTile}
           onAddClick={() => setAddOpen(true)}
         />
       )}

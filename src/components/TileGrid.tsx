@@ -31,6 +31,7 @@ interface TileGridProps {
   onDuplicateTile: (id: string) => void;
   onRenameTile: (id: string, label: string | null) => void;
   onMoveTile: (id: string, x: number, y: number) => void;
+  onResizeTile: (id: string, w: number, h: number) => void;
   onAddClick: () => void;
 }
 
@@ -83,22 +84,70 @@ export default function TileGrid({
   onDuplicateTile,
   onRenameTile,
   onMoveTile,
+  onResizeTile,
   onAddClick,
 }: TileGridProps) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [resizePreview, setResizePreview] = useState<{ id: string; w: number; h: number } | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const dropTargetRef = useRef<{ x: number; y: number } | null>(null);
   const shiftRef = useRef(false);
+
+  const cellSize = (): { colW: number; rowH: number; gap: number } => {
+    const el = gridRef.current;
+    const compact = typeof document !== 'undefined' && document.documentElement.dataset.density === 'compact';
+    const rowH = compact ? ROW_HEIGHT_COMPACT : ROW_HEIGHT;
+    const gap = compact ? GAP_COMPACT : GAP;
+    const colW = el ? (el.getBoundingClientRect().width - gap * (GRID_COLS - 1)) / GRID_COLS : 100;
+    return { colW, rowH, gap };
+  };
+
+  const startResize = (tile: TileConfig, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const { colW, rowH, gap } = cellSize();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startW = tile.w;
+    const startH = tile.h;
+    setResizePreview({ id: tile.id, w: startW, h: startH });
+
+    const move = (ev: MouseEvent) => {
+      const dw = Math.round((ev.clientX - startX) / (colW + gap));
+      const dh = Math.round((ev.clientY - startY) / (rowH + gap));
+      const w = Math.max(1, Math.min(GRID_COLS - tile.x, startW + dw));
+      const h = Math.max(1, startH + dh);
+      setResizePreview({ id: tile.id, w, h });
+    };
+    const cancel = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        cleanup();
+        setResizePreview(null);
+      }
+    };
+    const up = () => {
+      cleanup();
+      setResizePreview((p) => {
+        if (p && (p.w !== startW || p.h !== startH)) onResizeTile(tile.id, p.w, p.h);
+        return null;
+      });
+    };
+    const cleanup = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      window.removeEventListener('keydown', cancel);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    window.addEventListener('keydown', cancel);
+  };
 
   const pointerToCell = (clientX: number, clientY: number): { x: number; y: number } | null => {
     const el = gridRef.current;
     if (!el) return null;
     const r = el.getBoundingClientRect();
-    const compact = document.documentElement.dataset.density === 'compact';
-    const rowH = compact ? ROW_HEIGHT_COMPACT : ROW_HEIGHT;
-    const gap = compact ? GAP_COMPACT : GAP;
-    const colW = (r.width - gap * (GRID_COLS - 1)) / GRID_COLS;
+    const { colW, rowH, gap } = cellSize();
     const x = Math.max(0, Math.min(GRID_COLS - 1, Math.floor((clientX - r.left) / (colW + gap))));
     const y = Math.max(0, Math.floor((clientY - r.top) / (rowH + gap)));
     return { x, y };
@@ -129,7 +178,11 @@ export default function TileGrid({
         dropTargetRef.current = null;
       }}
     >
-      {board.map((tile) => (
+      {board.map((tile) => {
+        const previewSize = resizePreview && resizePreview.id === tile.id
+          ? { w: resizePreview.w, h: resizePreview.h }
+          : { w: tile.w, h: tile.h };
+        return (
         <div
           key={tile.id}
           className={[
@@ -137,16 +190,17 @@ export default function TileGrid({
             editing ? 'tile-edit-mode' : '',
             dragId === tile.id ? 'tile-dragging' : '',
             dragOverId === tile.id && dragId !== tile.id ? 'tile-drag-over' : '',
+            resizePreview?.id === tile.id ? 'tile-resizing' : '',
           ]
             .filter(Boolean)
             .join(' ')}
           style={{
             gridColumnStart: tile.x + 1,
-            gridColumnEnd: `span ${Math.min(tile.w, GRID_COLS)}`,
+            gridColumnEnd: `span ${Math.min(previewSize.w, GRID_COLS - tile.x)}`,
             gridRowStart: tile.y + 1,
-            gridRowEnd: `span ${tile.h}`,
+            gridRowEnd: `span ${previewSize.h}`,
           }}
-          draggable={editing}
+          draggable={editing && resizePreview?.id !== tile.id}
           onDragStart={() => { setDragId(tile.id); setDragOverId(null); }}
           onDragOver={(e) => { e.preventDefault(); setDragOverId(tile.id); }}
           onDragLeave={() => setDragOverId(null)}
@@ -164,6 +218,16 @@ export default function TileGrid({
               </svg>
             </div>
           )}
+          {editing && (
+            <div
+              className="tile-resize-handle"
+              role="separator"
+              aria-label="Resize tile"
+              onMouseDown={(e) => startResize(tile, e)}
+              onContextMenu={(e) => { e.preventDefault(); onCycleResize(tile.id); }}
+              title="Drag to resize · right-click to cycle preset sizes"
+            />
+          )}
           <TileComponent
             tile={tile}
             editing={editing}
@@ -176,7 +240,8 @@ export default function TileGrid({
             onRename={(label) => onRenameTile(tile.id, label)}
           />
         </div>
-      ))}
+        );
+      })}
 
       {editing && (
         <button

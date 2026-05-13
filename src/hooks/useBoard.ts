@@ -87,6 +87,7 @@ export interface BoardActions {
   duplicateTile: (id: string) => void;
   renameTile: (id: string, label: string | null) => void;
   moveTile: (id: string, x: number, y: number) => void;
+  resizeTile: (id: string, w: number, h: number) => void;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -253,6 +254,10 @@ export function useBoard(): [TileConfig[], BoardActions] {
     mutate((b) => layout.moveTile(b, id, x, y));
   }, [mutate]);
 
+  const resizeTile = useCallback((id: string, w: number, h: number) => {
+    mutate((b) => layout.resizeTile(b, id, w, h));
+  }, [mutate]);
+
   const renameTile = useCallback((id: string, label: string | null) => {
     mutate((b) =>
       b.map((t) => {
@@ -301,6 +306,7 @@ export function useBoard(): [TileConfig[], BoardActions] {
     duplicateTile,
     renameTile,
     moveTile,
+    resizeTile,
     undo,
     redo,
     canUndo: history.past.length > 0,

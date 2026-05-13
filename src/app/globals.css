@@ -248,6 +248,34 @@ html[data-grid-lines="on"] .tile-grid-edit {
   pointer-events: none;
 }
 
+.tile-resize-handle {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 14px;
+  height: 14px;
+  z-index: 3;
+  cursor: nwse-resize;
+  border-radius: 3px;
+  background:
+    linear-gradient(135deg, transparent 60%, var(--muted) 60%, var(--muted) 70%, transparent 70%,
+                    transparent 80%, var(--muted) 80%, var(--muted) 90%, transparent 90%);
+  opacity: 0.6;
+  transition: opacity 120ms ease, background 120ms ease;
+}
+
+.tile-resize-handle:hover {
+  opacity: 1;
+  background:
+    linear-gradient(135deg, transparent 60%, var(--accent) 60%, var(--accent) 70%, transparent 70%,
+                    transparent 80%, var(--accent) 80%, var(--accent) 90%, transparent 90%);
+}
+
+.tile-resizing {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 .tile-inner {
   padding: 14px 14px 12px;
   height: 100%;
