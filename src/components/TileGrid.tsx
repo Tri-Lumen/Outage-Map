@@ -23,10 +23,12 @@ interface TileGridProps {
   onCycleResize: (id: string) => void;
   onToggleDataPoint: (id: string, key: string) => void;
   onSwapTiles: (srcId: string, tgtId: string) => void;
+  onDuplicateTile: (id: string) => void;
+  onRenameTile: (id: string, label: string | null) => void;
   onAddClick: () => void;
 }
 
-function TileComponent({ tile, editing, live, onUpdate, onRemove, onResize, onToggleDataPoint }: {
+function TileComponent({ tile, editing, live, onUpdate, onRemove, onResize, onToggleDataPoint, onDuplicate, onRename }: {
   tile: TileConfig;
   editing: boolean;
   live: LiveData;
@@ -34,6 +36,8 @@ function TileComponent({ tile, editing, live, onUpdate, onRemove, onResize, onTo
   onRemove: () => void;
   onResize: () => void;
   onToggleDataPoint: (key: string) => void;
+  onDuplicate: () => void;
+  onRename: (label: string | null) => void;
 }) {
   const common = {
     config: tile.config,
@@ -43,6 +47,8 @@ function TileComponent({ tile, editing, live, onUpdate, onRemove, onResize, onTo
     onConfigChange: (patch: Record<string, unknown>) => onUpdate({ config: patch }),
     onResize,
     onRemove,
+    onDuplicate,
+    onRename,
     live,
   };
 
@@ -68,6 +74,8 @@ export default function TileGrid({
   onCycleResize,
   onToggleDataPoint,
   onSwapTiles,
+  onDuplicateTile,
+  onRenameTile,
   onAddClick,
 }: TileGridProps) {
   const [dragId, setDragId] = useState<string | null>(null);
@@ -126,6 +134,8 @@ export default function TileGrid({
             onRemove={() => onRemoveTile(tile.id)}
             onResize={() => onCycleResize(tile.id)}
             onToggleDataPoint={(key) => onToggleDataPoint(tile.id, key)}
+            onDuplicate={() => onDuplicateTile(tile.id)}
+            onRename={(label) => onRenameTile(tile.id, label)}
           />
         </div>
       ))}

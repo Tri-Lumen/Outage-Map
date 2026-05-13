@@ -10,7 +10,7 @@ const SEV_COLOR: Record<string, string> = {
   resolved: '#7CB342',
 };
 
-export default function IncidentFeedTile({ editing, onResize, onRemove, live }: TileProps) {
+export default function IncidentFeedTile({ config, editing, onResize, onRemove, onDuplicate, onRename, live }: TileProps) {
   const { incidents, services } = live;
   const activeCount = incidents.filter((i) => i.status !== 'resolved').length;
 
@@ -30,9 +30,12 @@ export default function IncidentFeedTile({ editing, onResize, onRemove, live }: 
           {activeCount} active
         </span>
       }
+      label={typeof config.label === 'string' ? config.label : null}
       editing={editing}
       onResize={onResize}
       onRemove={onRemove}
+      onDuplicate={onDuplicate}
+      onRename={onRename}
     >
       <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', flex: 1 }}>
         {incidents.length === 0 ? (

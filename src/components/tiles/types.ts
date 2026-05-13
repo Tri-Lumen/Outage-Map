@@ -16,5 +16,7 @@ export interface TileProps {
   onConfigChange: (patch: Record<string, unknown>) => void;
   onResize?: () => void;
   onRemove?: () => void;
+  onDuplicate?: () => void;
+  onRename?: (label: string | null) => void;
   live: LiveData;
 }

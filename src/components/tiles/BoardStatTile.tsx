@@ -3,7 +3,7 @@ import type { TileProps } from './types';
 
 type MetricKey = 'uptime' | 'incidents' | 'dd' | 'mttr';
 
-export default function BoardStatTile({ config, editing, onResize, onRemove, onConfigChange, live }: TileProps) {
+export default function BoardStatTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigChange, live }: TileProps) {
   const metric = (config.metric as MetricKey) || 'uptime';
   const { services, incidents } = live;
 
@@ -23,7 +23,15 @@ export default function BoardStatTile({ config, editing, onResize, onRemove, onC
   const m = metrics[metric] ?? metrics.uptime;
 
   return (
-    <TileChrome title={m.label} editing={editing} onResize={onResize} onRemove={onRemove}>
+    <TileChrome
+      title={m.label}
+      label={typeof config.label === 'string' ? config.label : null}
+      editing={editing}
+      onResize={onResize}
+      onRemove={onRemove}
+      onDuplicate={onDuplicate}
+      onRename={onRename}
+    >
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%', gap: 4 }}>
         <div
           style={{

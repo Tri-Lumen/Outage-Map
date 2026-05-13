@@ -83,6 +83,8 @@ export interface BoardActions {
   swapTiles: (srcId: string, tgtId: string) => void;
   resetBoard: () => void;
   setBoard: (next: TileConfig[]) => void;
+  duplicateTile: (id: string) => void;
+  renameTile: (id: string, label: string | null) => void;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -221,6 +223,34 @@ export function useBoard(): [TileConfig[], BoardActions] {
     mutate(() => next);
   }, [mutate]);
 
+  const duplicateTile = useCallback((id: string) => {
+    mutate((b) => {
+      const src = b.find((t) => t.id === id);
+      if (!src) return b;
+      const clone: TileConfig = {
+        ...src,
+        id: 't' + Date.now(),
+        x: 0,
+        y: 99,
+        config: { ...src.config },
+        dataPoints: [...src.dataPoints],
+      };
+      return [...b, clone];
+    });
+  }, [mutate]);
+
+  const renameTile = useCallback((id: string, label: string | null) => {
+    mutate((b) =>
+      b.map((t) => {
+        if (t.id !== id) return t;
+        const nextConfig = { ...t.config };
+        if (label === null || label.trim() === '') delete nextConfig.label;
+        else nextConfig.label = label;
+        return { ...t, config: nextConfig };
+      })
+    );
+  }, [mutate]);
+
   const undo = useCallback(() => {
     setHistory((h) => {
       if (h.past.length === 0) return h;
@@ -254,6 +284,8 @@ export function useBoard(): [TileConfig[], BoardActions] {
     swapTiles,
     resetBoard,
     setBoard,
+    duplicateTile,
+    renameTile,
     undo,
     redo,
     canUndo: history.past.length > 0,

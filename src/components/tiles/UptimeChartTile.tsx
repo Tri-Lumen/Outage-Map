@@ -3,13 +3,21 @@ import Sparkline from '../Sparkline';
 import { getStatusColor, historyToSparkline } from '@/lib/boardColors';
 import type { TileProps } from './types';
 
-export default function UptimeChartTile({ config, editing, onResize, onRemove, live }: TileProps) {
+export default function UptimeChartTile({ config, editing, onResize, onRemove, onDuplicate, onRename, live }: TileProps) {
   const slug = (config.service as string) || '';
   const svc = live.services.find((s) => s.slug === slug) ?? live.services[0];
 
   if (!svc) {
     return (
-      <TileChrome title="Uptime Chart" editing={editing} onResize={onResize} onRemove={onRemove}>
+      <TileChrome
+        title="Uptime Chart"
+        label={typeof config.label === 'string' ? config.label : null}
+        editing={editing}
+        onResize={onResize}
+        onRemove={onRemove}
+        onDuplicate={onDuplicate}
+        onRename={onRename}
+      >
         <div style={{ color: 'var(--muted)', fontSize: 12 }}>No service data</div>
       </TileChrome>
     );
@@ -50,9 +58,12 @@ export default function UptimeChartTile({ config, editing, onResize, onRemove, l
           {svc.name.substring(0, 2).toUpperCase()}
         </div>
       }
+      label={typeof config.label === 'string' ? config.label : null}
       editing={editing}
       onResize={onResize}
       onRemove={onRemove}
+      onDuplicate={onDuplicate}
+      onRename={onRename}
     >
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>

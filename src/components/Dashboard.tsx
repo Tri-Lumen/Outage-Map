@@ -216,6 +216,8 @@ export default function Dashboard() {
           onCycleResize={actions.cycleResize}
           onToggleDataPoint={actions.toggleDataPoint}
           onSwapTiles={actions.swapTiles}
+          onDuplicateTile={actions.duplicateTile}
+          onRenameTile={actions.renameTile}
           onAddClick={() => setAddOpen(true)}
         />
       )}

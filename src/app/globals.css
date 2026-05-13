@@ -289,6 +289,18 @@ html[data-density="compact"] .tile-inner {
   min-width: 0;
 }
 
+.tile-title-input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--foreground);
+  background: var(--surface-elevated);
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  padding: 1px 5px;
+  outline: none;
+}
+
 .tile-actions { display: flex; gap: 2px; }
 
 .tile-btn {

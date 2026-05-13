@@ -21,7 +21,7 @@ const FEEDS = [
   },
 ];
 
-export default function RssFeedTile({ config, editing, onResize, onRemove }: TileProps) {
+export default function RssFeedTile({ config, editing, onResize, onRemove, onDuplicate, onRename }: TileProps) {
   const feedId = (config.feed as string) || 'aws-blog';
   const feed = FEEDS.find((f) => f.id === feedId) ?? FEEDS[0];
 
@@ -35,9 +35,12 @@ export default function RssFeedTile({ config, editing, onResize, onRemove }: Til
         </svg>
       }
       badge={<span className="count-pill">RSS</span>}
+      label={typeof config.label === 'string' ? config.label : null}
       editing={editing}
       onResize={onResize}
       onRemove={onRemove}
+      onDuplicate={onDuplicate}
+      onRename={onRename}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', flex: 1 }}>
         {feed.items.map((item, i) => (

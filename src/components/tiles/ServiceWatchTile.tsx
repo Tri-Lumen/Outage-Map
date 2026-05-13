@@ -4,13 +4,15 @@ import { getStatusColor, historyToSparkline } from '@/lib/boardColors';
 import type { LiveData } from './types';
 
 interface Props {
-  config: { service?: string };
+  config: { service?: string; label?: string };
   editing?: boolean;
   dataPoints: string[];
   toggleDataPoint: (key: string) => void;
   onConfigChange: (patch: Record<string, unknown>) => void;
   onResize?: () => void;
   onRemove?: () => void;
+  onDuplicate?: () => void;
+  onRename?: (label: string | null) => void;
   live: LiveData;
 }
 
@@ -64,6 +66,8 @@ export default function ServiceWatchTile({
   onConfigChange,
   onResize,
   onRemove,
+  onDuplicate,
+  onRename,
   live,
 }: Props) {
   const slug = (config.service as string) || '';
@@ -71,7 +75,15 @@ export default function ServiceWatchTile({
 
   if (!svc) {
     return (
-      <TileChrome title="Service Watch" editing={editing} onResize={onResize} onRemove={onRemove}>
+      <TileChrome
+        title="Service Watch"
+        label={config.label ?? null}
+        editing={editing}
+        onResize={onResize}
+        onRemove={onRemove}
+        onDuplicate={onDuplicate}
+        onRename={onRename}
+      >
         <div style={{ color: 'var(--muted)', fontSize: 12 }}>No service data</div>
       </TileChrome>
     );
@@ -114,9 +126,12 @@ export default function ServiceWatchTile({
           {svc.name.substring(0, 2).toUpperCase()}
         </div>
       }
+      label={config.label ?? null}
       editing={editing}
       onResize={onResize}
       onRemove={onRemove}
+      onDuplicate={onDuplicate}
+      onRename={onRename}
       onConfigure={() => {
         const next = live.services[(live.services.findIndex((s) => s.slug === svc.slug) + 1) % live.services.length];
         if (next) onConfigChange({ service: next.slug });

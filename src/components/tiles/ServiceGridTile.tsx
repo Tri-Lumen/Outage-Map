@@ -2,7 +2,7 @@ import TileChrome from './TileChrome';
 import { getStatusColor } from '@/lib/boardColors';
 import type { TileProps } from './types';
 
-export default function ServiceGridTile({ config, editing, onResize, onRemove, live }: TileProps) {
+export default function ServiceGridTile({ config, editing, onResize, onRemove, onDuplicate, onRename, live }: TileProps) {
   const filterSlugs = config.services as string[] | undefined;
   const shown = filterSlugs?.length
     ? live.services.filter((s) => filterSlugs.includes(s.slug))
@@ -22,9 +22,12 @@ export default function ServiceGridTile({ config, editing, onResize, onRemove, l
       badge={
         <span className="count-pill">{shown.length}</span>
       }
+      label={typeof config.label === 'string' ? config.label : null}
       editing={editing}
       onResize={onResize}
       onRemove={onRemove}
+      onDuplicate={onDuplicate}
+      onRename={onRename}
     >
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8, overflowY: 'auto', flex: 1 }}>
         {shown.map((s) => {
