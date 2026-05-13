@@ -2,11 +2,15 @@ import TileChrome from './TileChrome';
 import { getStatusColor } from '@/lib/boardColors';
 import type { TileProps } from './types';
 
-export default function ServiceGridTile({ config, editing, onResize, onRemove, onDuplicate, onRename, live }: TileProps) {
+export default function ServiceGridTile({ config, editing, onConfigChange, onResize, onRemove, onDuplicate, onRename, live }: TileProps) {
   const filterSlugs = config.services as string[] | undefined;
-  const shown = filterSlugs?.length
+  const filters = (config.filters ?? {}) as { hideOperational?: boolean };
+  let shown = filterSlugs?.length
     ? live.services.filter((s) => filterSlugs.includes(s.slug))
     : live.services;
+  if (filters.hideOperational) {
+    shown = shown.filter((s) => s.overallStatus !== 'operational');
+  }
 
   return (
     <TileChrome
@@ -64,6 +68,16 @@ export default function ServiceGridTile({ config, editing, onResize, onRemove, o
           );
         })}
       </div>
+      {editing && (
+        <div className="tile-filters">
+          <button
+            className={`chip ${filters.hideOperational ? 'chip-on' : ''}`}
+            onClick={() => onConfigChange({ filters: { ...filters, hideOperational: !filters.hideOperational } })}
+          >
+            {filters.hideOperational ? '●' : '○'} Hide healthy
+          </button>
+        </div>
+      )}
     </TileChrome>
   );
 }

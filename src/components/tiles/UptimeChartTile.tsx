@@ -3,9 +3,14 @@ import Sparkline from '../Sparkline';
 import { getStatusColor, historyToSparkline } from '@/lib/boardColors';
 import type { TileProps } from './types';
 
-export default function UptimeChartTile({ config, editing, onResize, onRemove, onDuplicate, onRename, live }: TileProps) {
+const RANGE_OPTIONS = [7, 30, 90] as const;
+type RangeDays = typeof RANGE_OPTIONS[number];
+
+export default function UptimeChartTile({ config, editing, onConfigChange, onResize, onRemove, onDuplicate, onRename, live }: TileProps) {
   const slug = (config.service as string) || '';
   const svc = live.services.find((s) => s.slug === slug) ?? live.services[0];
+  const filters = (config.filters ?? {}) as { rangeDays?: RangeDays };
+  const rangeDays: RangeDays = filters.rangeDays ?? 30;
 
   if (!svc) {
     return (
@@ -23,7 +28,8 @@ export default function UptimeChartTile({ config, editing, onResize, onRemove, o
     );
   }
 
-  const hist = live.history[svc.slug] ?? [];
+  const fullHist = live.history[svc.slug] ?? [];
+  const hist = fullHist.slice(-rangeDays);
   const sparkData = historyToSparkline(hist as Parameters<typeof historyToSparkline>[0]);
   const c = getStatusColor(svc.overallStatus);
   const uptimePct =
@@ -32,13 +38,13 @@ export default function UptimeChartTile({ config, editing, onResize, onRemove, o
       : '—';
 
   const today = new Date();
-  const thirtyAgo = new Date(today);
-  thirtyAgo.setDate(today.getDate() - 30);
+  const rangeAgo = new Date(today);
+  rangeAgo.setDate(today.getDate() - rangeDays);
   const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
   return (
     <TileChrome
-      title={`${svc.name} — 30 day`}
+      title={`${svc.name} — ${rangeDays} day`}
       icon={
         <div
           style={{
@@ -70,7 +76,7 @@ export default function UptimeChartTile({ config, editing, onResize, onRemove, o
           <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--foreground)', fontVariantNumeric: 'tabular-nums' }}>
             {uptimePct}%
           </div>
-          <div style={{ fontSize: 11, color: 'var(--muted-strong)' }}>uptime over 30 days</div>
+          <div style={{ fontSize: 11, color: 'var(--muted-strong)' }}>uptime over {rangeDays} days</div>
         </div>
         <div style={{ flex: 1, minHeight: 60 }}>
           {sparkData.length > 0 ? (
@@ -80,9 +86,23 @@ export default function UptimeChartTile({ config, editing, onResize, onRemove, o
           )}
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--muted-strong)' }}>
-          <span>{fmt(thirtyAgo)}</span>
+          <span>{fmt(rangeAgo)}</span>
           <span>{fmt(today)}</span>
         </div>
+        {editing && (
+          <div className="tile-filters">
+            <span className="tile-filter-label">Range</span>
+            {RANGE_OPTIONS.map((d) => (
+              <button
+                key={d}
+                className={`chip ${rangeDays === d ? 'chip-on' : ''}`}
+                onClick={() => onConfigChange({ filters: { ...filters, rangeDays: d } })}
+              >
+                {d}d
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </TileChrome>
   );

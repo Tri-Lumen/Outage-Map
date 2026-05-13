@@ -1358,3 +1358,27 @@ select.twk-field {
   padding: 1px 4px;
   border-radius: 4px;
 }
+
+.tile-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border-subtle);
+}
+.tile-filter-group {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-right: 6px;
+}
+.tile-filter-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted-strong);
+  font-weight: 700;
+  margin-right: 2px;
+}

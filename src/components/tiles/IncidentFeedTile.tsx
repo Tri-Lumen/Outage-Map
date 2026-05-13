@@ -12,12 +12,35 @@ const SEV_COLOR: Record<string, string> = {
   resolved: '#7CB342',
 };
 
+const SEVERITIES = ['critical', 'major', 'minor'] as const;
+const STATUSES = ['investigating', 'identified', 'monitoring', 'resolved'] as const;
+
 export default function IncidentFeedTile({ config, editing, onConfigChange, onResize, onRemove, onDuplicate, onRename, live }: TileProps) {
   const refreshMs = typeof config.refreshMs === 'number' ? config.refreshMs : undefined;
   const override = useIncidents(7, refreshMs);
-  const incidents = refreshMs && override.data ? override.data.incidents : live.incidents;
+  const allIncidents = refreshMs && override.data ? override.data.incidents : live.incidents;
   const services = live.services;
+
+  const filters = (config.filters ?? {}) as {
+    severity?: string[];
+    statuses?: string[];
+    services?: string[];
+  };
+  const incidents = allIncidents.filter((i) => {
+    if (filters.severity && filters.severity.length && !filters.severity.includes(i.severity)) return false;
+    if (filters.statuses && filters.statuses.length && !filters.statuses.includes(i.status)) return false;
+    if (filters.services && filters.services.length && !filters.services.includes(i.service)) return false;
+    return true;
+  });
   const activeCount = incidents.filter((i) => i.status !== 'resolved').length;
+
+  const toggleFilter = (key: 'severity' | 'statuses' | 'services', value: string) => {
+    const current = filters[key] ?? [];
+    const next = current.includes(value)
+      ? current.filter((v) => v !== value)
+      : [...current, value];
+    onConfigChange({ filters: { ...filters, [key]: next.length ? next : undefined } });
+  };
 
   return (
     <TileChrome
@@ -71,6 +94,34 @@ export default function IncidentFeedTile({ config, editing, onConfigChange, onRe
           })
         )}
       </div>
+      {editing && (
+        <div className="tile-filters">
+          <div className="tile-filter-group">
+            <span className="tile-filter-label">Severity</span>
+            {SEVERITIES.map((s) => (
+              <button
+                key={s}
+                className={`chip ${filters.severity?.includes(s) ? 'chip-on' : ''}`}
+                onClick={() => toggleFilter('severity', s)}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+          <div className="tile-filter-group">
+            <span className="tile-filter-label">Status</span>
+            {STATUSES.map((s) => (
+              <button
+                key={s}
+                className={`chip ${filters.statuses?.includes(s) ? 'chip-on' : ''}`}
+                onClick={() => toggleFilter('statuses', s)}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {editing && (
         <RefreshSelect
           value={refreshMs}
