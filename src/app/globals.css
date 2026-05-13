@@ -783,6 +783,33 @@ html[data-density="compact"] .tile-inner {
 
 .add-tile-card:hover { border-color: var(--accent); transform: translateY(-1px); }
 
+.add-popover-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 3px;
+  background: var(--surface-elevated);
+  border-radius: 7px;
+}
+.add-popover-tabs button {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font: inherit;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.add-popover-tabs button[data-on="true"] {
+  background: var(--surface);
+  color: var(--foreground);
+}
+
 .import-cta {
   margin-top: 10px;
   width: 100%;

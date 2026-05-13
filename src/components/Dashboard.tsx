@@ -269,6 +269,8 @@ export default function Dashboard() {
         onClose={() => setAddOpen(false)}
         onAdd={(type: TileType) => actions.addTile(type)}
         onOpenImport={() => { setAddOpen(false); setImportOpen(true); }}
+        onApplyTemplate={(name, tiles) => boardSet.addBoard(name, tiles)}
+        currentTiles={board}
       />
 
       <ShortcutsOverlay
