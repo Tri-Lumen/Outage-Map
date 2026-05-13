@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useServiceStatus, useIncidents, useHistory } from '@/hooks/useStatus';
 import { usePreferences } from '@/hooks/usePreferences';
 import { useBoard } from '@/hooks/useBoard';
 import { useTweaks } from '@/hooks/useTweaks';
+import { useShortcuts } from '@/hooks/useShortcuts';
 import { useTheme } from './ThemeProvider';
 import { formatRelativeTime } from '@/lib/format';
 import type { LiveData } from './tiles/types';
@@ -13,6 +14,7 @@ import TileGrid from './TileGrid';
 import ImportSlideOver from './ImportSlideOver';
 import AddTilePopover from './AddTilePopover';
 import TweaksPanel from './TweaksPanel';
+import ShortcutsOverlay from './ShortcutsOverlay';
 
 export default function Dashboard() {
   const { theme, setTheme } = useTheme();
@@ -21,25 +23,32 @@ export default function Dashboard() {
   const [board, actions]   = useBoard();
   const prefs              = usePreferences();
 
-  const [editing, setEditing]       = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
-  const [addOpen, setAddOpen]       = useState(false);
-  const [tweaksOpen, setTweaksOpen] = useState(false);
+  const [editing, setEditing]             = useState(false);
+  const [importOpen, setImportOpen]       = useState(false);
+  const [addOpen, setAddOpen]             = useState(false);
+  const [tweaksOpen, setTweaksOpen]       = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
-  // Undo / redo via Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z (or Cmd/Ctrl+Y).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
-      const mod = e.metaKey || e.ctrlKey;
-      if (!mod) return;
-      const k = e.key.toLowerCase();
-      if (k === 'z' && !e.shiftKey) { e.preventDefault(); actions.undo(); }
-      else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); actions.redo(); }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [actions]);
+  const closeAllOverlays = () => {
+    setImportOpen(false);
+    setAddOpen(false);
+    setTweaksOpen(false);
+    setShortcutsOpen(false);
+  };
+
+  useShortcuts({
+    'e':                 () => setEditing((v) => !v),
+    'a':                 () => setAddOpen((v) => !v),
+    'i':                 () => setImportOpen((v) => !v),
+    't':                 () => setTweaksOpen((v) => !v),
+    '?':                 () => setShortcutsOpen((v) => !v),
+    'shift+?':           () => setShortcutsOpen((v) => !v),
+    'shift+/':           () => setShortcutsOpen((v) => !v),
+    'Escape':            closeAllOverlays,
+    'mod+z':             () => actions.undo(),
+    'mod+shift+z':       () => actions.redo(),
+    'mod+y':             () => actions.redo(),
+  });
 
   const refreshMs = prefs.refreshInterval * 1000;
   const { data: statusData, isLoading } = useServiceStatus(refreshMs);
@@ -151,10 +160,23 @@ export default function Dashboard() {
           </button>
 
           <button
+            className="board-btn board-btn-icon"
+            onClick={() => setShortcutsOpen((o) => !o)}
+            title="Keyboard shortcuts (?)"
+            aria-label="Keyboard shortcuts"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </button>
+
+          <button
             className="board-btn"
             onClick={() => setTweaksOpen((o) => !o)}
             style={tweaksOpen ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}}
-            title="Tweaks"
+            title="Tweaks (T)"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5M4.5 12h9.75M4.5 12a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M14.25 12h5.25M4.5 18h9.75M4.5 18a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M14.25 18h5.25" />
@@ -210,6 +232,11 @@ export default function Dashboard() {
         onClose={() => setAddOpen(false)}
         onAdd={(type: TileType) => actions.addTile(type)}
         onOpenImport={() => { setAddOpen(false); setImportOpen(true); }}
+      />
+
+      <ShortcutsOverlay
+        open={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
       />
 
       <TweaksPanel
