@@ -7,7 +7,9 @@ set -e
 # write `outage.db`, getDb() throws, /api/status 500s, the HEALTHCHECK fails,
 # and Portainer keeps the stack in "starting" forever. Fix the ownership on
 # every boot, then drop privileges.
+echo "[entrypoint] preparing /app/data"
 mkdir -p /app/data
 chown -R nextjs:nodejs /app/data
 
+echo "[entrypoint] starting: $*"
 exec su-exec nextjs:nodejs "$@"
