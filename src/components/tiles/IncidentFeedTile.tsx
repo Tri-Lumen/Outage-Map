@@ -1,6 +1,8 @@
 import TileChrome from './TileChrome';
 import { relTime } from '@/lib/boardColors';
+import { useIncidents } from '@/hooks/useStatus';
 import type { TileProps } from './types';
+import RefreshSelect from './RefreshSelect';
 
 const SEV_COLOR: Record<string, string> = {
   critical: '#EF5350',
@@ -10,8 +12,11 @@ const SEV_COLOR: Record<string, string> = {
   resolved: '#7CB342',
 };
 
-export default function IncidentFeedTile({ config, editing, onResize, onRemove, onDuplicate, onRename, live }: TileProps) {
-  const { incidents, services } = live;
+export default function IncidentFeedTile({ config, editing, onConfigChange, onResize, onRemove, onDuplicate, onRename, live }: TileProps) {
+  const refreshMs = typeof config.refreshMs === 'number' ? config.refreshMs : undefined;
+  const override = useIncidents(7, refreshMs);
+  const incidents = refreshMs && override.data ? override.data.incidents : live.incidents;
+  const services = live.services;
   const activeCount = incidents.filter((i) => i.status !== 'resolved').length;
 
   return (
@@ -66,6 +71,12 @@ export default function IncidentFeedTile({ config, editing, onResize, onRemove, 
           })
         )}
       </div>
+      {editing && (
+        <RefreshSelect
+          value={refreshMs}
+          onChange={(ms) => onConfigChange({ refreshMs: ms })}
+        />
+      )}
     </TileChrome>
   );
 }

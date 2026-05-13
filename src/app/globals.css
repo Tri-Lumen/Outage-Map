@@ -1334,3 +1334,27 @@ select.twk-field {
   cursor: pointer;
 }
 .present-controls button:hover { background: var(--surface-elevated); }
+
+.tile-refresh-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border-subtle);
+  font-size: 10px;
+  color: var(--muted-strong);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.tile-refresh-label { font-weight: 600; }
+.tile-refresh-select {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--foreground);
+  font: inherit;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 4px;
+}

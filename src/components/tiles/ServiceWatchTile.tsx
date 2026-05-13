@@ -1,10 +1,12 @@
 import TileChrome from './TileChrome';
 import Sparkline from '../Sparkline';
+import RefreshSelect from './RefreshSelect';
 import { getStatusColor, historyToSparkline } from '@/lib/boardColors';
+import { useServiceStatus } from '@/hooks/useStatus';
 import type { LiveData } from './types';
 
 interface Props {
-  config: { service?: string; label?: string };
+  config: { service?: string; label?: string; refreshMs?: number };
   editing?: boolean;
   dataPoints: string[];
   toggleDataPoint: (key: string) => void;
@@ -70,8 +72,11 @@ export default function ServiceWatchTile({
   onRename,
   live,
 }: Props) {
+  const refreshMs = config.refreshMs;
+  const override = useServiceStatus(refreshMs);
+  const services = refreshMs && override.data ? override.data.services : live.services;
   const slug = (config.service as string) || '';
-  const svc = live.services.find((s) => s.slug === slug) || live.services[0];
+  const svc = services.find((s) => s.slug === slug) || services[0];
 
   if (!svc) {
     return (
@@ -133,7 +138,7 @@ export default function ServiceWatchTile({
       onDuplicate={onDuplicate}
       onRename={onRename}
       onConfigure={() => {
-        const next = live.services[(live.services.findIndex((s) => s.slug === svc.slug) + 1) % live.services.length];
+        const next = services[(services.findIndex((s) => s.slug === svc.slug) + 1) % services.length];
         if (next) onConfigChange({ service: next.slug });
       }}
     >
@@ -226,6 +231,12 @@ export default function ServiceWatchTile({
               </button>
             ))}
           </div>
+        )}
+        {editing && (
+          <RefreshSelect
+            value={refreshMs}
+            onChange={(ms) => onConfigChange({ refreshMs: ms })}
+          />
         )}
       </div>
     </TileChrome>
