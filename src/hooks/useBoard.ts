@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 
 export type TileType =
   | 'stat'
@@ -24,6 +24,7 @@ export interface TileConfig {
 }
 
 const BOARD_STORAGE_KEY = 'outage-board-v3';
+const HISTORY_LIMIT = 50;
 
 const DEFAULT_BOARD: TileConfig[] = [
   { id: 't1', type: 'stat',          x: 0, y: 0, w: 1, h: 2, config: { metric: 'uptime' },     dataPoints: [] },
@@ -60,6 +61,19 @@ function writeBoard(board: TileConfig[]) {
   }
 }
 
+interface History {
+  past: TileConfig[][];
+  present: TileConfig[];
+  future: TileConfig[][];
+}
+
+function pushHistory(h: History, next: TileConfig[]): History {
+  if (next === h.present) return h;
+  const past = [...h.past, h.present];
+  if (past.length > HISTORY_LIMIT) past.shift();
+  return { past, present: next, future: [] };
+}
+
 export interface BoardActions {
   updateTile: (id: string, patch: Partial<TileConfig>) => void;
   removeTile: (id: string) => void;
@@ -68,23 +82,34 @@ export interface BoardActions {
   addTile: (type: TileType, extraConfig?: Record<string, unknown>) => void;
   swapTiles: (srcId: string, tgtId: string) => void;
   resetBoard: () => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 export function useBoard(): [TileConfig[], BoardActions] {
-  const [board, setBoard] = useState<TileConfig[]>(DEFAULT_BOARD);
+  const [history, setHistory] = useState<History>({ past: [], present: DEFAULT_BOARD, future: [] });
+  const hydrated = useRef(false);
 
   // Hydrate from localStorage after mount
   useEffect(() => {
-    setBoard(readBoard());
+    setHistory({ past: [], present: readBoard(), future: [] });
+    hydrated.current = true;
   }, []);
 
-  // Persist whenever board changes
+  // Persist whenever the present board changes (after hydration)
   useEffect(() => {
-    writeBoard(board);
-  }, [board]);
+    if (!hydrated.current) return;
+    writeBoard(history.present);
+  }, [history.present]);
+
+  const mutate = useCallback((producer: (b: TileConfig[]) => TileConfig[]) => {
+    setHistory((h) => pushHistory(h, producer(h.present)));
+  }, []);
 
   const updateTile = useCallback((id: string, patch: Partial<TileConfig>) => {
-    setBoard((b) =>
+    mutate((b) =>
       b.map((t) =>
         t.id === id
           ? {
@@ -95,14 +120,14 @@ export function useBoard(): [TileConfig[], BoardActions] {
           : t
       )
     );
-  }, []);
+  }, [mutate]);
 
   const removeTile = useCallback((id: string) => {
-    setBoard((b) => b.filter((t) => t.id !== id));
-  }, []);
+    mutate((b) => b.filter((t) => t.id !== id));
+  }, [mutate]);
 
   const cycleResize = useCallback((id: string) => {
-    setBoard((b) =>
+    mutate((b) =>
       b.map((t) => {
         if (t.id !== id) return t;
         const idx = TILE_SIZES.findIndex((s) => s.w === t.w && s.h === t.h);
@@ -110,10 +135,10 @@ export function useBoard(): [TileConfig[], BoardActions] {
         return { ...t, w: next.w, h: next.h };
       })
     );
-  }, []);
+  }, [mutate]);
 
   const toggleDataPoint = useCallback((id: string, key: string) => {
-    setBoard((b) =>
+    mutate((b) =>
       b.map((t) => {
         if (t.id !== id) return t;
         const has = t.dataPoints.includes(key);
@@ -123,7 +148,7 @@ export function useBoard(): [TileConfig[], BoardActions] {
         };
       })
     );
-  }, []);
+  }, [mutate]);
 
   const addTile = useCallback((type: TileType, extraConfig: Record<string, unknown> = {}) => {
     const defaultConfigs: Record<TileType, Record<string, unknown>> = {
@@ -158,7 +183,7 @@ export function useBoard(): [TileConfig[], BoardActions] {
     };
     const id = 't' + Date.now();
     const size = defaultSizes[type];
-    setBoard((b) => [
+    mutate((b) => [
       ...b,
       {
         id,
@@ -171,11 +196,11 @@ export function useBoard(): [TileConfig[], BoardActions] {
         dataPoints: defaultDataPoints[type],
       },
     ]);
-  }, []);
+  }, [mutate]);
 
   const swapTiles = useCallback((srcId: string, tgtId: string) => {
     if (srcId === tgtId) return;
-    setBoard((b) => {
+    mutate((b) => {
       const src = b.find((t) => t.id === srcId);
       const tgt = b.find((t) => t.id === tgtId);
       if (!src || !tgt) return b;
@@ -185,10 +210,34 @@ export function useBoard(): [TileConfig[], BoardActions] {
         return t;
       });
     });
-  }, []);
+  }, [mutate]);
 
   const resetBoard = useCallback(() => {
-    setBoard(DEFAULT_BOARD);
+    mutate(() => DEFAULT_BOARD);
+  }, [mutate]);
+
+  const undo = useCallback(() => {
+    setHistory((h) => {
+      if (h.past.length === 0) return h;
+      const previous = h.past[h.past.length - 1];
+      return {
+        past: h.past.slice(0, -1),
+        present: previous,
+        future: [h.present, ...h.future],
+      };
+    });
+  }, []);
+
+  const redo = useCallback(() => {
+    setHistory((h) => {
+      if (h.future.length === 0) return h;
+      const [next, ...rest] = h.future;
+      return {
+        past: [...h.past, h.present],
+        present: next,
+        future: rest,
+      };
+    });
   }, []);
 
   const actions: BoardActions = {
@@ -199,7 +248,11 @@ export function useBoard(): [TileConfig[], BoardActions] {
     addTile,
     swapTiles,
     resetBoard,
+    undo,
+    redo,
+    canUndo: history.past.length > 0,
+    canRedo: history.future.length > 0,
   };
 
-  return [board, actions];
+  return [history.present, actions];
 }

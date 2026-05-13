@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useServiceStatus, useIncidents, useHistory } from '@/hooks/useStatus';
 import { usePreferences } from '@/hooks/usePreferences';
 import { useBoard } from '@/hooks/useBoard';
@@ -24,6 +24,21 @@ export default function Dashboard() {
   const [importOpen, setImportOpen] = useState(false);
   const [addOpen, setAddOpen]       = useState(false);
   const [tweaksOpen, setTweaksOpen] = useState(false);
+
+  // Undo / redo via Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z (or Cmd/Ctrl+Y).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      const k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) { e.preventDefault(); actions.undo(); }
+      else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); actions.redo(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [actions]);
 
   const refreshMs = prefs.refreshInterval * 1000;
   const { data: statusData, isLoading } = useServiceStatus(refreshMs);
@@ -81,6 +96,34 @@ export default function Dashboard() {
             <span className="live-dot" />
             <span>Auto-refresh · {prefs.refreshInterval < 60 ? `${prefs.refreshInterval}s` : `${prefs.refreshInterval / 60}m`}</span>
           </div>
+
+          <button
+            className="board-btn board-btn-icon"
+            onClick={actions.undo}
+            disabled={!actions.canUndo}
+            aria-disabled={!actions.canUndo}
+            title="Undo (Ctrl/Cmd+Z)"
+            aria-label="Undo"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 7v6h6" />
+              <path d="M3 13a9 9 0 1 0 3-7.7L3 8" />
+            </svg>
+          </button>
+
+          <button
+            className="board-btn board-btn-icon"
+            onClick={actions.redo}
+            disabled={!actions.canRedo}
+            aria-disabled={!actions.canRedo}
+            title="Redo (Ctrl/Cmd+Shift+Z)"
+            aria-label="Redo"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 7v6h-6" />
+              <path d="M21 13a9 9 0 1 1-3-7.7L21 8" />
+            </svg>
+          </button>
 
           <button
             className={`board-btn ${editing ? 'board-btn-edit-on' : ''}`}

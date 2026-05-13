@@ -1043,3 +1043,6 @@ select.twk-field {
 .board-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 .board-btn-edit-on { background: var(--accent-cyan); color: #001f1d; border-color: transparent; font-weight: 600; }
 .board-btn-edit-on:hover { filter: brightness(1.08); }
+.board-btn-icon { padding: 7px 9px; }
+.board-btn:disabled,
+.board-btn[aria-disabled="true"] { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
