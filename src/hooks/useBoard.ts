@@ -153,9 +153,20 @@ export interface UseBoardParams {
 }
 
 export function useBoard({ bp = 'desktop', boardId, tiles, onCommit }: UseBoardParams): [TileConfig[], BoardActions] {
+  // Use the parent's tiles array as-is for the initial present so that
+  // history.present and ownCommit.current share the same reference on mount.
+  // Previously the initial state called layout.compactDown(tiles), which
+  // returned a fresh array, so the post-mount onCommit effect saw
+  // history.present !== ownCommit.current and fired immediately — pushing
+  // compactDown(DEFAULT_TILES) into the parent before useBoardSet had
+  // finished hydrating from localStorage. That batched setActiveTiles
+  // landed after the hydration setState, overwriting the saved tiles on
+  // every page load. Saved boards are already in compacted form, and any
+  // user action (move, resize, tidy) re-runs compaction through
+  // runLayoutOp, so deferring the initial compaction is safe.
   const [history, setHistory] = useState<History>(() => ({
     past: [],
-    present: layout.compactDown(tiles),
+    present: tiles,
     future: [],
   }));
   const [lastTidyDelta, setLastTidyDelta] = useState<number | null>(null);
@@ -163,8 +174,9 @@ export function useBoard({ bp = 'desktop', boardId, tiles, onCommit }: UseBoardP
 
   // Track which tiles array reference came from our own commits, so we can
   // distinguish an external tiles change (active-board switch, import) from
-  // the parent echoing our last commit back at us.
-  const ownCommit = useRef<TileConfig[] | null>(null);
+  // the parent echoing our last commit back at us. Seeded with the initial
+  // tiles so the first onCommit-effect run is a no-op.
+  const ownCommit = useRef<TileConfig[] | null>(tiles);
   const lastBoardId = useRef(boardId);
 
   // External tiles change: either the active board id changed, or the parent
