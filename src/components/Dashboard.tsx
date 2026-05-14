@@ -23,7 +23,7 @@ import PresentControls from './PresentControls';
 import TileConfigDrawer from './TileConfigDrawer';
 
 export default function Dashboard() {
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, customTheme, setCustomTheme } = useTheme();
   const [tweaks, tweaksApi] = useTweaks();
   const { setTweak, setTweaks } = tweaksApi;
   const breakpoint         = useBreakpoint();
@@ -390,6 +390,8 @@ export default function Dashboard() {
         setBoard={actions.setBoard}
         theme={theme}
         setTheme={setTheme}
+        customTheme={customTheme}
+        setCustomTheme={setCustomTheme}
       />
 
       <TileConfigDrawer

@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import type { Tweaks } from '@/hooks/useTweaks';
 import type { TileConfig } from '@/hooks/useBoard';
 import { serializeBoard, parseBoardFile } from '@/lib/board/io';
-import { THEMES, type Theme } from './ThemeProvider';
+import { THEMES, type Theme, type CustomTheme } from './ThemeProvider';
 
 interface Props {
   open: boolean;
@@ -16,11 +16,21 @@ interface Props {
   setBoard: (next: TileConfig[]) => void;
   theme: Theme;
   setTheme: (t: Theme) => void;
+  customTheme: CustomTheme;
+  setCustomTheme: (patch: Partial<CustomTheme>) => void;
 }
+
+const CUSTOM_FIELDS: { key: keyof CustomTheme; label: string }[] = [
+  { key: 'background',      label: 'Background' },
+  { key: 'surface',         label: 'Surface' },
+  { key: 'surfaceElevated', label: 'Surface (elevated)' },
+  { key: 'foreground',      label: 'Foreground' },
+  { key: 'muted',           label: 'Muted' },
+];
 
 const ACCENT_OPTIONS = ['#268bd2', '#2aa198', '#b58900', '#d33682', '#859900', '#3b82f6'];
 
-export default function TweaksPanel({ open, onClose, tweaks, setTweak, setTweaks, board, setBoard, theme, setTheme }: Props) {
+export default function TweaksPanel({ open, onClose, tweaks, setTweak, setTweaks, board, setBoard, theme, setTheme, customTheme, setCustomTheme }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
   const offsetRef = useRef({ x: 16, y: 16 });
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -165,6 +175,33 @@ export default function TweaksPanel({ open, onClose, tweaks, setTweak, setTweaks
             ))}
           </select>
         </div>
+
+        {theme === 'custom' && (
+          <>
+            {CUSTOM_FIELDS.map((f) => (
+              <div className="twk-row twk-row-h" key={f.key}>
+                <div className="twk-lbl"><span>{f.label}</span></div>
+                <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                  <input
+                    type="color"
+                    className="twk-color"
+                    value={customTheme[f.key]}
+                    onChange={(e) => setCustomTheme({ [f.key]: e.target.value })}
+                    aria-label={`Pick ${f.label}`}
+                  />
+                  <input
+                    type="text"
+                    className="twk-field"
+                    style={{ width: 90, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11 }}
+                    value={customTheme[f.key]}
+                    onChange={(e) => setCustomTheme({ [f.key]: e.target.value })}
+                    spellCheck={false}
+                  />
+                </div>
+              </div>
+            ))}
+          </>
+        )}
 
         {/* Accent */}
         <div className="twk-row">
