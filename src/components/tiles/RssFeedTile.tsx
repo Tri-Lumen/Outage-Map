@@ -36,6 +36,8 @@ export default function RssFeedTile({ config, editing, onResize, onRemove, onDup
       }
       badge={<span className="count-pill">RSS</span>}
       label={typeof config.label === 'string' ? config.label : null}
+      iconText={typeof config.icon === 'string' ? config.icon : null}
+      tag={typeof config.tag === 'string' ? config.tag : null}
       editing={editing}
       onResize={onResize}
       onRemove={onRemove}

@@ -5,7 +5,14 @@ import { useServiceStatus } from '@/hooks/useStatus';
 import type { LiveData } from './types';
 
 interface Props {
-  config: { service?: string; label?: string; refreshMs?: number };
+  config: {
+    service?: string;
+    label?: string;
+    refreshMs?: number;
+    icon?: string;
+    tag?: string;
+    accent?: string;
+  };
   editing?: boolean;
   dataPoints: string[];
   toggleDataPoint: (key: string) => void;
@@ -88,6 +95,8 @@ export default function ServiceWatchTile({
       <TileChrome
         title="Service Watch"
         label={config.label ?? null}
+        iconText={typeof config.icon === 'string' ? config.icon : null}
+        tag={typeof config.tag === 'string' ? config.tag : null}
         editing={editing}
         onResize={onResize}
         onRemove={onRemove}
@@ -138,6 +147,8 @@ export default function ServiceWatchTile({
         </div>
       }
       label={config.label ?? null}
+      iconText={typeof config.icon === 'string' ? config.icon : null}
+      tag={typeof config.tag === 'string' ? config.tag : null}
       editing={editing}
       onResize={onResize}
       onRemove={onRemove}

@@ -213,7 +213,10 @@ export default function TileGrid({
             gridColumnEnd: `span ${Math.min(previewSize.w, cols - tile.x)}`,
             gridRowStart: tile.y + 1,
             gridRowEnd: `span ${previewSize.h}`,
-          }}
+            ...(typeof tile.config.accent === 'string'
+              ? { ['--accent' as string]: tile.config.accent } as React.CSSProperties
+              : {}),
+          } as React.CSSProperties}
           draggable={editing && resizePreview?.id !== tile.id}
           onDragStart={() => { setDragId(tile.id); setDragOverId(null); }}
           onDragOver={(e) => { e.preventDefault(); setDragOverId(tile.id); }}

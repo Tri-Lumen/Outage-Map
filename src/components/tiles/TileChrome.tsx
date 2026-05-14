@@ -6,6 +6,8 @@ interface TileChromeProps {
   title: string;
   label?: string | null;
   icon?: ReactNode;
+  iconText?: string | null;
+  tag?: string | null;
   badge?: ReactNode;
   children: ReactNode;
   editing?: boolean;
@@ -20,6 +22,8 @@ export default function TileChrome({
   title,
   label,
   icon,
+  iconText,
+  tag,
   badge,
   children,
   editing,
@@ -54,7 +58,9 @@ export default function TileChrome({
     <div className="tile-inner">
       <div className="tile-header">
         <div className="tile-title">
-          {icon}
+          {iconText
+            ? <span className="tile-icon-text" aria-hidden="true">{iconText}</span>
+            : icon}
           {renaming ? (
             <input
               ref={inputRef}
@@ -78,6 +84,7 @@ export default function TileChrome({
               {displayed}
             </span>
           )}
+          {tag && <span className="tile-tag">{tag.slice(0, 12)}</span>}
           {badge}
         </div>
         <div className="tile-actions">

@@ -1437,3 +1437,26 @@ select.twk-field {
   background: transparent;
   cursor: pointer;
 }
+
+.tile-icon-text {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.tile-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent-soft, rgba(38,139,210,0.18));
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  margin-left: 4px;
+}

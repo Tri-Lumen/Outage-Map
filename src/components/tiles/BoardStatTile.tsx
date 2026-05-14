@@ -26,6 +26,8 @@ export default function BoardStatTile({ config, editing, onResize, onRemove, onD
     <TileChrome
       title={m.label}
       label={typeof config.label === 'string' ? config.label : null}
+      iconText={typeof config.icon === 'string' ? config.icon : null}
+      tag={typeof config.tag === 'string' ? config.tag : null}
       editing={editing}
       onResize={onResize}
       onRemove={onRemove}

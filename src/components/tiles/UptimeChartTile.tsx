@@ -16,6 +16,8 @@ export default function UptimeChartTile({ config, editing, onResize, onRemove, o
       <TileChrome
         title="Uptime Chart"
         label={typeof config.label === 'string' ? config.label : null}
+        iconText={typeof config.icon === 'string' ? config.icon : null}
+        tag={typeof config.tag === 'string' ? config.tag : null}
         editing={editing}
         onResize={onResize}
         onRemove={onRemove}
@@ -64,6 +66,8 @@ export default function UptimeChartTile({ config, editing, onResize, onRemove, o
         </div>
       }
       label={typeof config.label === 'string' ? config.label : null}
+      iconText={typeof config.icon === 'string' ? config.icon : null}
+      tag={typeof config.tag === 'string' ? config.tag : null}
       editing={editing}
       onResize={onResize}
       onRemove={onRemove}

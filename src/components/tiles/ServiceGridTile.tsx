@@ -27,6 +27,8 @@ export default function ServiceGridTile({ config, editing, onResize, onRemove, o
         <span className="count-pill">{shown.length}</span>
       }
       label={typeof config.label === 'string' ? config.label : null}
+      iconText={typeof config.icon === 'string' ? config.icon : null}
+      tag={typeof config.tag === 'string' ? config.tag : null}
       editing={editing}
       onResize={onResize}
       onRemove={onRemove}

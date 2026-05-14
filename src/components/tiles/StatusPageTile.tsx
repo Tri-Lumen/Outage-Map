@@ -42,6 +42,8 @@ export default function StatusPageTile({ config, editing, onResize, onRemove, on
         </span>
       }
       label={typeof config.label === 'string' ? config.label : null}
+      iconText={typeof config.icon === 'string' ? config.icon : null}
+      tag={typeof config.tag === 'string' ? config.tag : null}
       editing={editing}
       onResize={onResize}
       onRemove={onRemove}

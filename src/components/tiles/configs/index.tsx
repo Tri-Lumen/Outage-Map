@@ -24,9 +24,15 @@ function common(tile: TileConfig, onUpdate: ConfigFormProps['onUpdate'], opts: {
       tileType={tile.type}
       label={typeof cfg.label === 'string' ? cfg.label : undefined}
       refreshMs={typeof cfg.refreshMs === 'number' ? cfg.refreshMs : undefined}
+      accent={typeof cfg.accent === 'string' ? cfg.accent : undefined}
+      icon={typeof cfg.icon === 'string' ? cfg.icon : undefined}
+      tag={typeof cfg.tag === 'string' ? cfg.tag : undefined}
       hideRefresh={opts.hideRefresh}
       onLabelChange={(v) => update(tile, onUpdate, { label: v ?? undefined })}
       onRefreshChange={(ms) => update(tile, onUpdate, { refreshMs: ms })}
+      onAccentChange={(v) => update(tile, onUpdate, { accent: v ?? undefined })}
+      onIconChange={(v) => update(tile, onUpdate, { icon: v ?? undefined })}
+      onTagChange={(v) => update(tile, onUpdate, { tag: v ?? undefined })}
     />
   );
 }
