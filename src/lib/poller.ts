@@ -1,4 +1,4 @@
-import { SERVICES } from './services';
+import { getServices } from './services';
 import { ServiceConfig, FetchResult, StatusResult, ServiceStatus } from './types';
 import {
   upsertServiceStatus,
@@ -219,7 +219,7 @@ export async function runPollCycle(): Promise<{ success: boolean; polled: number
 
   try {
     const results = await Promise.allSettled(
-      SERVICES.map((service) => pollService(service))
+      getServices().map((service) => pollService(service))
     );
 
     let totalDdReports = 0;

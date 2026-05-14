@@ -4,7 +4,7 @@
 // failure / latency for each (service, source) so an operator can see at a
 // glance which sources are stale, and so /api/health?probe=ready can fail
 // loudly when a fetcher has been broken for too long.
-import { SERVICES } from './services';
+import { getServices } from './services';
 
 type Source = 'official' | 'downdetector';
 
@@ -85,7 +85,7 @@ export const health = {
     // Always include an entry per known service+source so the UI / scraper
     // can show "never run yet" instead of a missing row on a fresh boot.
     const out: FetcherHealth[] = [];
-    for (const service of SERVICES) {
+    for (const service of getServices()) {
       for (const source of ['official', 'downdetector'] as Source[]) {
         out.push(getOrInit(service.slug, source));
       }

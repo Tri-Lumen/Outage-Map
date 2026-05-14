@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { useServiceStatus, useIncidents, useHistory } from '@/hooks/useStatus';
-import { SERVICES } from '@/lib/services';
 import { HistoryPoint } from '@/lib/types';
 import StatTile from './ui/StatTile';
 import Card from './ui/Card';
@@ -32,7 +31,6 @@ function formatDateTime(ts: string | null): string {
 }
 
 export default function ServiceDetailView({ slug }: Props) {
-  const config = SERVICES.find((s) => s.slug === slug);
   const { data: statusData } = useServiceStatus();
   const { data: incidentData } = useIncidents(30);
   const { data: historyData } = useHistory(30);
@@ -55,13 +53,21 @@ export default function ServiceDetailView({ slug }: Props) {
     return { uptime, outageDays, totalDowntime, critical };
   }, [history, incidents]);
 
-  if (!config) {
+  if (statusData && !service) {
     return (
       <Card className="text-center py-14">
         <p className="text-sm text-muted">Service not found.</p>
         <Link href="/" className="text-xs text-accent-cyan mt-3 inline-block">
           ← Back to overview
         </Link>
+      </Card>
+    );
+  }
+
+  if (!service) {
+    return (
+      <Card className="text-center py-14">
+        <p className="text-sm text-muted">Loading…</p>
       </Card>
     );
   }
@@ -92,19 +98,19 @@ export default function ServiceDetailView({ slug }: Props) {
           <div className="flex items-center gap-4">
             <div
               className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-xl"
-              style={{ backgroundColor: config.color }}
+              style={{ backgroundColor: service.color }}
             >
-              {config.name.charAt(0)}
+              {service.name.charAt(0)}
             </div>
             <div>
               <p className="text-[11px] uppercase tracking-widest text-muted mb-1">
-                {config.fetcher} · {config.slug}
+                {service.slug}
               </p>
               <h1
                 className="text-3xl font-semibold text-foreground tracking-tight"
-                style={{ fontFamily: config.brandFont }}
+                style={{ fontFamily: service.brandFont }}
               >
-                {config.name}
+                {service.name}
               </h1>
               <div className="mt-3 flex items-center gap-3">
                 <StatusBadge status={heroStatus} size="md" />
@@ -116,7 +122,7 @@ export default function ServiceDetailView({ slug }: Props) {
           </div>
           <div className="flex items-center gap-2">
             <a
-              href={config.statusUrl}
+              href={service.statusUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-subtle text-xs text-foreground transition-colors"
@@ -126,8 +132,9 @@ export default function ServiceDetailView({ slug }: Props) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
               </svg>
             </a>
+            {service.downdetectorUrl && (
             <a
-              href={`https://downdetector.com/status/${config.downdetectorSlug}/`}
+              href={service.downdetectorUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-subtle text-xs text-foreground transition-colors"
@@ -137,6 +144,7 @@ export default function ServiceDetailView({ slug }: Props) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
               </svg>
             </a>
+            )}
           </div>
         </div>
       </div>
@@ -171,8 +179,8 @@ export default function ServiceDetailView({ slug }: Props) {
       <section>
         <h2 className="text-base font-semibold text-foreground mb-3">History</h2>
         <OutageChart
-          serviceName={config.name}
-          serviceColor={config.color}
+          serviceName={service.name}
+          serviceColor={service.color}
           data={history}
         />
       </section>

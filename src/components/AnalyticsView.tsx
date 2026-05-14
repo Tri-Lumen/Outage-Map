@@ -2,7 +2,6 @@
 
 import { useMemo } from 'react';
 import { useServiceStatus, useHistory, useIncidents } from '@/hooks/useStatus';
-import { SERVICES } from '@/lib/services';
 import { HistoryPoint } from '@/lib/types';
 import PageHeader from './ui/PageHeader';
 import StatTile from './ui/StatTile';
@@ -41,11 +40,11 @@ export default function AnalyticsView() {
   const incidents = useMemo(() => incidentData?.incidents || [], [incidentData]);
 
   const rows = useMemo(() => {
-    return SERVICES.map((s) => {
+    return services.map((s) => {
       const points = history[s.slug] || [];
       const uptime = uptimeForService(points);
       const mttr = mttrForService(points);
-      const live = services.find((x) => x.slug === s.slug);
+      const live = s;
       const serviceIncidents = incidents.filter((i) => i.service === s.slug);
       return {
         slug: s.slug,

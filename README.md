@@ -243,6 +243,9 @@ To force a refresh to the latest published build, either tick
 | `ALERT_EMAILS` | _empty_ | Comma-separated fallback recipients used when no alert rule matches an incident. |
 | `DEBUG` | `false` | Set to `true` for verbose poller logs (per-service status lines). |
 | `APP_PORT` | `3100` | Host port published by `docker-compose.yml`. |
+| `GITHUB_TOKEN` | _unset_ | PAT or fine-grained token with `Contents: Read & Write` and `Pull requests: Read & Write` on the target repo. Required for the in-app "Contribute to catalog" flow; the endpoint returns 503 if unset. |
+| `GITHUB_REPO` | `Tri-Lumen/Outage-Map` | `owner/name` of the upstream catalog repository that contribute-PRs land in. |
+| `GITHUB_BASE_BRANCH` | `main` | Branch the contribute flow PRs against. |
 
 ## API Endpoints
 
@@ -255,6 +258,9 @@ To force a refresh to the latest published build, either tick
 | `/api/alerts/rules` | GET / POST | List / create alert rules. Writes need Bearer auth (or `ENABLE_RULES_API=true`). |
 | `/api/alerts/rules/:id` | PATCH / DELETE | Update or remove a rule. Same auth as POST. |
 | `/api/alerts/test` | POST | Send a test email to verify SMTP wiring. |
+| `/api/sources` | GET / POST | List / create custom data sources merged into the runtime catalog. Writes require Bearer auth (or `ENABLE_RULES_API=true`). |
+| `/api/sources/:id` | PATCH / DELETE | Update or remove a custom source. Same auth as POST. DELETE also cleans up the source's status, history, and incident rows. |
+| `/api/sources/contribute` | POST | Open a PR against `main` adding selected custom sources to `src/lib/services.contributed.json`. Requires `GITHUB_TOKEN` plus Bearer auth. |
 
 ## Architecture
 

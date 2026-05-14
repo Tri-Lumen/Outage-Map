@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react';
 import { useServiceStatus } from '@/hooks/useStatus';
-import { SERVICES } from '@/lib/services';
 import {
   NA_VIEWBOX,
   US_OUTLINE_SHAPE,
@@ -200,7 +199,7 @@ export default function OutageMapView() {
             >
               All services
             </button>
-            {SERVICES.map((s) => (
+            {services.map((s) => (
               <button
                 key={s.slug}
                 onClick={() => setSelectedService(s.slug)}

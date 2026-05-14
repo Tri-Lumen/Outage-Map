@@ -9,7 +9,7 @@ export interface ServiceConfig {
   slug: string;
   color: string;
   statusUrl: string;
-  downdetectorSlug: string;
+  downdetectorSlug: string | null;
   fetcher: FetcherType;
   brandFont: string;
 }

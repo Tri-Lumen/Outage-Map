@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServiceStatuses, getActiveIncidentCounts } from '@/lib/db';
-import { SERVICES } from '@/lib/services';
+import { getServices } from '@/lib/services';
 import { ServiceStatus, ServiceStatusResponse } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -28,7 +28,7 @@ export async function GET() {
     const statuses = getServiceStatuses();
     const activeIncidentCounts = getActiveIncidentCounts();
 
-    const services: ServiceStatusResponse[] = SERVICES.map((service) => {
+    const services: ServiceStatusResponse[] = getServices().map((service) => {
       const official = statuses.find(
         (s) => s.service_slug === service.slug && s.source === 'official'
       );
@@ -52,7 +52,9 @@ export async function GET() {
         details: official?.details || null,
         lastChecked: official?.checked_at || dd?.checked_at || null,
         statusUrl: service.statusUrl,
-        downdetectorUrl: `https://downdetector.com/status/${service.downdetectorSlug}/`,
+        downdetectorUrl: service.downdetectorSlug
+          ? `https://downdetector.com/status/${service.downdetectorSlug}/`
+          : '',
         brandFont: service.brandFont,
       };
     });

@@ -22,7 +22,7 @@ function reportCountToStatus(count: number): ServiceStatus {
 }
 
 export async function fetchDowndetectorStatus(
-  slug: string,
+  slug: string | null,
   serviceSlug: string
 ): Promise<StatusResult> {
   const result: StatusResult = {
@@ -32,6 +32,15 @@ export async function fetchDowndetectorStatus(
     details: null,
     reportCount: null,
   };
+
+  if (!slug) {
+    // Custom services may not have a Downdetector counterpart. Report
+    // operational with a clear note so the UI doesn't render "unknown".
+    result.status = 'operational';
+    result.details = 'No Downdetector slug configured';
+    result.reportCount = 0;
+    return result;
+  }
 
   if (process.env.DOWNDETECTOR_ENABLED === 'false') {
     result.status = 'operational';

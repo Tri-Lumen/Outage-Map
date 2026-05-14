@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteAlertRule, updateAlertRule } from '@/lib/db';
-import { SERVICES } from '@/lib/services';
+import { getServices } from '@/lib/services';
 import { isIncidentSeverity } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -58,7 +58,7 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
     patch.email = email;
   }
   if (input.services !== undefined) {
-    const validSlugs = new Set(SERVICES.map((s) => s.slug));
+    const validSlugs = new Set(getServices().map((s) => s.slug));
     const services = Array.isArray(input.services)
       ? input.services.filter((s): s is string => typeof s === 'string' && validSlugs.has(s))
       : [];
