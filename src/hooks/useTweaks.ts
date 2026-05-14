@@ -7,7 +7,11 @@ export interface Tweaks {
   density: 'compact' | 'comfortable';
   showGridLines: boolean;
   tileRadius: number;
+  /** Most-recent first, capped at 8. Front-padding/dedupe handled by setTweak. */
+  accentRecents?: string[];
 }
+
+const RECENTS_LIMIT = 8;
 
 const TWEAKS_STORAGE_KEY = 'outage-board-tweaks';
 
@@ -37,12 +41,17 @@ function applyTweaks(t: Tweaks) {
   root.dataset.gridLines = t.showGridLines ? 'on' : 'off';
 }
 
-export function useTweaks(): [Tweaks, (key: keyof Tweaks, value: unknown) => void] {
-  const [tweaks, setTweaks] = useState<Tweaks>(DEFAULT_TWEAKS);
+export interface TweaksApi {
+  setTweak: (key: keyof Tweaks, value: unknown) => void;
+  setTweaks: (next: Tweaks) => void;
+}
+
+export function useTweaks(): [Tweaks, TweaksApi] {
+  const [tweaks, setTweaksState] = useState<Tweaks>(DEFAULT_TWEAKS);
 
   useEffect(() => {
     const stored = readTweaks();
-    setTweaks(stored);
+    setTweaksState(stored);
     applyTweaks(stored);
   }, []);
 
@@ -56,8 +65,19 @@ export function useTweaks(): [Tweaks, (key: keyof Tweaks, value: unknown) => voi
   }, [tweaks]);
 
   const setTweak = useCallback((key: keyof Tweaks, value: unknown) => {
-    setTweaks((prev) => ({ ...prev, [key]: value }));
+    setTweaksState((prev) => {
+      if (key === 'accent' && typeof value === 'string') {
+        const recents = [value, ...(prev.accentRecents ?? []).filter((c) => c !== value)]
+          .slice(0, RECENTS_LIMIT);
+        return { ...prev, accent: value, accentRecents: recents };
+      }
+      return { ...prev, [key]: value };
+    });
   }, []);
 
-  return [tweaks, setTweak];
+  const setTweaks = useCallback((next: Tweaks) => {
+    setTweaksState({ ...DEFAULT_TWEAKS, ...next });
+  }, []);
+
+  return [tweaks, { setTweak, setTweaks }];
 }

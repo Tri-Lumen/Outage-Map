@@ -1,5 +1,6 @@
 import TileChrome from './TileChrome';
 import { relTime } from '@/lib/boardColors';
+import { useIncidents } from '@/hooks/useStatus';
 import type { TileProps } from './types';
 
 const SEV_COLOR: Record<string, string> = {
@@ -10,8 +11,23 @@ const SEV_COLOR: Record<string, string> = {
   resolved: '#7CB342',
 };
 
-export default function IncidentFeedTile({ editing, onResize, onRemove, live }: TileProps) {
-  const { incidents, services } = live;
+export default function IncidentFeedTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure, live }: TileProps) {
+  const refreshMs = typeof config.refreshMs === 'number' ? config.refreshMs : undefined;
+  const override = useIncidents(7, refreshMs);
+  const allIncidents = refreshMs && override.data ? override.data.incidents : live.incidents;
+  const services = live.services;
+
+  const filters = (config.filters ?? {}) as {
+    severity?: string[];
+    statuses?: string[];
+    services?: string[];
+  };
+  const incidents = allIncidents.filter((i) => {
+    if (filters.severity && filters.severity.length && !filters.severity.includes(i.severity)) return false;
+    if (filters.statuses && filters.statuses.length && !filters.statuses.includes(i.status)) return false;
+    if (filters.services && filters.services.length && !filters.services.includes(i.service)) return false;
+    return true;
+  });
   const activeCount = incidents.filter((i) => i.status !== 'resolved').length;
 
   return (
@@ -30,9 +46,15 @@ export default function IncidentFeedTile({ editing, onResize, onRemove, live }: 
           {activeCount} active
         </span>
       }
+      label={typeof config.label === 'string' ? config.label : null}
+      iconText={typeof config.icon === 'string' ? config.icon : null}
+      tag={typeof config.tag === 'string' ? config.tag : null}
       editing={editing}
       onResize={onResize}
       onRemove={onRemove}
+      onDuplicate={onDuplicate}
+      onRename={onRename}
+      onConfigure={onConfigure}
     >
       <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', flex: 1 }}>
         {incidents.length === 0 ? (

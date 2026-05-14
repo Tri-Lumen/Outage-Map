@@ -15,7 +15,7 @@ function regionColor(hot: number): string {
   return '#7CB342';
 }
 
-export default function StatusMapTile({ editing, onResize, onRemove, live }: TileProps) {
+export default function StatusMapTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure, live }: TileProps) {
   // Compute a rough "heat" per region based on active incidents
   const activeIncidents = live.incidents.filter((i) => i.status !== 'resolved').length;
   const totalServices = live.services.length || 1;
@@ -36,9 +36,15 @@ export default function StatusMapTile({ editing, onResize, onRemove, live }: Til
           <path d="M12 2a8 8 0 018 8c0 6-8 12-8 12s-8-6-8-12a8 8 0 018-8z" />
         </svg>
       }
+      label={typeof config.label === 'string' ? config.label : null}
+      iconText={typeof config.icon === 'string' ? config.icon : null}
+      tag={typeof config.tag === 'string' ? config.tag : null}
       editing={editing}
       onResize={onResize}
       onRemove={onRemove}
+      onDuplicate={onDuplicate}
+      onRename={onRename}
+      onConfigure={onConfigure}
     >
       <div
         style={{

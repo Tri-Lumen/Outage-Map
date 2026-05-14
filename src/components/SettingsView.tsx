@@ -43,6 +43,18 @@ const THEME_PREVIEWS: Record<Theme, {
     secondaryBar: 'bg-[#64748b]',
     accentBar: 'bg-[#38bdf8]',
   },
+  'auto': {
+    wrapper: 'bg-gradient-to-br from-[#0a0a0a] to-[#fdf6e3] border-neutral-500',
+    primaryBar: 'bg-neutral-300',
+    secondaryBar: 'bg-neutral-500',
+    accentBar: 'bg-[#268bd2]',
+  },
+  'custom': {
+    wrapper: 'bg-[var(--surface)] border-[var(--border-strong)]',
+    primaryBar: 'bg-[var(--foreground)]',
+    secondaryBar: 'bg-[var(--muted)]',
+    accentBar: 'bg-[var(--accent)]',
+  },
 };
 
 export default function SettingsView() {

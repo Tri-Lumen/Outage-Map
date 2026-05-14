@@ -2,11 +2,15 @@ import TileChrome from './TileChrome';
 import { getStatusColor } from '@/lib/boardColors';
 import type { TileProps } from './types';
 
-export default function ServiceGridTile({ config, editing, onResize, onRemove, live }: TileProps) {
+export default function ServiceGridTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure, live }: TileProps) {
   const filterSlugs = config.services as string[] | undefined;
-  const shown = filterSlugs?.length
+  const filters = (config.filters ?? {}) as { hideOperational?: boolean };
+  let shown = filterSlugs?.length
     ? live.services.filter((s) => filterSlugs.includes(s.slug))
     : live.services;
+  if (filters.hideOperational) {
+    shown = shown.filter((s) => s.overallStatus !== 'operational');
+  }
 
   return (
     <TileChrome
@@ -22,9 +26,15 @@ export default function ServiceGridTile({ config, editing, onResize, onRemove, l
       badge={
         <span className="count-pill">{shown.length}</span>
       }
+      label={typeof config.label === 'string' ? config.label : null}
+      iconText={typeof config.icon === 'string' ? config.icon : null}
+      tag={typeof config.tag === 'string' ? config.tag : null}
       editing={editing}
       onResize={onResize}
       onRemove={onRemove}
+      onDuplicate={onDuplicate}
+      onRename={onRename}
+      onConfigure={onConfigure}
     >
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8, overflowY: 'auto', flex: 1 }}>
         {shown.map((s) => {
