@@ -13,6 +13,7 @@ import { sendIncidentAlert, sendStatusChangeAlert } from './email';
 import { evaluateRulesForIncident } from './alerts/rules';
 import { metrics } from './metrics';
 import { health, HealthSource } from './health';
+import { circuit } from './fetchers/circuit';
 import { fetchStatuspageStatus } from './fetchers/statuspage';
 import { fetchMicrosoftStatus } from './fetchers/microsoft';
 import { fetchSalesforceStatus } from './fetchers/salesforce';
@@ -26,12 +27,29 @@ import { fetchDowndetectorStatus } from './fetchers/downdetector';
 // `status: 'unknown'` plus a `details` message, so we treat "unknown" as a
 // failure for health tracking purposes — it's the most reliable signal that
 // the upstream didn't give us a useful answer.
+//
+// The circuit breaker layer short-circuits the call when an upstream has been
+// failing repeatedly: instead of making the network request, it returns a
+// fabricated "unknown" result via the supplied factory. This prevents the
+// poller from hammering a broken upstream every 3 minutes while still
+// generating one probe call per cooldown to detect recovery.
 async function timedFetch<T>(
   serviceSlug: string,
   source: HealthSource,
   call: () => Promise<T>,
   inspect: (result: T) => { status: ServiceStatus; details: string | null },
+  unknownFactory: (reason: string) => T,
 ): Promise<T> {
+  if (circuit.shouldAttempt(serviceSlug, source) === 'block') {
+    const until = circuit.openUntil(serviceSlug, source);
+    const reason = until
+      ? `circuit open until ${new Date(until).toISOString()}`
+      : 'circuit open';
+    metrics.recordFetcherFailure(serviceSlug, source, 'circuit_open');
+    metrics.setCircuitState(serviceSlug, source, 'open');
+    return unknownFactory(reason);
+  }
+
   const start = Date.now();
   try {
     const result = await call();
@@ -41,17 +59,45 @@ async function timedFetch<T>(
     if (status === 'unknown') {
       metrics.recordFetcherFailure(serviceSlug, source, 'unknown_status');
       health.recordFailure(serviceSlug, source, details ?? 'fetcher returned unknown', latencyMs);
+      circuit.recordFailure(serviceSlug, source);
     } else {
       health.recordSuccess(serviceSlug, source, latencyMs);
+      circuit.recordSuccess(serviceSlug, source);
     }
+    metrics.setCircuitState(serviceSlug, source, circuit.getState(serviceSlug, source));
     return result;
   } catch (err) {
     const latencyMs = Date.now() - start;
     metrics.recordFetcherLatency(serviceSlug, source, latencyMs / 1000);
     metrics.recordFetcherFailure(serviceSlug, source, 'exception');
     health.recordFailure(serviceSlug, source, err, latencyMs);
+    circuit.recordFailure(serviceSlug, source);
+    metrics.setCircuitState(serviceSlug, source, circuit.getState(serviceSlug, source));
     throw err;
   }
+}
+
+function unknownFetchResult(serviceSlug: string, reason: string): FetchResult {
+  return {
+    status: {
+      serviceSlug,
+      source: 'official',
+      status: 'unknown',
+      details: reason,
+      reportCount: null,
+    },
+    incidents: [],
+  };
+}
+
+function unknownStatusResult(serviceSlug: string, reason: string): StatusResult {
+  return {
+    serviceSlug,
+    source: 'downdetector',
+    status: 'unknown',
+    details: reason,
+    reportCount: null,
+  };
 }
 
 async function fetchOfficialStatus(service: ServiceConfig): Promise<FetchResult> {
@@ -110,12 +156,14 @@ async function pollService(service: ServiceConfig): Promise<{ ddReports: number 
       'official',
       () => fetchOfficialStatus(service),
       (r) => ({ status: r.status.status, details: r.status.details }),
+      (reason) => unknownFetchResult(service.slug, reason),
     ),
     timedFetch<StatusResult>(
       service.slug,
       'downdetector',
       () => fetchDowndetectorStatus(service.downdetectorSlug, service.slug),
       (r) => ({ status: r.status, details: r.details }),
+      (reason) => unknownStatusResult(service.slug, reason),
     ),
   ]);
 

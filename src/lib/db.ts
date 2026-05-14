@@ -17,6 +17,11 @@ export function getDb(): Database.Database {
   db = new Database(DB_PATH);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
+  // Wait up to 5 seconds when SQLite reports BUSY (e.g. the poll-cycle
+  // transaction overlapping VACUUM or a concurrent reader). Without this,
+  // writes from the poller can fail outright during the daily VACUUM and
+  // drop a poll cycle's worth of status updates.
+  db.pragma('busy_timeout = 5000');
 
   initTables(db);
   return db;

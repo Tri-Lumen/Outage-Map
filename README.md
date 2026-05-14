@@ -246,6 +246,9 @@ To force a refresh to the latest published build, either tick
 | `GITHUB_TOKEN` | _unset_ | PAT or fine-grained token with `Contents: Read & Write` and `Pull requests: Read & Write` on the target repo. Required for the in-app "Contribute to catalog" flow; the endpoint returns 503 if unset. |
 | `GITHUB_REPO` | `Tri-Lumen/Outage-Map` | `owner/name` of the upstream catalog repository that contribute-PRs land in. |
 | `GITHUB_BASE_BRANCH` | `main` | Branch the contribute flow PRs against. |
+| `FETCH_TIMEOUT_MS` | `12000` | Per-attempt timeout used by every fetcher. Clamped to 1000–60000. |
+| `FETCH_MAX_RETRIES` | `2` | Retries on transient failures (network errors, 5xx, 429) with full-jitter exponential backoff. Honors `Retry-After` on 429. Clamped to 0–5. |
+| `CIRCUIT_FAILURE_THRESHOLD` | `5` | Consecutive failed cycles before a (service, source) circuit opens. Once open, calls short-circuit with status `unknown` until the cooldown elapses (5 → 80 min, doubling on each re-open). |
 
 ## API Endpoints
 

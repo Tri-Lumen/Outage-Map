@@ -155,8 +155,15 @@ interface Registry {
   serviceStatus: Gauge;
   lastPollTimestamp: Gauge;
   lastPollAge: Gauge;
+  circuitState: Gauge;
   lastPollAt: number | null;
 }
+
+const CIRCUIT_CODE: Record<'closed' | 'half-open' | 'open', number> = {
+  closed: 0,
+  'half-open': 1,
+  open: 2,
+};
 
 type GlobalWithRegistry = typeof globalThis & { [GLOBAL_KEY]?: Registry };
 
@@ -199,6 +206,10 @@ function getRegistry(): Registry {
         'outage_last_poll_age_seconds',
         'Seconds since the last completed poll cycle',
       ),
+      circuitState: new Gauge(
+        'outage_fetcher_circuit_state',
+        'Per-fetcher circuit breaker state (0=closed, 1=half-open, 2=open)',
+      ),
       lastPollAt: null,
     };
     g[GLOBAL_KEY] = r;
@@ -228,6 +239,9 @@ export const metrics = {
   setServiceStatus(service: string, source: string, status: ServiceStatus) {
     getRegistry().serviceStatus.set({ service, source }, STATUS_CODE[status]);
   },
+  setCircuitState(service: string, source: string, state: 'closed' | 'half-open' | 'open') {
+    getRegistry().circuitState.set({ service, source }, CIRCUIT_CODE[state]);
+  },
   expose(): string {
     const r = getRegistry();
     if (r.lastPollAt !== null) {
@@ -242,6 +256,7 @@ export const metrics = {
       r.serviceStatus.expose(),
       r.lastPollTimestamp.expose(),
       r.lastPollAge.expose(),
+      r.circuitState.expose(),
       '',
     ].join('\n');
   },

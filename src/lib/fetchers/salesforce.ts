@@ -1,4 +1,5 @@
 import { FetchResult, StatusResult, IncidentResult, ServiceStatus, IncidentSeverity } from '../types';
+import { httpFetch } from './httpFetch';
 
 interface SalesforceIncident {
   id: string;
@@ -46,12 +47,12 @@ export async function fetchSalesforceStatus(serviceSlug: string): Promise<FetchR
 
   try {
     // Fetch general status from the Salesforce Trust API
-    const statusRes = await fetch('https://api.status.salesforce.com/v1/incidents/active', {
+    const statusRes = await httpFetch('https://api.status.salesforce.com/v1/incidents/active', {
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'OutageDashboard/1.0',
       },
-      signal: AbortSignal.timeout(10000),
+      timeoutMs: 10000,
     });
 
     if (statusRes.ok) {
@@ -104,9 +105,9 @@ export async function fetchSalesforceStatus(serviceSlug: string): Promise<FetchR
 
     // Fallback: try the main incidents endpoint
     try {
-      const fallbackRes = await fetch('https://api.status.salesforce.com/v1/incidents?limit=5', {
+      const fallbackRes = await httpFetch('https://api.status.salesforce.com/v1/incidents?limit=5', {
         headers: { 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(10000),
+        timeoutMs: 10000,
       });
 
       if (fallbackRes.ok) {

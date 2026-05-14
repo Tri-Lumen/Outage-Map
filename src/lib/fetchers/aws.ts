@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import crypto from 'crypto';
 import { FetchResult, StatusResult, IncidentResult, ServiceStatus } from '../types';
+import { httpFetch } from './httpFetch';
 
 const AWS_RSS_URL = 'https://health.aws.amazon.com/health/status/feed';
 const AWS_SOURCE_URL = 'https://health.aws.amazon.com/health/status';
@@ -22,12 +23,12 @@ export async function fetchAwsStatus(serviceSlug: string): Promise<FetchResult> 
   const incidents: IncidentResult[] = [];
 
   try {
-    const res = await fetch(AWS_RSS_URL, {
+    const res = await httpFetch(AWS_RSS_URL, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; OutageMap/1.0)',
         'Accept': 'application/rss+xml, application/xml, text/xml',
       },
-      signal: AbortSignal.timeout(15000),
+      timeoutMs: 15000,
     });
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
