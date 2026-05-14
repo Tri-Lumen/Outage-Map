@@ -138,84 +138,110 @@ const STATUS_CODE: Record<ServiceStatus, number> = {
   unknown: 4,
 };
 
-const pollCycles = new Counter(
-  'outage_poll_cycles_total',
-  'Number of poll cycles run, by result',
-);
+// Next.js' standalone build can split this module across multiple chunks —
+// one bundled into the instrumentation/poller graph, another bundled into the
+// /api/metrics route — which gives each its own copy of module-level state.
+// Attach the registry to globalThis so every chunk in the same Node process
+// observes the same series. The symbol-keyed slot avoids colliding with any
+// other library that might pin globals.
+const GLOBAL_KEY = Symbol.for('outage-map.metrics-registry');
 
-const fetcherFailures = new Counter(
-  'outage_fetcher_failures_total',
-  'Number of fetcher failures, by service and source',
-);
+interface Registry {
+  pollCycles: Counter;
+  fetcherFailures: Counter;
+  alertsSent: Counter;
+  fetcherLatency: Histogram;
+  pollCycleDuration: Histogram;
+  serviceStatus: Gauge;
+  lastPollTimestamp: Gauge;
+  lastPollAge: Gauge;
+  lastPollAt: number | null;
+}
 
-const alertsSent = new Counter(
-  'outage_alerts_sent_total',
-  'Number of alerts dispatched, by channel and severity',
-);
+type GlobalWithRegistry = typeof globalThis & { [GLOBAL_KEY]?: Registry };
 
-const fetcherLatency = new Histogram(
-  'outage_fetcher_latency_seconds',
-  'Fetcher request latency in seconds',
-  [0.1, 0.5, 1, 2, 5, 10, 15, 30],
-);
-
-const pollCycleDuration = new Histogram(
-  'outage_poll_cycle_duration_seconds',
-  'Total duration of a poll cycle in seconds',
-  [1, 5, 10, 30, 60, 120],
-);
-
-const serviceStatus = new Gauge(
-  'outage_service_status',
-  'Current service status (0=operational, 1=degraded, 2=major_outage, 3=down, 4=unknown)',
-);
-
-const lastPollTimestamp = new Gauge(
-  'outage_last_poll_timestamp_seconds',
-  'Unix timestamp of the last completed poll cycle',
-);
-
-const lastPollAge = new Gauge(
-  'outage_last_poll_age_seconds',
-  'Seconds since the last completed poll cycle',
-);
-
-let lastPollAt: number | null = null;
+function getRegistry(): Registry {
+  const g = globalThis as GlobalWithRegistry;
+  let r = g[GLOBAL_KEY];
+  if (!r) {
+    r = {
+      pollCycles: new Counter(
+        'outage_poll_cycles_total',
+        'Number of poll cycles run, by result',
+      ),
+      fetcherFailures: new Counter(
+        'outage_fetcher_failures_total',
+        'Number of fetcher failures, by service and source',
+      ),
+      alertsSent: new Counter(
+        'outage_alerts_sent_total',
+        'Number of alerts dispatched, by channel and severity',
+      ),
+      fetcherLatency: new Histogram(
+        'outage_fetcher_latency_seconds',
+        'Fetcher request latency in seconds',
+        [0.1, 0.5, 1, 2, 5, 10, 15, 30],
+      ),
+      pollCycleDuration: new Histogram(
+        'outage_poll_cycle_duration_seconds',
+        'Total duration of a poll cycle in seconds',
+        [1, 5, 10, 30, 60, 120],
+      ),
+      serviceStatus: new Gauge(
+        'outage_service_status',
+        'Current service status (0=operational, 1=degraded, 2=major_outage, 3=down, 4=unknown)',
+      ),
+      lastPollTimestamp: new Gauge(
+        'outage_last_poll_timestamp_seconds',
+        'Unix timestamp of the last completed poll cycle',
+      ),
+      lastPollAge: new Gauge(
+        'outage_last_poll_age_seconds',
+        'Seconds since the last completed poll cycle',
+      ),
+      lastPollAt: null,
+    };
+    g[GLOBAL_KEY] = r;
+  }
+  return r;
+}
 
 export const metrics = {
   recordPollCycle(result: 'success' | 'skipped' | 'failure', durationSec: number) {
-    pollCycles.inc({ result });
-    pollCycleDuration.observe({}, durationSec);
+    const r = getRegistry();
+    r.pollCycles.inc({ result });
+    r.pollCycleDuration.observe({}, durationSec);
     if (result !== 'skipped') {
-      lastPollAt = Date.now();
-      lastPollTimestamp.set({}, Math.floor(lastPollAt / 1000));
+      r.lastPollAt = Date.now();
+      r.lastPollTimestamp.set({}, Math.floor(r.lastPollAt / 1000));
     }
   },
   recordFetcherLatency(service: string, source: string, seconds: number) {
-    fetcherLatency.observe({ service, source }, seconds);
+    getRegistry().fetcherLatency.observe({ service, source }, seconds);
   },
   recordFetcherFailure(service: string, source: string, reason: string = 'error') {
-    fetcherFailures.inc({ service, source, reason });
+    getRegistry().fetcherFailures.inc({ service, source, reason });
   },
   recordAlertSent(channel: string, severity: string) {
-    alertsSent.inc({ channel, severity });
+    getRegistry().alertsSent.inc({ channel, severity });
   },
   setServiceStatus(service: string, source: string, status: ServiceStatus) {
-    serviceStatus.set({ service, source }, STATUS_CODE[status]);
+    getRegistry().serviceStatus.set({ service, source }, STATUS_CODE[status]);
   },
   expose(): string {
-    if (lastPollAt !== null) {
-      lastPollAge.set({}, Math.round((Date.now() - lastPollAt) / 1000));
+    const r = getRegistry();
+    if (r.lastPollAt !== null) {
+      r.lastPollAge.set({}, Math.round((Date.now() - r.lastPollAt) / 1000));
     }
     return [
-      pollCycles.expose(),
-      fetcherFailures.expose(),
-      alertsSent.expose(),
-      fetcherLatency.expose(),
-      pollCycleDuration.expose(),
-      serviceStatus.expose(),
-      lastPollTimestamp.expose(),
-      lastPollAge.expose(),
+      r.pollCycles.expose(),
+      r.fetcherFailures.expose(),
+      r.alertsSent.expose(),
+      r.fetcherLatency.expose(),
+      r.pollCycleDuration.expose(),
+      r.serviceStatus.expose(),
+      r.lastPollTimestamp.expose(),
+      r.lastPollAge.expose(),
       '',
     ].join('\n');
   },

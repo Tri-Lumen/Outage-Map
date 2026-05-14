@@ -22,11 +22,27 @@ function key(service: string, source: Source): string {
   return `${service}:${source}`;
 }
 
-const state = new Map<string, FetcherHealth>();
+// Pin the state map to globalThis for the same reason metrics.ts does — the
+// standalone Next build can otherwise hand each chunk its own empty Map.
+const GLOBAL_KEY = Symbol.for('outage-map.fetcher-health');
+type GlobalWithHealth = typeof globalThis & {
+  [GLOBAL_KEY]?: Map<string, FetcherHealth>;
+};
+
+function state(): Map<string, FetcherHealth> {
+  const g = globalThis as GlobalWithHealth;
+  let m = g[GLOBAL_KEY];
+  if (!m) {
+    m = new Map();
+    g[GLOBAL_KEY] = m;
+  }
+  return m;
+}
 
 function getOrInit(service: string, source: Source): FetcherHealth {
   const k = key(service, source);
-  let entry = state.get(k);
+  const map = state();
+  let entry = map.get(k);
   if (!entry) {
     entry = {
       service,
@@ -37,7 +53,7 @@ function getOrInit(service: string, source: Source): FetcherHealth {
       lastLatencyMs: null,
       consecutiveFailures: 0,
     };
-    state.set(k, entry);
+    map.set(k, entry);
   }
   return entry;
 }
@@ -79,7 +95,7 @@ export const health = {
   isReady(): { ready: boolean; reason: string | null } {
     const threshold = readyThreshold();
     let failing: FetcherHealth | null = null;
-    state.forEach((entry) => {
+    state().forEach((entry) => {
       if (!failing && entry.consecutiveFailures >= threshold) {
         failing = entry;
       }
