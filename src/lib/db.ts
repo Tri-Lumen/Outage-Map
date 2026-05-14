@@ -17,6 +17,11 @@ export function getDb(): Database.Database {
   db = new Database(DB_PATH);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
+  // Wait up to 5 seconds when SQLite reports BUSY (e.g. the poll-cycle
+  // transaction overlapping VACUUM or a concurrent reader). Without this,
+  // writes from the poller can fail outright during the daily VACUUM and
+  // drop a poll cycle's worth of status updates.
+  db.pragma('busy_timeout = 5000');
 
   initTables(db);
   return db;
@@ -93,6 +98,25 @@ function initTables(db: Database.Database) {
 
     CREATE INDEX IF NOT EXISTS idx_alert_rules_enabled
       ON alert_rules(enabled);
+
+    CREATE TABLE IF NOT EXISTS custom_services (
+      id TEXT PRIMARY KEY,
+      slug TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL DEFAULT '#268bd2',
+      status_url TEXT NOT NULL,
+      downdetector_slug TEXT,
+      fetcher TEXT NOT NULL,
+      brand_font TEXT NOT NULL DEFAULT 'var(--font-brand-inter), Inter, system-ui, sans-serif',
+      refresh_seconds INTEGER NOT NULL DEFAULT 180,
+      kind TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at DATETIME NOT NULL DEFAULT (datetime('now')),
+      updated_at DATETIME NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_custom_services_enabled
+      ON custom_services(enabled);
   `);
 
   // Safe migration for pre-existing databases — add incident_count if missing.
@@ -367,4 +391,140 @@ export function updateAlertRule(
 export function deleteAlertRule(id: string): boolean {
   const db = getDb();
   return db.prepare('DELETE FROM alert_rules WHERE id = ?').run(id).changes > 0;
+}
+
+export interface CustomServiceRow {
+  id: string;
+  slug: string;
+  name: string;
+  color: string;
+  status_url: string;
+  downdetector_slug: string | null;
+  fetcher: string;
+  brand_font: string;
+  refresh_seconds: number;
+  kind: string;
+  enabled: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export function listCustomServices(): CustomServiceRow[] {
+  const db = getDb();
+  return db.prepare(`
+    SELECT id, slug, name, color, status_url, downdetector_slug, fetcher,
+      brand_font, refresh_seconds, kind, enabled, created_at, updated_at
+    FROM custom_services
+    ORDER BY created_at DESC
+  `).all() as CustomServiceRow[];
+}
+
+export function listEnabledCustomServices(): CustomServiceRow[] {
+  const db = getDb();
+  return db.prepare(`
+    SELECT id, slug, name, color, status_url, downdetector_slug, fetcher,
+      brand_font, refresh_seconds, kind, enabled, created_at, updated_at
+    FROM custom_services
+    WHERE enabled = 1
+    ORDER BY created_at DESC
+  `).all() as CustomServiceRow[];
+}
+
+export function getCustomServiceById(id: string): CustomServiceRow | null {
+  const db = getDb();
+  const row = db.prepare(`
+    SELECT id, slug, name, color, status_url, downdetector_slug, fetcher,
+      brand_font, refresh_seconds, kind, enabled, created_at, updated_at
+    FROM custom_services WHERE id = ?
+  `).get(id) as CustomServiceRow | undefined;
+  return row ?? null;
+}
+
+export function getCustomServiceBySlug(slug: string): CustomServiceRow | null {
+  const db = getDb();
+  const row = db.prepare(`
+    SELECT id, slug, name, color, status_url, downdetector_slug, fetcher,
+      brand_font, refresh_seconds, kind, enabled, created_at, updated_at
+    FROM custom_services WHERE slug = ?
+  `).get(slug) as CustomServiceRow | undefined;
+  return row ?? null;
+}
+
+export function insertCustomService(row: {
+  id: string;
+  slug: string;
+  name: string;
+  color: string;
+  statusUrl: string;
+  downdetectorSlug: string | null;
+  fetcher: string;
+  brandFont: string;
+  refreshSeconds: number;
+  kind: string;
+  enabled: boolean;
+}) {
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO custom_services (id, slug, name, color, status_url,
+      downdetector_slug, fetcher, brand_font, refresh_seconds, kind, enabled)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    row.id,
+    row.slug,
+    row.name,
+    row.color,
+    row.statusUrl,
+    row.downdetectorSlug,
+    row.fetcher,
+    row.brandFont,
+    row.refreshSeconds,
+    row.kind,
+    row.enabled ? 1 : 0,
+  );
+}
+
+export function updateCustomService(
+  id: string,
+  patch: Partial<{
+    name: string;
+    color: string;
+    statusUrl: string;
+    downdetectorSlug: string | null;
+    refreshSeconds: number;
+    enabled: boolean;
+  }>,
+): boolean {
+  const db = getDb();
+  const fields: string[] = [];
+  const values: Array<string | number | null> = [];
+  if (patch.name !== undefined) { fields.push('name = ?'); values.push(patch.name); }
+  if (patch.color !== undefined) { fields.push('color = ?'); values.push(patch.color); }
+  if (patch.statusUrl !== undefined) { fields.push('status_url = ?'); values.push(patch.statusUrl); }
+  if (patch.downdetectorSlug !== undefined) { fields.push('downdetector_slug = ?'); values.push(patch.downdetectorSlug); }
+  if (patch.refreshSeconds !== undefined) { fields.push('refresh_seconds = ?'); values.push(patch.refreshSeconds); }
+  if (patch.enabled !== undefined) { fields.push('enabled = ?'); values.push(patch.enabled ? 1 : 0); }
+  if (fields.length === 0) return false;
+  fields.push(`updated_at = datetime('now')`);
+  values.push(id);
+  const result = db.prepare(`UPDATE custom_services SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return result.changes > 0;
+}
+
+export function deleteCustomService(id: string): boolean {
+  const db = getDb();
+  return db.prepare('DELETE FROM custom_services WHERE id = ?').run(id).changes > 0;
+}
+
+// Drop status, history, and incident rows for a service slug. Called when a
+// custom service is removed so a future slug re-use doesn't inherit the
+// previous service's history. Wrapped in a transaction so partial failure
+// leaves no half-deleted state.
+export function cleanupServiceData(slug: string): void {
+  const db = getDb();
+  const tx = db.transaction((s: string) => {
+    db.prepare('DELETE FROM service_status WHERE service_slug = ?').run(s);
+    db.prepare('DELETE FROM status_history WHERE service_slug = ?').run(s);
+    db.prepare('DELETE FROM incidents WHERE service_slug = ?').run(s);
+  });
+  tx(slug);
 }

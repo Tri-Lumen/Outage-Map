@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { SERVICES } from '@/lib/services';
+import { useServiceStatus } from '@/hooks/useStatus';
 import {
   DEFAULT_PREFERENCES,
   Preferences,
@@ -62,6 +62,8 @@ export default function SettingsView() {
   const synced = usePreferences();
   const [prefs, setPrefs] = useState<Preferences>(synced);
   const [saved, setSaved] = useState(false);
+  const { data: statusData } = useServiceStatus();
+  const services = statusData?.services ?? [];
 
   // Reflect external preference changes (e.g. reset from another tab) into
   // local state so controls stay in sync with storage.
@@ -231,7 +233,7 @@ export default function SettingsView() {
           <span className="text-xs text-muted">{prefs.pinnedServices.length} pinned</span>
         </div>
         <div className="flex flex-wrap gap-2">
-          {SERVICES.map((s) => {
+          {services.map((s) => {
             const pinned = prefs.pinnedServices.includes(s.slug);
             return (
               <button

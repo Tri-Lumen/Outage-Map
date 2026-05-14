@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import { StatusResult, ServiceStatus } from '../types';
+import { httpFetch } from './httpFetch';
 
 const USER_AGENTS = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -22,7 +23,7 @@ function reportCountToStatus(count: number): ServiceStatus {
 }
 
 export async function fetchDowndetectorStatus(
-  slug: string,
+  slug: string | null,
   serviceSlug: string
 ): Promise<StatusResult> {
   const result: StatusResult = {
@@ -33,6 +34,15 @@ export async function fetchDowndetectorStatus(
     reportCount: null,
   };
 
+  if (!slug) {
+    // Custom services may not have a Downdetector counterpart. Report
+    // operational with a clear note so the UI doesn't render "unknown".
+    result.status = 'operational';
+    result.details = 'No Downdetector slug configured';
+    result.reportCount = 0;
+    return result;
+  }
+
   if (process.env.DOWNDETECTOR_ENABLED === 'false') {
     result.status = 'operational';
     result.details = 'Downdetector monitoring disabled';
@@ -41,14 +51,14 @@ export async function fetchDowndetectorStatus(
   }
 
   try {
-    const res = await fetch(`https://downdetector.com/status/${slug}/`, {
+    const res = await httpFetch(`https://downdetector.com/status/${slug}/`, {
       headers: {
         'User-Agent': getRandomUA(),
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
         'Cache-Control': 'no-cache',
       },
-      signal: AbortSignal.timeout(15000),
+      timeoutMs: 15000,
     });
 
     if (!res.ok) {

@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import crypto from 'crypto';
 import { FetchResult, StatusResult, IncidentResult, ServiceStatus } from '../types';
+import { httpFetch } from './httpFetch';
 
 const DASHBOARD_URL = 'https://www.google.com/appsstatus/dashboard/';
 const INCIDENTS_URL = 'https://www.google.com/appsstatus/dashboard/incidents.json';
@@ -45,12 +46,12 @@ function hashId(seed: string): string {
 
 async function fetchIncidentsJson(): Promise<GoogleIncident[] | null> {
   try {
-    const res = await fetch(INCIDENTS_URL, {
+    const res = await httpFetch(INCIDENTS_URL, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'application/json, text/plain, */*',
       },
-      signal: AbortSignal.timeout(15000),
+      timeoutMs: 15000,
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -148,12 +149,12 @@ export async function fetchGoogleStatus(serviceSlug: string): Promise<FetchResul
   // whole status to major_outage when generic text (e.g. "Report a disruption"
   // in the page chrome) matches the regex.
   try {
-    const res = await fetch(DASHBOARD_URL, {
+    const res = await httpFetch(DASHBOARD_URL, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'text/html,application/xhtml+xml',
       },
-      signal: AbortSignal.timeout(15000),
+      timeoutMs: 15000,
     });
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

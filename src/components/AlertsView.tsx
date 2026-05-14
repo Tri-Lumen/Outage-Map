@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import useSWR from 'swr';
-import { SERVICES } from '@/lib/services';
+import { useServiceStatus } from '@/hooks/useStatus';
 import { AlertRule, IncidentSeverity } from '@/lib/types';
 import PageHeader from './ui/PageHeader';
 import Card from './ui/Card';
@@ -53,6 +53,8 @@ export default function AlertsView() {
     revalidateOnFocus: false,
   });
   const rules = data?.rules ?? [];
+  const { data: statusData } = useServiceStatus();
+  const services = statusData?.services ?? [];
 
   const [draft, setDraft] = useState<{
     email: string;
@@ -319,7 +321,7 @@ export default function AlertsView() {
                 Services ({draft.services.length} selected)
               </label>
               <div className="flex flex-wrap gap-2">
-                {SERVICES.map((s) => {
+                {services.map((s) => {
                   const selected = draft.services.includes(s.slug);
                   return (
                     <button
@@ -416,7 +418,7 @@ export default function AlertsView() {
             const serviceNames = r.services.length === 0
               ? ['All services']
               : r.services
-                  .map((slug) => SERVICES.find((s) => s.slug === slug)?.name)
+                  .map((slug) => services.find((s) => s.slug === slug)?.name)
                   .filter(Boolean);
             const ruleFeedback = feedback?.ruleId === r.id ? feedback : null;
             const isTesting = testing === r.id;

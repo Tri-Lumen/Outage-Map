@@ -4,7 +4,7 @@ import {
   listAlertRules,
 } from '@/lib/db';
 import { rowToRule } from '@/lib/alerts/rules';
-import { SERVICES } from '@/lib/services';
+import { getServices } from '@/lib/services';
 import { isIncidentSeverity } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid email' }, { status: 400 });
   }
 
-  const validSlugs = new Set(SERVICES.map((s) => s.slug));
+  const validSlugs = new Set(getServices().map((s) => s.slug));
   const services = Array.isArray(input.services)
     ? input.services.filter((s): s is string => typeof s === 'string' && validSlugs.has(s))
     : [];

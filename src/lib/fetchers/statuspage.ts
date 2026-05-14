@@ -1,4 +1,5 @@
 import { FetchResult, StatusResult, IncidentResult, ServiceStatus, IncidentSeverity, IncidentStatus } from '../types';
+import { httpFetch } from './httpFetch';
 
 interface StatuspageStatus {
   status: {
@@ -72,13 +73,13 @@ export async function fetchStatuspageStatus(baseUrl: string, serviceSlug: string
   // actual service disruption exists. If unresolved incidents are empty while the
   // indicator says "minor", we downgrade to operational.
   const [statusRes, unresolvedRes] = await Promise.allSettled([
-    fetch(`${baseUrl}/api/v2/status.json`, {
+    httpFetch(`${baseUrl}/api/v2/status.json`, {
       headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(10000),
+      timeoutMs: 10000,
     }),
-    fetch(`${baseUrl}/api/v2/incidents/unresolved.json`, {
+    httpFetch(`${baseUrl}/api/v2/incidents/unresolved.json`, {
       headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(10000),
+      timeoutMs: 10000,
     }),
   ]);
 
@@ -113,9 +114,9 @@ export async function fetchStatuspageStatus(baseUrl: string, serviceSlug: string
 
   // Fetch all recent incidents for display (includes resolved).
   try {
-    const incidentsRes = await fetch(`${baseUrl}/api/v2/incidents.json`, {
+    const incidentsRes = await httpFetch(`${baseUrl}/api/v2/incidents.json`, {
       headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(10000),
+      timeoutMs: 10000,
     });
 
     if (incidentsRes.ok) {

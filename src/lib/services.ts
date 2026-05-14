@@ -1,6 +1,22 @@
-import { ServiceConfig } from './types';
+import { ServiceConfig, FetcherType } from './types';
+import { CustomServiceRow, listEnabledCustomServices } from './db';
+import contributedFile from './services.contributed.json';
 
-export const SERVICES: ServiceConfig[] = [
+interface ContributedFile {
+  schemaVersion: number;
+  services: ServiceConfig[];
+}
+
+const CONTRIBUTED: ServiceConfig[] = (contributedFile as ContributedFile).services ?? [];
+
+/**
+ * Static catalog of monitored services. Edits to this file are hand-written;
+ * additions from the in-app "Contribute to catalog" flow land in
+ * `services.contributed.json` instead and are merged below at module load.
+ * Runtime code should call `getServices()` — that helper layers user-added
+ * rows from the `custom_services` SQLite table on top of this merged list.
+ */
+const HARDCODED: ServiceConfig[] = [
   {
     name: 'Microsoft 365',
     slug: 'microsoft-365',
@@ -131,6 +147,50 @@ export const SERVICES: ServiceConfig[] = [
   },
 ];
 
+// Static catalog exported for backwards-compat callers. Combines hand-edited
+// HARDCODED entries with machine-edited contributed entries; the contributed
+// file is the target of the one-click "Contribute to catalog" PR flow so its
+// shape never needs to be parsed from TypeScript.
+export const SERVICES: ServiceConfig[] = (() => {
+  const seen = new Set(HARDCODED.map((s) => s.slug));
+  const merged = [...HARDCODED];
+  for (const c of CONTRIBUTED) {
+    if (!seen.has(c.slug)) {
+      merged.push(c);
+      seen.add(c.slug);
+    }
+  }
+  return merged;
+})();
+
+function rowToServiceConfig(row: CustomServiceRow): ServiceConfig {
+  return {
+    name: row.name,
+    slug: row.slug,
+    color: row.color,
+    statusUrl: row.status_url,
+    downdetectorSlug: row.downdetector_slug,
+    fetcher: row.fetcher as FetcherType,
+    brandFont: row.brand_font,
+  };
+}
+
+/**
+ * Returns the static SERVICES list merged with enabled rows from the
+ * `custom_services` table. Call this from any server-side code that
+ * needs to iterate the live catalog (poller, /api/status, alert rules).
+ * Client code should derive the list from /api/status instead — this
+ * helper opens a SQLite connection.
+ */
+export function getServices(): ServiceConfig[] {
+  const hardcoded = SERVICES;
+  const seen = new Set(hardcoded.map((s) => s.slug));
+  const custom = listEnabledCustomServices()
+    .map(rowToServiceConfig)
+    .filter((s) => !seen.has(s.slug));
+  return [...hardcoded, ...custom];
+}
+
 export function getServiceBySlug(slug: string): ServiceConfig | undefined {
-  return SERVICES.find((s) => s.slug === slug);
+  return getServices().find((s) => s.slug === slug);
 }

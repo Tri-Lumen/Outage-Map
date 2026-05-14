@@ -94,8 +94,16 @@ export function useBoardSet(): UseBoardSet {
 
   useEffect(() => {
     const stored = readBoardSet();
-    const starred = stored.boards.find((b) => b.starred);
-    if (starred && stored.active !== starred.id) stored.active = starred.id;
+    // Honor the last-active board id from localStorage. The starred flag is a
+    // marker / sort hint, not a "snap back to me on every reload" instruction
+    // — previously this branch forced active = starred on every hydrate, so
+    // viewing board B and reloading would dump you back on starred board A.
+    // Only fall back to the starred id when the stored active no longer
+    // exists (e.g. it was deleted in another tab).
+    if (!stored.boards.some((b) => b.id === stored.active)) {
+      const starred = stored.boards.find((b) => b.starred);
+      stored.active = starred?.id ?? stored.boards[0].id;
+    }
     setState(stored);
     setHydrated(true);
   }, []);

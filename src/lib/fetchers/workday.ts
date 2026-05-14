@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import crypto from 'crypto';
 import { FetchResult, StatusResult, IncidentResult, ServiceStatus } from '../types';
+import { httpFetch } from './httpFetch';
 
 export async function fetchWorkdayStatus(serviceSlug: string): Promise<FetchResult> {
   const statusResult: StatusResult = {
@@ -13,12 +14,12 @@ export async function fetchWorkdayStatus(serviceSlug: string): Promise<FetchResu
   const incidents: IncidentResult[] = [];
 
   try {
-    const res = await fetch('https://status.workday.com/', {
+    const res = await httpFetch('https://status.workday.com/', {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'text/html,application/xhtml+xml',
       },
-      signal: AbortSignal.timeout(15000),
+      timeoutMs: 15000,
     });
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import crypto from 'crypto';
 import { FetchResult, StatusResult, IncidentResult, ServiceStatus } from '../types';
+import { httpFetch } from './httpFetch';
 
 function parseStatusFromText(text: string): ServiceStatus {
   const lower = text.toLowerCase();
@@ -73,12 +74,12 @@ async function fetchSource(source: MsSource, serviceSlug: string): Promise<Sourc
   };
 
   try {
-    const res = await fetch(source.url, {
+    const res = await httpFetch(source.url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'text/html,application/xhtml+xml',
       },
-      signal: AbortSignal.timeout(15000),
+      timeoutMs: 15000,
     });
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

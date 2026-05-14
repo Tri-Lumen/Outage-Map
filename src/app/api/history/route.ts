@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStatusHistory } from '@/lib/db';
-import { SERVICES } from '@/lib/services';
+import { getServices } from '@/lib/services';
 import { HistoryPoint, ServiceStatus } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
     const history = aggregateByDay(rows);
 
     // Ensure all services have entries (even if empty)
-    for (const service of SERVICES) {
+    for (const service of getServices()) {
       if (!history[service.slug]) {
         history[service.slug] = [];
       }

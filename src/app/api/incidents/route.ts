@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRecentIncidents } from '@/lib/db';
-import { SERVICES } from '@/lib/services';
+import { getServices } from '@/lib/services';
 import { IncidentResponse, asIncidentSeverity, asIncidentStatus } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +13,8 @@ export async function GET(request: NextRequest) {
       ? Math.min(Math.floor(daysParam), 90)
       : 7;
     const serviceFilter = searchParams.get('service');
-    const validSlugs = new Set(SERVICES.map((s) => s.slug));
+    const allServices = getServices();
+    const validSlugs = new Set(allServices.map((s) => s.slug));
     const service = serviceFilter && serviceFilter !== 'all' && validSlugs.has(serviceFilter)
       ? serviceFilter
       : null;
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
       incidents = incidents.filter((i) => i.service_slug === service);
     }
 
-    const serviceMap = new Map(SERVICES.map((s) => [s.slug, s.name]));
+    const serviceMap = new Map(allServices.map((s) => [s.slug, s.name]));
 
     const response: IncidentResponse[] = incidents.map((i) => ({
       id: i.id,
