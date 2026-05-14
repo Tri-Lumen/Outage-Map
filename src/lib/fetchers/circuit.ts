@@ -18,22 +18,42 @@ interface CircuitEntry {
   cooldownMs: number;
 }
 
-const FAILURE_THRESHOLD = parseInt(process.env.CIRCUIT_FAILURE_THRESHOLD || '5', 10);
 const BASE_COOLDOWN_MS = 5 * 60 * 1000;
 const MAX_COOLDOWN_MS = 80 * 60 * 1000;
 
-const state = new Map<string, CircuitEntry>();
+function failureThreshold(): number {
+  const n = parseInt(process.env.CIRCUIT_FAILURE_THRESHOLD || '5', 10);
+  return Number.isFinite(n) && n > 0 ? n : 5;
+}
+
+// Next.js' standalone build splits modules across chunks (one bundled into
+// the poller graph, another into /api/metrics), giving each its own
+// module-level state. Pin the state map to globalThis so every chunk in the
+// same Node process sees the same circuit state.
+const GLOBAL_KEY = Symbol.for('outage-map.circuit-state');
+type GlobalWithState = typeof globalThis & { [GLOBAL_KEY]?: Map<string, CircuitEntry> };
+
+function getStateMap(): Map<string, CircuitEntry> {
+  const g = globalThis as GlobalWithState;
+  let s = g[GLOBAL_KEY];
+  if (!s) {
+    s = new Map<string, CircuitEntry>();
+    g[GLOBAL_KEY] = s;
+  }
+  return s;
+}
 
 function key(service: string, source: string): string {
   return `${service}:${source}`;
 }
 
 function getOrInit(service: string, source: string): CircuitEntry {
+  const s = getStateMap();
   const k = key(service, source);
-  let entry = state.get(k);
+  let entry = s.get(k);
   if (!entry) {
     entry = { state: 'closed', failures: 0, openedAt: null, cooldownMs: BASE_COOLDOWN_MS };
-    state.set(k, entry);
+    s.set(k, entry);
   }
   return entry;
 }
@@ -72,7 +92,7 @@ export const circuit = {
       return;
     }
     entry.failures += 1;
-    if (entry.failures >= Math.max(FAILURE_THRESHOLD, 1)) {
+    if (entry.failures >= failureThreshold()) {
       entry.state = 'open';
       entry.openedAt = Date.now();
       entry.cooldownMs = BASE_COOLDOWN_MS;
