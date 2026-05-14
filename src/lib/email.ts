@@ -3,6 +3,7 @@ import { hasRecentAlert, logAlert } from './db';
 import { getServiceBySlug } from './services';
 import { IncidentResult, ServiceStatus } from './types';
 import { statusHex, statusLabel } from './statusColors';
+import { metrics } from './metrics';
 
 function escapeHtml(value: unknown): string {
   return String(value ?? '')
@@ -115,6 +116,7 @@ export async function sendIncidentAlert(
     });
 
     logAlert(incident.serviceSlug, incident.incidentId, 'new_incident');
+    metrics.recordAlertSent('email', incident.severity);
     console.log(`[email] Alert sent for ${serviceName}: ${incident.title}`);
     return true;
   } catch (err) {
@@ -229,6 +231,7 @@ export async function sendStatusChangeAlert(
     });
 
     logAlert(serviceSlug, null, 'status_change');
+    metrics.recordAlertSent('email', `status_change:${newStatus}`);
     return true;
   } catch (err) {
     console.error('[email] Failed to send status change alert:', err);

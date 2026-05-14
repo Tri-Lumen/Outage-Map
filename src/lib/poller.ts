@@ -11,6 +11,8 @@ import {
 } from './db';
 import { sendIncidentAlert, sendStatusChangeAlert } from './email';
 import { evaluateRulesForIncident } from './alerts/rules';
+import { metrics } from './metrics';
+import { health, HealthSource } from './health';
 import { fetchStatuspageStatus } from './fetchers/statuspage';
 import { fetchMicrosoftStatus } from './fetchers/microsoft';
 import { fetchSalesforceStatus } from './fetchers/salesforce';
@@ -18,6 +20,39 @@ import { fetchGoogleStatus } from './fetchers/google';
 import { fetchWorkdayStatus } from './fetchers/workday';
 import { fetchAwsStatus } from './fetchers/aws';
 import { fetchDowndetectorStatus } from './fetchers/downdetector';
+
+// Wrap a fetcher call with latency, success, and failure bookkeeping. Both
+// underlying fetchers catch exceptions internally and return a result with
+// `status: 'unknown'` plus a `details` message, so we treat "unknown" as a
+// failure for health tracking purposes — it's the most reliable signal that
+// the upstream didn't give us a useful answer.
+async function timedFetch<T>(
+  serviceSlug: string,
+  source: HealthSource,
+  call: () => Promise<T>,
+  inspect: (result: T) => { status: ServiceStatus; details: string | null },
+): Promise<T> {
+  const start = Date.now();
+  try {
+    const result = await call();
+    const latencyMs = Date.now() - start;
+    metrics.recordFetcherLatency(serviceSlug, source, latencyMs / 1000);
+    const { status, details } = inspect(result);
+    if (status === 'unknown') {
+      metrics.recordFetcherFailure(serviceSlug, source, 'unknown_status');
+      health.recordFailure(serviceSlug, source, details ?? 'fetcher returned unknown', latencyMs);
+    } else {
+      health.recordSuccess(serviceSlug, source, latencyMs);
+    }
+    return result;
+  } catch (err) {
+    const latencyMs = Date.now() - start;
+    metrics.recordFetcherLatency(serviceSlug, source, latencyMs / 1000);
+    metrics.recordFetcherFailure(serviceSlug, source, 'exception');
+    health.recordFailure(serviceSlug, source, err, latencyMs);
+    throw err;
+  }
+}
 
 async function fetchOfficialStatus(service: ServiceConfig): Promise<FetchResult> {
   switch (service.fetcher) {
@@ -66,10 +101,22 @@ async function pollService(service: ServiceConfig): Promise<{ ddReports: number 
 
   const previousStatus = getPreviousStatus(service.slug);
 
-  // Fetch official status and Downdetector in parallel
+  // Fetch official status and Downdetector in parallel, with per-call latency
+  // and health tracking. Each fetcher already swallows exceptions internally,
+  // so timedFetch promotes "status: unknown" into a failure observation.
   const [officialResult, ddResult] = await Promise.allSettled([
-    fetchOfficialStatus(service),
-    fetchDowndetectorStatus(service.downdetectorSlug, service.slug),
+    timedFetch<FetchResult>(
+      service.slug,
+      'official',
+      () => fetchOfficialStatus(service),
+      (r) => ({ status: r.status.status, details: r.status.details }),
+    ),
+    timedFetch<StatusResult>(
+      service.slug,
+      'downdetector',
+      () => fetchDowndetectorStatus(service.downdetectorSlug, service.slug),
+      (r) => ({ status: r.status, details: r.details }),
+    ),
   ]);
 
   // Process official status
@@ -84,6 +131,7 @@ async function pollService(service: ServiceConfig): Promise<{ ddReports: number 
       officialStatus.details,
       officialStatus.reportCount
     );
+    metrics.setServiceStatus(service.slug, 'official', officialStatus.status);
 
     // Process incidents
     for (const incident of officialResult.value.incidents) {
@@ -128,6 +176,7 @@ async function pollService(service: ServiceConfig): Promise<{ ddReports: number 
       ddStatus.details,
       ddStatus.reportCount
     );
+    metrics.setServiceStatus(service.slug, 'downdetector', ddStatus.status);
   } else {
     console.debug(`[poller] ${service.name} downdetector fetch rejected:`, ddResult.reason);
   }
@@ -155,10 +204,12 @@ const VACUUM_INTERVAL_MS = 24 * 60 * 60 * 1000;
 export async function runPollCycle(): Promise<{ success: boolean; polled: number; errors: number }> {
   if (isPolling) {
     console.log('[poller] Poll cycle already in progress, skipping');
+    metrics.recordPollCycle('skipped', 0);
     return { success: false, polled: 0, errors: 0 };
   }
 
   isPolling = true;
+  const cycleStart = Date.now();
   if (process.env.DEBUG === 'true') {
     console.log(`[poller] Starting poll cycle at ${new Date().toISOString()}`);
   }
@@ -208,6 +259,10 @@ export async function runPollCycle(): Promise<{ success: boolean; polled: number
     }
   } finally {
     isPolling = false;
+    const durationSec = (Date.now() - cycleStart) / 1000;
+    // "success" means at least one fetcher completed; "failure" only when
+    // every service errored, which usually means the host lost outbound DNS.
+    metrics.recordPollCycle(polled > 0 ? 'success' : 'failure', durationSec);
   }
 
   return { success: true, polled, errors };
