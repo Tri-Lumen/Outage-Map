@@ -12,6 +12,8 @@ export interface ServiceConfig {
   downdetectorSlug: string | null;
   fetcher: FetcherType;
   brandFont: string;
+  ddThresholdDegraded?: number;
+  ddThresholdMajor?: number;
 }
 
 export interface StatusResult {
@@ -87,9 +89,23 @@ export interface AlertRule {
   services: string[];
   minSeverity: IncidentSeverity;
   emailEnabled: boolean;
+  webhookUrl: string | null;
+  webhookEnabled: boolean;
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SummaryResponse {
+  totalServices: number;
+  operational: number;
+  degraded: number;
+  majorOutage: number;
+  down: number;
+  unknown: number;
+  activeIncidents: number;
+  uptimePct: number;
+  lastUpdated: string;
 }
 
 const INCIDENT_STATUSES: ReadonlyArray<IncidentStatus> = [

@@ -59,6 +59,8 @@ export async function POST(request: NextRequest) {
     services: unknown;
     minSeverity: unknown;
     emailEnabled: unknown;
+    webhookUrl: unknown;
+    webhookEnabled: unknown;
     enabled: unknown;
   }>;
 
@@ -76,6 +78,16 @@ export async function POST(request: NextRequest) {
   const emailEnabled = input.emailEnabled !== false;
   const enabled = input.enabled !== false;
 
+  let webhookUrl: string | null = null;
+  if (typeof input.webhookUrl === 'string' && input.webhookUrl.trim()) {
+    const { isValidWebhookUrl } = await import('@/lib/webhook');
+    if (!isValidWebhookUrl(input.webhookUrl.trim())) {
+      return NextResponse.json({ error: 'Invalid or disallowed webhook URL' }, { status: 400 });
+    }
+    webhookUrl = input.webhookUrl.trim();
+  }
+  const webhookEnabled = !!input.webhookEnabled && webhookUrl !== null;
+
   const id = `rule_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
   try {
@@ -85,10 +97,12 @@ export async function POST(request: NextRequest) {
       services: JSON.stringify(services),
       minSeverity,
       emailEnabled,
+      webhookUrl,
+      webhookEnabled,
       enabled,
     });
     return NextResponse.json({
-      rule: { id, email, services, minSeverity, emailEnabled, enabled },
+      rule: { id, email, services, minSeverity, emailEnabled, webhookUrl, webhookEnabled, enabled },
     }, { status: 201 });
   } catch (err) {
     console.error('[api/alerts/rules] Insert failed:', err);

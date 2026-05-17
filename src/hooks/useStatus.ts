@@ -1,7 +1,13 @@
 'use client';
 
 import useSWR from 'swr';
-import { ServiceStatusResponse, IncidentResponse, HistoryResponse } from '@/lib/types';
+import { ServiceStatusResponse, IncidentResponse, HistoryResponse, SummaryResponse } from '@/lib/types';
+
+interface RssFeedResponse {
+  feed: string;
+  title: string;
+  items: Array<{ title: string; url: string | null; publishedAt: string | null }>;
+}
 
 const fetcher = async (url: string) => {
   const res = await fetch(url);
@@ -39,6 +45,28 @@ export function useHistory(days: number = 30, refreshIntervalMs?: number) {
     {
       refreshInterval: refreshIntervalMs ?? 300000,
       revalidateOnFocus: true,
+    }
+  );
+}
+
+export function useSummary(refreshIntervalMs?: number) {
+  return useSWR<SummaryResponse>(
+    '/api/summary',
+    fetcher,
+    {
+      refreshInterval: refreshIntervalMs ?? 60000,
+      revalidateOnFocus: true,
+    }
+  );
+}
+
+export function useRssFeed(feedId: string, refreshIntervalMs?: number) {
+  return useSWR<RssFeedResponse>(
+    feedId ? `/api/rss?feed=${encodeURIComponent(feedId)}` : null,
+    fetcher,
+    {
+      refreshInterval: refreshIntervalMs ?? 300000,
+      revalidateOnFocus: false,
     }
   );
 }
