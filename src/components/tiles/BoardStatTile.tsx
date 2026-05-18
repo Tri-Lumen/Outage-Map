@@ -2,8 +2,9 @@ import { useMemo } from 'react';
 import TileChrome from './TileChrome';
 import type { TileProps } from './types';
 import type { HistoryPoint } from '@/lib/types';
+import { usePreferences } from '@/hooks/usePreferences';
 
-type MetricKey = 'uptime' | 'incidents' | 'dd' | 'mttr';
+type MetricKey = 'uptime' | 'incidents' | 'dd' | 'mttr' | 'sla';
 
 function mttrForService(points: HistoryPoint[]): number {
   const affected = points.filter((p) => p.outageMinutes > 0);
@@ -14,6 +15,8 @@ function mttrForService(points: HistoryPoint[]): number {
 export default function BoardStatTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure, live }: TileProps) {
   const metric = (config.metric as MetricKey) || 'uptime';
   const { services, incidents } = live;
+  const prefs = usePreferences();
+  const slaTarget = prefs.slaTarget ?? 99.9;
 
   const operational = services.filter((s) => s.overallStatus === 'operational').length;
   const total = services.length;
@@ -28,11 +31,28 @@ export default function BoardStatTile({ config, editing, onResize, onRemove, onD
     return avg < 60 ? `${avg}m` : `${Math.round(avg / 60)}h`;
   }, [live.history]);
 
+  const slaCompliance = useMemo(() => {
+    const pts = Object.values(live.history);
+    if (!pts.length) return { meeting: 0, total: 0 };
+    const slugs = Object.keys(live.history);
+    let meeting = 0;
+    for (const slug of slugs) {
+      const points = live.history[slug] || [];
+      if (!points.length) { meeting++; continue; }
+      const totalMin = points.length * 24 * 60;
+      const downMin = points.reduce((s, p) => s + (p.outageMinutes || 0), 0);
+      const uptime = ((totalMin - downMin) / totalMin) * 100;
+      if (uptime >= slaTarget) meeting++;
+    }
+    return { meeting, total: slugs.length };
+  }, [live.history, slaTarget]);
+
   const metrics: Record<MetricKey, { label: string; value: string | number; sub: string; accent: string }> = {
-    uptime:    { label: 'Fleet Uptime',     value: `${uptimePct}%`,           sub: `${operational}/${total} services healthy`, accent: '#7CB342' },
-    incidents: { label: 'Active Incidents', value: activeIncidents,           sub: `${incidents.length} total in view`,         accent: '#FFD54F' },
-    dd:        { label: 'DD Reports',       value: totalDD.toLocaleString(),  sub: 'Aggregated across services',                 accent: '#2aa198' },
-    mttr:      { label: 'MTTR (30d)',       value: mttrDisplay,               sub: mttrDisplay === '—' ? 'No outage data' : 'Mean time to recovery', accent: '#268bd2' },
+    uptime:    { label: 'Fleet Uptime',     value: `${uptimePct}%`,                sub: `${operational}/${total} services healthy`,          accent: '#7CB342' },
+    incidents: { label: 'Active Incidents', value: activeIncidents,                sub: `${incidents.length} total in view`,                  accent: '#FFD54F' },
+    dd:        { label: 'DD Reports',       value: totalDD.toLocaleString(),       sub: 'Aggregated across services',                         accent: '#2aa198' },
+    mttr:      { label: 'MTTR (30d)',       value: mttrDisplay,                   sub: mttrDisplay === '—' ? 'No outage data' : 'Mean time to recovery', accent: '#268bd2' },
+    sla:       { label: 'SLA Compliance',   value: `${slaCompliance.meeting}/${slaCompliance.total}`, sub: `≥${slaTarget}% uptime target`, accent: slaCompliance.meeting === slaCompliance.total ? '#7CB342' : '#FFD54F' },
   };
 
   const m = metrics[metric] ?? metrics.uptime;

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useServiceStatus, useIncidents, useHistory } from '@/hooks/useStatus';
 import { HistoryPoint } from '@/lib/types';
 import StatTile from './ui/StatTile';
@@ -59,6 +59,27 @@ export default function ServiceDetailView({ slug }: Props) {
       ? [...result].sort((a, b) => (a.startedAt ?? '').localeCompare(b.startedAt ?? ''))
       : result;
   }, [incidents, incidentStatusFilter, incidentSeverity, incidentSort]);
+
+  const exportIncidentsCsv = useCallback(() => {
+    const headers = ['ID', 'Title', 'Severity', 'Status', 'Started', 'Resolved', 'Description'];
+    const csvRows = filteredIncidents.map((inc) => [
+      inc.id,
+      `"${(inc.title || '').replace(/"/g, '""')}"`,
+      inc.severity,
+      inc.status,
+      inc.startedAt ?? '',
+      inc.resolvedAt ?? '',
+      `"${(inc.description || '').replace(/"/g, '""')}"`,
+    ]);
+    const csv = [headers, ...csvRows].map((row) => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${slug}-incidents-${rangeDays}d.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, [filteredIncidents, slug, rangeDays]);
 
   const metrics = useMemo(() => {
     const uptime = uptimeForService(history);
@@ -218,9 +239,22 @@ export default function ServiceDetailView({ slug }: Props) {
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-semibold text-foreground">Recent incidents</h2>
-          <span className="text-xs text-muted">
-            {incidents.length} in last {rangeDays} days · {metrics.critical} critical
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-muted">
+              {incidents.length} in last {rangeDays} days · {metrics.critical} critical
+            </span>
+            {filteredIncidents.length > 0 && (
+              <button
+                onClick={exportIncidentsCsv}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg bg-white/5 border border-subtle text-muted hover:text-foreground hover:bg-white/10 transition-colors"
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+                CSV
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap mb-3">
           <div className="inline-flex items-center gap-0.5 bg-white/5 rounded-full p-0.5">

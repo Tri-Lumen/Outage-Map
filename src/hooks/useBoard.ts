@@ -13,7 +13,10 @@ export type TileType =
   | 'rss'
   | 'uptime-chart'
   | 'status-map'
-  | 'statuspage';
+  | 'statuspage'
+  | 'incident-metrics'
+  | 'fetcher-health'
+  | 'alert-audit';
 
 export interface TileConfig {
   id: string;
@@ -276,34 +279,43 @@ export function useBoard({ bp = 'desktop', boardId, tiles, onCommit }: UseBoardP
 
   const addTile = useCallback((type: TileType, extraConfig: Record<string, unknown> = {}) => {
     const defaultConfigs: Record<TileType, Record<string, unknown>> = {
-      'stat':          { metric: 'uptime' },
-      'service-watch': { service: 'github' },
-      'service-grid':  {},
-      'incident-feed': {},
-      'rss':           { feed: 'aws-blog' },
-      'uptime-chart':  { service: 'github' },
-      'status-map':    {},
-      'statuspage':    { name: 'New Service', color: '#268bd2' },
+      'stat':              { metric: 'uptime' },
+      'service-watch':     { service: 'github' },
+      'service-grid':      {},
+      'incident-feed':     {},
+      'rss':               { feed: 'aws-blog' },
+      'uptime-chart':      { service: 'github' },
+      'status-map':        {},
+      'statuspage':        { name: 'New Service', color: '#268bd2' },
+      'incident-metrics':  { days: 30 },
+      'fetcher-health':    {},
+      'alert-audit':       {},
     };
     const defaultSizes: Record<TileType, { w: number; h: number }> = {
-      'stat':          { w: 1, h: 2 },
-      'service-watch': { w: 2, h: 2 },
-      'service-grid':  { w: 4, h: 2 },
-      'incident-feed': { w: 2, h: 3 },
-      'rss':           { w: 2, h: 2 },
-      'uptime-chart':  { w: 2, h: 2 },
-      'status-map':    { w: 2, h: 2 },
-      'statuspage':    { w: 2, h: 2 },
+      'stat':              { w: 1, h: 2 },
+      'service-watch':     { w: 2, h: 2 },
+      'service-grid':      { w: 4, h: 2 },
+      'incident-feed':     { w: 2, h: 3 },
+      'rss':               { w: 2, h: 2 },
+      'uptime-chart':      { w: 2, h: 2 },
+      'status-map':        { w: 2, h: 2 },
+      'statuspage':        { w: 2, h: 2 },
+      'incident-metrics':  { w: 2, h: 2 },
+      'fetcher-health':    { w: 2, h: 2 },
+      'alert-audit':       { w: 2, h: 2 },
     };
     const defaultDataPoints: Record<TileType, string[]> = {
-      'stat':          [],
-      'service-watch': ['sparkline', 'uptime', 'official', 'downdetector'],
-      'service-grid':  [],
-      'incident-feed': [],
-      'rss':           [],
-      'uptime-chart':  [],
-      'status-map':    [],
-      'statuspage':    [],
+      'stat':              [],
+      'service-watch':     ['sparkline', 'uptime', 'official', 'downdetector'],
+      'service-grid':      [],
+      'incident-feed':     [],
+      'rss':               [],
+      'uptime-chart':      [],
+      'status-map':        [],
+      'statuspage':        [],
+      'incident-metrics':  [],
+      'fetcher-health':    [],
+      'alert-audit':       [],
     };
     const id = 't' + Date.now();
     const size = defaultSizes[type];

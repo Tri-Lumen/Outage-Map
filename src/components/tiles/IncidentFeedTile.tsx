@@ -1,7 +1,20 @@
+import { useMemo } from 'react';
 import TileChrome from './TileChrome';
 import { relTime } from '@/lib/boardColors';
 import { useIncidents } from '@/hooks/useStatus';
 import type { TileProps } from './types';
+
+function dayLabel(iso: string | null): string {
+  if (!iso) return 'Unknown date';
+  const d = new Date(iso);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 86400000);
+  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  if (day.getTime() === today.getTime()) return 'Today';
+  if (day.getTime() === yesterday.getTime()) return 'Yesterday';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
 
 const SEV_COLOR: Record<string, string> = {
   critical: '#EF5350',
@@ -30,6 +43,20 @@ export default function IncidentFeedTile({ config, editing, onResize, onRemove, 
     return true;
   });
   const activeCount = incidents.filter((i) => i.status !== 'resolved').length;
+
+  const grouped = useMemo(() => {
+    const groups: { day: string; items: typeof incidents }[] = [];
+    for (const inc of incidents) {
+      const label = dayLabel(inc.startedAt);
+      const last = groups[groups.length - 1];
+      if (last && last.day === label) {
+        last.items.push(inc);
+      } else {
+        groups.push({ day: label, items: [inc] });
+      }
+    }
+    return groups;
+  }, [incidents]);
 
   return (
     <TileChrome
@@ -61,29 +88,45 @@ export default function IncidentFeedTile({ config, editing, onResize, onRemove, 
         {incidents.length === 0 ? (
           <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>No incidents.</div>
         ) : (
-          incidents.map((inc) => {
-            const svc = services.find((s) => s.slug === inc.service);
-            const sevKey = inc.severity === 'critical' ? 'critical' : inc.severity;
-            const color = SEV_COLOR[inc.status === 'resolved' ? 'resolved' : sevKey] ?? '#FFD54F';
-            return (
-              <div key={inc.id} className="incident-row">
-                <div style={{ width: 3, alignSelf: 'stretch', background: color, borderRadius: 2 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                      {inc.severity}
-                    </span>
-                    <span style={{ fontSize: 11, color: 'var(--muted-strong)' }}>·</span>
-                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{svc?.name ?? inc.service}</span>
-                    <span style={{ fontSize: 11, color: 'var(--muted-strong)', marginLeft: 'auto' }}>
-                      {relTime(inc.startedAt)}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--foreground)', lineHeight: 1.4 }}>{inc.title}</div>
-                </div>
+          grouped.map(({ day, items }) => (
+            <div key={day}>
+              <div style={{
+                fontSize: 10,
+                fontWeight: 600,
+                color: 'var(--muted)',
+                textTransform: 'uppercase',
+                letterSpacing: 0.7,
+                padding: '6px 0 3px',
+                borderBottom: '1px solid var(--border-subtle)',
+                marginBottom: 2,
+              }}>
+                {day}
               </div>
-            );
-          })
+              {items.map((inc) => {
+                const svc = services.find((s) => s.slug === inc.service);
+                const sevKey = inc.severity === 'critical' ? 'critical' : inc.severity;
+                const color = SEV_COLOR[inc.status === 'resolved' ? 'resolved' : sevKey] ?? '#FFD54F';
+                return (
+                  <div key={inc.id} className="incident-row">
+                    <div style={{ width: 3, alignSelf: 'stretch', background: color, borderRadius: 2 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                          {inc.severity}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--muted-strong)' }}>·</span>
+                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>{svc?.name ?? inc.service}</span>
+                        <span style={{ fontSize: 11, color: 'var(--muted-strong)', marginLeft: 'auto' }}>
+                          {relTime(inc.startedAt)}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--foreground)', lineHeight: 1.4 }}>{inc.title}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))
         )}
       </div>
     </TileChrome>

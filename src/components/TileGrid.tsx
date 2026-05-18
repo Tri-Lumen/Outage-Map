@@ -11,6 +11,9 @@ import RssFeedTile from './tiles/RssFeedTile';
 import UptimeChartTile from './tiles/UptimeChartTile';
 import StatusMapTile from './tiles/StatusMapTile';
 import StatusPageTile from './tiles/StatusPageTile';
+import IncidentMetricsTile from './tiles/IncidentMetricsTile';
+import FetcherHealthTile from './tiles/FetcherHealthTile';
+import AlertAuditTile from './tiles/AlertAuditTile';
 
 const ROW_HEIGHT = 88;            // matches .tile-grid grid-auto-rows in globals.css
 const ROW_HEIGHT_COMPACT = 72;    // ".compact" density override
@@ -65,14 +68,17 @@ function TileComponent({ tile, editing, live, onUpdate, onRemove, onResize, onTo
   };
 
   switch (tile.type) {
-    case 'service-watch':  return <ServiceWatchTile  {...common} config={tile.config as { service?: string }} />;
-    case 'service-grid':   return <ServiceGridTile   {...common} />;
-    case 'incident-feed':  return <IncidentFeedTile  {...common} />;
-    case 'stat':           return <BoardStatTile      {...common} />;
-    case 'rss':            return <RssFeedTile        {...common} />;
-    case 'uptime-chart':   return <UptimeChartTile    {...common} />;
-    case 'status-map':     return <StatusMapTile      {...common} />;
-    case 'statuspage':     return <StatusPageTile     {...common} />;
+    case 'service-watch':     return <ServiceWatchTile     {...common} config={tile.config as { service?: string }} />;
+    case 'service-grid':      return <ServiceGridTile      {...common} />;
+    case 'incident-feed':     return <IncidentFeedTile     {...common} />;
+    case 'stat':              return <BoardStatTile         {...common} />;
+    case 'rss':               return <RssFeedTile           {...common} />;
+    case 'uptime-chart':      return <UptimeChartTile       {...common} />;
+    case 'status-map':        return <StatusMapTile         {...common} />;
+    case 'statuspage':        return <StatusPageTile        {...common} />;
+    case 'incident-metrics':  return <IncidentMetricsTile   {...common} />;
+    case 'fetcher-health':    return <FetcherHealthTile     {...common} />;
+    case 'alert-audit':       return <AlertAuditTile        {...common} />;
     default:               return null;
   }
 }

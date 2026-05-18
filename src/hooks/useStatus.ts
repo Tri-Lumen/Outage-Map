@@ -108,3 +108,21 @@ export function useAlertLog(enabled: boolean, refreshIntervalMs?: number) {
 }
 
 export type { FetcherHealthEntry, AlertLogEntry };
+
+export interface IncidentMetrics {
+  days: number;
+  mttrBySeverity: { critical?: number; major?: number; minor?: number };
+  resolutionRate: number;
+  totalIncidents: number;
+  resolvedIncidents: number;
+  countBySeverity: { critical?: number; major?: number; minor?: number };
+  topServices: { service_slug: string; count: number }[];
+}
+
+export function useIncidentMetrics(days = 30, refreshIntervalMs = 60000) {
+  return useSWR<IncidentMetrics>(
+    `/api/incidents/metrics?days=${days}`,
+    fetcher,
+    { refreshInterval: refreshIntervalMs, revalidateOnFocus: false }
+  );
+}

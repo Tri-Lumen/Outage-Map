@@ -227,6 +227,37 @@ export default function AnalyticsView() {
         </Card>
       </section>
 
+      {rows.length > 0 && aggregate.totalIncidents > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-1 h-5 rounded-full bg-accent" />
+            <h2 className="text-base font-semibold text-foreground">Top services by incidents</h2>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[...rows]
+              .filter((r) => r.incidents > 0)
+              .sort((a, b) => b.incidents - a.incidents)
+              .slice(0, 5)
+              .map((r, i) => (
+                <div
+                  key={r.slug}
+                  className="flex items-center gap-3 px-4 py-2.5 rounded-xl surface-card border border-subtle"
+                >
+                  <span className="text-xs font-bold text-muted w-4">#{i + 1}</span>
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: r.color }} />
+                  <span className="text-sm font-medium text-foreground">{r.name}</span>
+                  <span className="text-xs text-muted ml-2">{r.incidents} incidents</span>
+                  {r.criticalIncidents > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">
+                      {r.criticalIncidents} crit
+                    </span>
+                  )}
+                </div>
+              ))}
+          </div>
+        </section>
+      )}
+
       {incidentChartData.length > 0 && (
         <section>
           <Card>

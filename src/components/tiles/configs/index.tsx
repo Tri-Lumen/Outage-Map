@@ -53,6 +53,7 @@ const StatForm: ConfigForm = ({ tile, onUpdate }) => {
           <option value="incidents">Active incidents</option>
           <option value="dd">DD reports</option>
           <option value="mttr">MTTR (30d)</option>
+          <option value="sla">SLA compliance</option>
         </select>
       </div>
     </>
@@ -287,13 +288,38 @@ const RssForm: ConfigForm = ({ tile, onUpdate }) => {
 const StatusMapForm: ConfigForm = ({ tile, onUpdate }) => common(tile, onUpdate, { hideRefresh: true });
 const StatusPageForm: ConfigForm = ({ tile, onUpdate }) => common(tile, onUpdate, { hideRefresh: true });
 
+const IncidentMetricsForm: ConfigForm = ({ tile, onUpdate }) => {
+  const days = typeof tile.config.days === 'number' ? tile.config.days : 30;
+  return (
+    <>
+      {common(tile, onUpdate, { hideRefresh: true })}
+      <div className="twk-row">
+        <div className="twk-lbl"><span>Default range</span></div>
+        <div className="twk-seg">
+          {[7, 30, 90].map((d) => (
+            <button key={d} data-on={days === d} onClick={() => update(tile, onUpdate, { days: d })}>
+              {d}d
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+};
+
+const FetcherHealthForm: ConfigForm = ({ tile, onUpdate }) => common(tile, onUpdate, { hideRefresh: true });
+const AlertAuditForm: ConfigForm = ({ tile, onUpdate }) => common(tile, onUpdate, { hideRefresh: true });
+
 export const TILE_CONFIG_FORMS: Record<TileType, ConfigForm> = {
-  'stat':          StatForm,
-  'service-watch': ServiceWatchForm,
-  'service-grid':  ServiceGridForm,
-  'incident-feed': IncidentFeedForm,
-  'rss':           RssForm,
-  'uptime-chart':  UptimeChartForm,
-  'status-map':    StatusMapForm,
-  'statuspage':    StatusPageForm,
+  'stat':              StatForm,
+  'service-watch':     ServiceWatchForm,
+  'service-grid':      ServiceGridForm,
+  'incident-feed':     IncidentFeedForm,
+  'rss':               RssForm,
+  'uptime-chart':      UptimeChartForm,
+  'status-map':        StatusMapForm,
+  'statuspage':        StatusPageForm,
+  'incident-metrics':  IncidentMetricsForm,
+  'fetcher-health':    FetcherHealthForm,
+  'alert-audit':       AlertAuditForm,
 };
