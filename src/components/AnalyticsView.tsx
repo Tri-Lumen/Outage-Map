@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useServiceStatus, useHistory, useIncidents } from '@/hooks/useStatus';
 import { HistoryPoint } from '@/lib/types';
 import PageHeader from './ui/PageHeader';
@@ -31,9 +31,12 @@ function mttrForService(points: HistoryPoint[]): number {
 }
 
 export default function AnalyticsView() {
+  const [rangeDays, setRangeDays] = useState<7 | 30 | 90>(30);
+  const [search, setSearch] = useState('');
+
   const { data: statusData } = useServiceStatus();
-  const { data: historyData } = useHistory(30);
-  const { data: incidentData } = useIncidents(30);
+  const { data: historyData } = useHistory(rangeDays);
+  const { data: incidentData } = useIncidents(rangeDays);
 
   const services = useMemo(() => statusData?.services || [], [statusData]);
   const history = useMemo(() => historyData?.history || {}, [historyData]);
@@ -72,6 +75,32 @@ export default function AnalyticsView() {
     return { avgUptime, totalDowntime, totalIncidents, slaTarget, meetingSla };
   }, [rows]);
 
+  const visibleRows = useMemo(
+    () => rows.filter((r) => r.name.toLowerCase().includes(search.toLowerCase())),
+    [rows, search],
+  );
+
+  const exportCsv = useCallback(() => {
+    const headers = ['Service', 'Uptime %', 'Downtime (min)', 'MTTR (min)', 'Incidents', 'Critical', 'SLA'];
+    const csvRows = visibleRows.map((r) => [
+      r.name,
+      r.uptimeLabel,
+      r.totalDowntime,
+      r.mttr,
+      r.incidents,
+      r.criticalIncidents,
+      r.uptime >= aggregate.slaTarget ? 'Met' : 'Breached',
+    ]);
+    const csv = [headers, ...csvRows].map((row) => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `outage-analytics-${rangeDays}d.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, [visibleRows, aggregate.slaTarget, rangeDays]);
+
   const uptimeChartData = rows.map((r) => ({
     name: r.name.split(' ')[0],
     uptime: Number(r.uptime.toFixed(2)),
@@ -85,10 +114,26 @@ export default function AnalyticsView() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="30-Day Analytics"
+        eyebrow={`${rangeDays}-Day Analytics`}
         title="Reliability & SLA trends"
         description="Uptime, downtime minutes, and incident distribution across monitored services."
       />
+
+      <div className="flex items-center gap-2">
+        <div className="inline-flex items-center gap-1 bg-white/5 rounded-full p-1">
+          {([7, 30, 90] as const).map((d) => (
+            <button
+              key={d}
+              onClick={() => setRangeDays(d)}
+              className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                rangeDays === d ? 'bg-accent text-white' : 'text-muted hover:text-foreground'
+              }`}
+            >
+              {d}d
+            </button>
+          ))}
+        </div>
+      </div>
 
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
         <StatTile
@@ -109,10 +154,10 @@ export default function AnalyticsView() {
           label="Total Downtime"
           value={`${Math.round(aggregate.totalDowntime / 60)}h`}
           accent="amber"
-          hint={`${aggregate.totalDowntime.toLocaleString()} min · last 30d`}
+          hint={`${aggregate.totalDowntime.toLocaleString()} min · last ${rangeDays}d`}
         />
         <StatTile
-          label="Incidents (30d)"
+          label={`Incidents (${rangeDays}d)`}
           value={aggregate.totalIncidents}
           accent={aggregate.totalIncidents > 10 ? 'red' : 'indigo'}
           hint="All severities"
@@ -124,7 +169,7 @@ export default function AnalyticsView() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-sm font-semibold text-foreground">Uptime by service</h2>
-              <p className="text-xs text-muted mt-0.5">30-day rolling window</p>
+              <p className="text-xs text-muted mt-0.5">{rangeDays}-day rolling window</p>
             </div>
             <span className="text-xs text-muted">SLA target: {aggregate.slaTarget}%</span>
           </div>
@@ -165,10 +210,30 @@ export default function AnalyticsView() {
       </section>
 
       <section>
-        <h2 className="text-base font-semibold text-foreground mb-3 flex items-center gap-2">
-          <span className="w-1 h-5 rounded-full bg-accent-cyan" />
-          Service reliability breakdown
-        </h2>
+        <div className="flex items-center justify-between mb-3 gap-4 flex-wrap">
+          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+            <span className="w-1 h-5 rounded-full bg-accent-cyan" />
+            Service reliability breakdown
+          </h2>
+          <div className="flex items-center gap-2">
+            <input
+              type="search"
+              placeholder="Filter services…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="px-3 py-1.5 text-xs rounded-lg bg-white/5 border border-subtle text-foreground placeholder-muted focus:outline-none focus:border-accent"
+            />
+            <button
+              onClick={exportCsv}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-white/5 border border-subtle text-foreground hover:bg-white/10 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              Export CSV
+            </button>
+          </div>
+        </div>
         <Card padded={false} className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -183,7 +248,7 @@ export default function AnalyticsView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
-                {rows.map((r) => {
+                {visibleRows.map((r) => {
                   const meets = r.uptime >= aggregate.slaTarget;
                   return (
                     <tr key={r.slug} className="hover:bg-white/[0.02] transition-colors">

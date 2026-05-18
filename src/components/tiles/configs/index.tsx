@@ -112,7 +112,8 @@ const SEVERITIES = ['critical', 'major', 'minor'] as const;
 const STATUSES = ['investigating', 'identified', 'monitoring', 'resolved'] as const;
 
 const IncidentFeedForm: ConfigForm = ({ tile, onUpdate }) => {
-  const filters = (tile.config.filters ?? {}) as { severity?: string[]; statuses?: string[] };
+  const filters = (tile.config.filters ?? {}) as { severity?: string[]; statuses?: string[]; days?: number };
+  const days = filters.days ?? 7;
   const toggle = (key: 'severity' | 'statuses', value: string) => {
     const current = filters[key] ?? [];
     const next = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
@@ -121,6 +122,20 @@ const IncidentFeedForm: ConfigForm = ({ tile, onUpdate }) => {
   return (
     <>
       {common(tile, onUpdate)}
+      <div className="twk-row">
+        <div className="twk-lbl"><span>Window</span></div>
+        <div className="twk-seg">
+          {[7, 14, 30].map((d) => (
+            <button
+              key={d}
+              data-on={days === d}
+              onClick={() => update(tile, onUpdate, { filters: { ...filters, days: d } })}
+            >
+              {d}d
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="twk-row">
         <div className="twk-lbl"><span>Severity</span></div>
         <div className="twk-chips">

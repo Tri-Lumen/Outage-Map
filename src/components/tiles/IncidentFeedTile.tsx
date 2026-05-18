@@ -13,15 +13,16 @@ const SEV_COLOR: Record<string, string> = {
 
 export default function IncidentFeedTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure, live }: TileProps) {
   const refreshMs = typeof config.refreshMs === 'number' ? config.refreshMs : undefined;
-  const override = useIncidents(7, refreshMs);
-  const allIncidents = refreshMs && override.data ? override.data.incidents : live.incidents;
-  const services = live.services;
-
   const filters = (config.filters ?? {}) as {
     severity?: string[];
     statuses?: string[];
     services?: string[];
+    days?: number;
   };
+  const days = typeof filters.days === 'number' ? filters.days : 7;
+  const override = useIncidents(days, refreshMs);
+  const allIncidents = override.data ? override.data.incidents : live.incidents;
+  const services = live.services;
   const incidents = allIncidents.filter((i) => {
     if (filters.severity && filters.severity.length && !filters.severity.includes(i.severity)) return false;
     if (filters.statuses && filters.statuses.length && !filters.statuses.includes(i.status)) return false;

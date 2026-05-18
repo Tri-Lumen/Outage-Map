@@ -1,30 +1,34 @@
 import TileChrome from './TileChrome';
 import type { TileProps } from './types';
 
-const REGIONS = [
-  { x: 18, y: 38, r: 14, hot: 0.9, label: 'us-west' },
-  { x: 38, y: 32, r: 10, hot: 0.3, label: 'us-central' },
-  { x: 72, y: 28, r: 16, hot: 0.7, label: 'us-east' },
-  { x: 88, y: 48, r: 8,  hot: 0.2, label: 'eu-west' },
-  { x: 50, y: 58, r: 9,  hot: 0.4, label: 'sa-east' },
+const REGION_SPECS = [
+  { x: 18, y: 38, r: 14, weight: 0.25, label: 'us-west' },
+  { x: 38, y: 32, r: 10, weight: 0.15, label: 'us-central' },
+  { x: 72, y: 28, r: 16, weight: 0.30, label: 'us-east' },
+  { x: 88, y: 48, r: 8,  weight: 0.20, label: 'eu-west' },
+  { x: 50, y: 58, r: 9,  weight: 0.10, label: 'sa-east' },
 ];
+
+const INCIDENT_WEIGHT = 40;
+const STATUS_FLOOR: Record<string, number> = {
+  operational: 0, unknown: 0, degraded: 30, major_outage: 90, down: 140,
+};
 
 function regionColor(hot: number): string {
   if (hot > 0.6) return '#EF5350';
-  if (hot > 0.4) return '#FFD54F';
+  if (hot > 0.2) return '#FFD54F';
   return '#7CB342';
 }
 
 export default function StatusMapTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure, live }: TileProps) {
-  // Compute a rough "heat" per region based on active incidents
-  const activeIncidents = live.incidents.filter((i) => i.status !== 'resolved').length;
-  const totalServices = live.services.length || 1;
-  const issueServices = live.services.filter((s) => s.overallStatus !== 'operational').length;
-  const baseHeat = issueServices / totalServices;
+  const totalSignal = live.services.reduce((sum, s) => {
+    const floor = Math.max(STATUS_FLOOR[s.officialStatus] || 0, STATUS_FLOOR[s.overallStatus] || 0);
+    return sum + (s.downdetectorReports || 0) + (s.incidentCount || 0) * INCIDENT_WEIGHT + floor;
+  }, 0);
 
-  const regions = REGIONS.map((r) => ({
+  const regions = REGION_SPECS.map((r) => ({
     ...r,
-    hot: Math.min(1, r.hot * (1 + baseHeat) * (activeIncidents > 0 ? 1.2 : 1)),
+    hot: Math.min(1, (totalSignal * r.weight) / Math.max(1, 200)),
   }));
 
   return (

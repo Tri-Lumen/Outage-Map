@@ -62,12 +62,16 @@ export default function AlertsView() {
     minSeverity: IncidentSeverity;
     emailEnabled: boolean;
     desktopEnabled: boolean;
+    webhookUrl: string;
+    webhookEnabled: boolean;
   }>({
     email: '',
     services: [],
     minSeverity: 'major',
     emailEnabled: true,
     desktopEnabled: false,
+    webhookUrl: '',
+    webhookEnabled: false,
   });
   const [showForm, setShowForm] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
@@ -122,6 +126,7 @@ export default function AlertsView() {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      const webhookUrlTrimmed = draft.webhookUrl.trim();
       const res = await fetch(RULES_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -130,6 +135,8 @@ export default function AlertsView() {
           services: draft.services,
           minSeverity: draft.minSeverity,
           emailEnabled: draft.emailEnabled,
+          webhookUrl: webhookUrlTrimmed || undefined,
+          webhookEnabled: draft.webhookEnabled && !!webhookUrlTrimmed,
           enabled: true,
         }),
       });
@@ -152,6 +159,8 @@ export default function AlertsView() {
         minSeverity: 'major',
         emailEnabled: true,
         desktopEnabled: false,
+        webhookUrl: '',
+        webhookEnabled: false,
       });
       setShowForm(false);
       mutate();
@@ -374,6 +383,32 @@ export default function AlertsView() {
                 </label>
               </div>
             </div>
+
+            <div className="lg:col-span-2">
+              <label className="block text-xs font-medium text-muted mb-2">Webhook URL <span className="text-muted-strong font-normal">(optional — Slack, Teams, or any HTTP endpoint)</span></label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="url"
+                  value={draft.webhookUrl}
+                  onChange={(e) => setDraft({ ...draft, webhookUrl: e.target.value, webhookEnabled: draft.webhookEnabled && !!e.target.value.trim() })}
+                  placeholder="https://hooks.slack.com/services/..."
+                  className="flex-1 px-3 py-2 rounded-md bg-white/5 border border-subtle text-sm text-foreground placeholder:text-muted-strong focus:outline-none focus:border-accent/50"
+                />
+                <label className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-subtle cursor-pointer hover:border-strong whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={draft.webhookEnabled}
+                    disabled={!draft.webhookUrl.trim() || !/^https?:\/\//i.test(draft.webhookUrl.trim())}
+                    onChange={(e) => setDraft({ ...draft, webhookEnabled: e.target.checked })}
+                    className="accent-accent"
+                  />
+                  <span className="text-xs text-foreground">Enable</span>
+                </label>
+              </div>
+              {draft.webhookUrl.trim() && !/^https?:\/\//i.test(draft.webhookUrl.trim()) && (
+                <p className="text-[11px] text-red-400 mt-1">URL must start with https://</p>
+              )}
+            </div>
           </div>
 
           {submitError && (
@@ -456,6 +491,11 @@ export default function AlertsView() {
                       </span>
                       {r.emailEnabled && (
                         <span className="text-[10px] text-muted">· email</span>
+                      )}
+                      {r.webhookEnabled && r.webhookUrl && (
+                        <span className="text-[10px] text-muted" title={r.webhookUrl}>
+                          · webhook ({(() => { try { return new URL(r.webhookUrl).hostname; } catch { return r.webhookUrl.slice(0, 30); } })()})
+                        </span>
                       )}
                     </div>
                     <p className="text-xs text-muted mt-1 truncate">

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useServiceStatus, useIncidents, useHistory } from '@/hooks/useStatus';
 import { HistoryPoint } from '@/lib/types';
 import StatTile from './ui/StatTile';
@@ -31,9 +31,11 @@ function formatDateTime(ts: string | null): string {
 }
 
 export default function ServiceDetailView({ slug }: Props) {
+  const [rangeDays, setRangeDays] = useState<30 | 60 | 90>(30);
+
   const { data: statusData } = useServiceStatus();
-  const { data: incidentData } = useIncidents(30);
-  const { data: historyData } = useHistory(30);
+  const { data: incidentData } = useIncidents(rangeDays);
+  const { data: historyData } = useHistory(rangeDays);
 
   const service = statusData?.services?.find((s) => s.slug === slug);
   const history = useMemo(
@@ -151,7 +153,7 @@ export default function ServiceDetailView({ slug }: Props) {
 
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
         <StatTile
-          label="30-Day Uptime"
+          label={`${rangeDays}-Day Uptime`}
           value={`${metrics.uptime.toFixed(2)}%`}
           accent={metrics.uptime >= 99.9 ? 'green' : metrics.uptime >= 99 ? 'amber' : 'red'}
           hint={metrics.uptime >= 99.9 ? 'Meeting SLA' : 'Below SLA'}
@@ -160,13 +162,13 @@ export default function ServiceDetailView({ slug }: Props) {
           label="Outage Days"
           value={metrics.outageDays}
           accent={metrics.outageDays > 0 ? 'amber' : 'green'}
-          hint="of last 30"
+          hint={`of last ${rangeDays}`}
         />
         <StatTile
           label="Total Downtime"
           value={metrics.totalDowntime > 60 ? `${(metrics.totalDowntime / 60).toFixed(1)}h` : `${metrics.totalDowntime}m`}
           accent="cyan"
-          hint="30d cumulative"
+          hint={`${rangeDays}d cumulative`}
         />
         <StatTile
           label="DD Reports"
@@ -177,7 +179,22 @@ export default function ServiceDetailView({ slug }: Props) {
       </section>
 
       <section>
-        <h2 className="text-base font-semibold text-foreground mb-3">History</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-semibold text-foreground">History</h2>
+          <div className="inline-flex items-center gap-1 bg-white/5 rounded-full p-1">
+            {([30, 60, 90] as const).map((d) => (
+              <button
+                key={d}
+                onClick={() => setRangeDays(d)}
+                className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                  rangeDays === d ? 'bg-accent text-white' : 'text-muted hover:text-foreground'
+                }`}
+              >
+                {d}d
+              </button>
+            ))}
+          </div>
+        </div>
         <OutageChart
           serviceName={service.name}
           serviceColor={service.color}
@@ -189,12 +206,12 @@ export default function ServiceDetailView({ slug }: Props) {
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-semibold text-foreground">Recent incidents</h2>
           <span className="text-xs text-muted">
-            {incidents.length} in last 30 days · {metrics.critical} critical
+            {incidents.length} in last {rangeDays} days · {metrics.critical} critical
           </span>
         </div>
         {incidents.length === 0 ? (
           <Card className="text-center py-10 text-sm text-muted">
-            No incidents reported in the last 30 days.
+            No incidents reported in the last {rangeDays} days.
           </Card>
         ) : (
           <div className="space-y-2">
