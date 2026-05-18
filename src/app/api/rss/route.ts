@@ -33,7 +33,7 @@ function parseRss(xml: string): { title: string; items: RssItem[] } {
 
   const items: RssItem[] = [];
   // Support both RSS <item> and Atom <entry>
-  $('item, entry').each((_: number, el: cheerio.AnyNode) => {
+  $('item, entry').each((_, el) => {
     const title = $(el).find('title').first().text().trim();
     const link =
       $(el).find('link').attr('href') ||

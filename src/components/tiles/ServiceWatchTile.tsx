@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import TileChrome from './TileChrome';
 import Sparkline from '../Sparkline';
 import { getStatusColor, historyToSparkline } from '@/lib/boardColors';
@@ -125,22 +124,21 @@ export default function ServiceWatchTile({
       ? ((hist.filter((p) => p.status === 'operational').length / hist.length) * 100).toFixed(2)
       : '—';
 
-  const stabilityText = useMemo(() => {
-    if (!hist.length) return null;
-    const reversed = [...hist].reverse();
-    const idx = reversed.findIndex((p) => p.status !== 'operational' || p.outageMinutes > 0);
-    if (idx === -1) return `Stable ${hist.length}d`;
-    if (idx === 0) return 'Issue today';
-    return `Last issue ${idx}d ago`;
-  }, [hist]);
+  const lastIssueIdx = hist.length
+    ? [...hist].reverse().findIndex((p) => p.status !== 'operational' || p.outageMinutes > 0)
+    : -1;
 
-  const stabilityColor = useMemo(() => {
-    if (!hist.length) return 'var(--muted)';
-    const reversed = [...hist].reverse();
-    const idx = reversed.findIndex((p) => p.status !== 'operational' || p.outageMinutes > 0);
-    if (idx === -1 || idx > 3) return 'var(--muted)';
-    return idx === 0 ? '#EF5350' : '#FFD54F';
-  }, [hist]);
+  let stabilityText: string | null = null;
+  if (hist.length) {
+    if (lastIssueIdx === -1) stabilityText = `Stable ${hist.length}d`;
+    else if (lastIssueIdx === 0) stabilityText = 'Issue today';
+    else stabilityText = `Last issue ${lastIssueIdx}d ago`;
+  }
+
+  let stabilityColor = 'var(--muted)';
+  if (hist.length && lastIssueIdx !== -1 && lastIssueIdx <= 3) {
+    stabilityColor = lastIssueIdx === 0 ? '#EF5350' : '#FFD54F';
+  }
 
   return (
     <TileChrome
