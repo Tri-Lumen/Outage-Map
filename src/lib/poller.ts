@@ -10,7 +10,8 @@ import {
   vacuumDb,
 } from './db';
 import { sendIncidentAlert, sendStatusChangeAlert } from './email';
-import { evaluateRulesForIncident } from './alerts/rules';
+import { evaluateRulesForIncident, evaluateRulesForWebhook } from './alerts/rules';
+import { sendWebhookAlerts } from './webhook';
 import { metrics } from './metrics';
 import { health, HealthSource } from './health';
 import { circuit } from './fetchers/circuit';
@@ -161,7 +162,10 @@ async function pollService(service: ServiceConfig): Promise<{ ddReports: number 
     timedFetch<StatusResult>(
       service.slug,
       'downdetector',
-      () => fetchDowndetectorStatus(service.downdetectorSlug, service.slug),
+      () => fetchDowndetectorStatus(service.downdetectorSlug, service.slug, {
+        degraded: service.ddThresholdDegraded,
+        major: service.ddThresholdMajor,
+      }),
       (r) => ({ status: r.status, details: r.details }),
       (reason) => unknownStatusResult(service.slug, reason),
     ),
@@ -201,7 +205,11 @@ async function pollService(service: ServiceConfig): Promise<{ ddReports: number 
       // env-only deployments keep working.
       if (isNew && (incident.severity === 'major' || incident.severity === 'critical')) {
         const ruleRecipients = evaluateRulesForIncident(incident);
-        await sendIncidentAlert(incident, ruleRecipients);
+        const webhookUrls = evaluateRulesForWebhook(incident);
+        await Promise.all([
+          sendIncidentAlert(incident, ruleRecipients),
+          sendWebhookAlerts(incident, webhookUrls),
+        ]);
       }
     }
 

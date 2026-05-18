@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useServiceStatus, useIncidents, useHistory } from '@/hooks/useStatus';
 import { HistoryPoint } from '@/lib/types';
 import StatTile from './ui/StatTile';
@@ -31,9 +31,14 @@ function formatDateTime(ts: string | null): string {
 }
 
 export default function ServiceDetailView({ slug }: Props) {
+  const [rangeDays, setRangeDays] = useState<30 | 60 | 90>(30);
+  const [incidentStatusFilter, setIncidentStatusFilter] = useState<'all' | 'active' | 'resolved'>('all');
+  const [incidentSeverity, setIncidentSeverity] = useState<string[]>([]);
+  const [incidentSort, setIncidentSort] = useState<'newest' | 'oldest'>('newest');
+
   const { data: statusData } = useServiceStatus();
-  const { data: incidentData } = useIncidents(30);
-  const { data: historyData } = useHistory(30);
+  const { data: incidentData } = useIncidents(rangeDays);
+  const { data: historyData } = useHistory(rangeDays);
 
   const service = statusData?.services?.find((s) => s.slug === slug);
   const history = useMemo(
@@ -44,6 +49,37 @@ export default function ServiceDetailView({ slug }: Props) {
     () => (incidentData?.incidents || []).filter((i) => i.service === slug),
     [incidentData, slug],
   );
+
+  const filteredIncidents = useMemo(() => {
+    let result = incidents;
+    if (incidentStatusFilter === 'active') result = result.filter((i) => i.status !== 'resolved');
+    if (incidentStatusFilter === 'resolved') result = result.filter((i) => i.status === 'resolved');
+    if (incidentSeverity.length) result = result.filter((i) => incidentSeverity.includes(i.severity));
+    return incidentSort === 'oldest'
+      ? [...result].sort((a, b) => (a.startedAt ?? '').localeCompare(b.startedAt ?? ''))
+      : result;
+  }, [incidents, incidentStatusFilter, incidentSeverity, incidentSort]);
+
+  const exportIncidentsCsv = useCallback(() => {
+    const headers = ['ID', 'Title', 'Severity', 'Status', 'Started', 'Resolved', 'Description'];
+    const csvRows = filteredIncidents.map((inc) => [
+      inc.id,
+      `"${(inc.title || '').replace(/"/g, '""')}"`,
+      inc.severity,
+      inc.status,
+      inc.startedAt ?? '',
+      inc.resolvedAt ?? '',
+      `"${(inc.description || '').replace(/"/g, '""')}"`,
+    ]);
+    const csv = [headers, ...csvRows].map((row) => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${slug}-incidents-${rangeDays}d.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, [filteredIncidents, slug, rangeDays]);
 
   const metrics = useMemo(() => {
     const uptime = uptimeForService(history);
@@ -151,7 +187,7 @@ export default function ServiceDetailView({ slug }: Props) {
 
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
         <StatTile
-          label="30-Day Uptime"
+          label={`${rangeDays}-Day Uptime`}
           value={`${metrics.uptime.toFixed(2)}%`}
           accent={metrics.uptime >= 99.9 ? 'green' : metrics.uptime >= 99 ? 'amber' : 'red'}
           hint={metrics.uptime >= 99.9 ? 'Meeting SLA' : 'Below SLA'}
@@ -160,13 +196,13 @@ export default function ServiceDetailView({ slug }: Props) {
           label="Outage Days"
           value={metrics.outageDays}
           accent={metrics.outageDays > 0 ? 'amber' : 'green'}
-          hint="of last 30"
+          hint={`of last ${rangeDays}`}
         />
         <StatTile
           label="Total Downtime"
           value={metrics.totalDowntime > 60 ? `${(metrics.totalDowntime / 60).toFixed(1)}h` : `${metrics.totalDowntime}m`}
           accent="cyan"
-          hint="30d cumulative"
+          hint={`${rangeDays}d cumulative`}
         />
         <StatTile
           label="DD Reports"
@@ -177,7 +213,22 @@ export default function ServiceDetailView({ slug }: Props) {
       </section>
 
       <section>
-        <h2 className="text-base font-semibold text-foreground mb-3">History</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-semibold text-foreground">History</h2>
+          <div className="inline-flex items-center gap-1 bg-white/5 rounded-full p-1">
+            {([30, 60, 90] as const).map((d) => (
+              <button
+                key={d}
+                onClick={() => setRangeDays(d)}
+                className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                  rangeDays === d ? 'bg-accent text-white' : 'text-muted hover:text-foreground'
+                }`}
+              >
+                {d}d
+              </button>
+            ))}
+          </div>
+        </div>
         <OutageChart
           serviceName={service.name}
           serviceColor={service.color}
@@ -188,17 +239,68 @@ export default function ServiceDetailView({ slug }: Props) {
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-semibold text-foreground">Recent incidents</h2>
-          <span className="text-xs text-muted">
-            {incidents.length} in last 30 days · {metrics.critical} critical
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-muted">
+              {incidents.length} in last {rangeDays} days · {metrics.critical} critical
+            </span>
+            {filteredIncidents.length > 0 && (
+              <button
+                onClick={exportIncidentsCsv}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg bg-white/5 border border-subtle text-muted hover:text-foreground hover:bg-white/10 transition-colors"
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+                CSV
+              </button>
+            )}
+          </div>
         </div>
-        {incidents.length === 0 ? (
+        <div className="flex items-center gap-2 flex-wrap mb-3">
+          <div className="inline-flex items-center gap-0.5 bg-white/5 rounded-full p-0.5">
+            {(['all', 'active', 'resolved'] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setIncidentStatusFilter(f)}
+                className={`px-2.5 py-1 text-xs rounded-full capitalize transition-colors ${
+                  incidentStatusFilter === f ? 'bg-accent text-white' : 'text-muted hover:text-foreground'
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+          {(['critical', 'major', 'minor'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setIncidentSeverity((prev) =>
+                prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+              )}
+              className={`px-2.5 py-1 text-xs rounded-full border capitalize transition-colors ${
+                incidentSeverity.includes(s)
+                  ? 'border-accent bg-accent/10 text-foreground'
+                  : 'border-subtle text-muted hover:border-strong'
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+          <button
+            onClick={() => setIncidentSort((s) => s === 'newest' ? 'oldest' : 'newest')}
+            className="ml-auto px-2.5 py-1 text-xs rounded-full border border-subtle text-muted hover:text-foreground transition-colors"
+          >
+            {incidentSort === 'newest' ? '↓ Newest' : '↑ Oldest'}
+          </button>
+        </div>
+        {filteredIncidents.length === 0 ? (
           <Card className="text-center py-10 text-sm text-muted">
-            No incidents reported in the last 30 days.
+            {incidents.length === 0
+              ? `No incidents reported in the last ${rangeDays} days.`
+              : 'No incidents match the current filters.'}
           </Card>
         ) : (
           <div className="space-y-2">
-            {incidents.map((inc) => (
+            {filteredIncidents.map((inc) => (
               <Card key={inc.id} className="flex items-start gap-4 flex-wrap">
                 <span
                   className={`mt-1 w-2 h-2 rounded-full ${

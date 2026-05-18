@@ -45,6 +45,8 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
     services: unknown;
     minSeverity: unknown;
     emailEnabled: unknown;
+    webhookUrl: unknown;
+    webhookEnabled: unknown;
     enabled: unknown;
   }>;
 
@@ -71,6 +73,19 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
     patch.minSeverity = input.minSeverity;
   }
   if (input.emailEnabled !== undefined) patch.emailEnabled = !!input.emailEnabled;
+  if (input.webhookUrl !== undefined) {
+    if (input.webhookUrl === null || input.webhookUrl === '') {
+      patch.webhookUrl = null;
+      patch.webhookEnabled = false;
+    } else if (typeof input.webhookUrl === 'string') {
+      const { isValidWebhookUrl } = await import('@/lib/webhook');
+      if (!isValidWebhookUrl(input.webhookUrl.trim())) {
+        return NextResponse.json({ error: 'Invalid or disallowed webhook URL' }, { status: 400 });
+      }
+      patch.webhookUrl = input.webhookUrl.trim();
+    }
+  }
+  if (input.webhookEnabled !== undefined) patch.webhookEnabled = !!input.webhookEnabled;
   if (input.enabled !== undefined) patch.enabled = !!input.enabled;
 
   try {

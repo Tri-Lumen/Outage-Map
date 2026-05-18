@@ -13,18 +13,26 @@ function getRandomUA(): string {
   return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 }
 
-const THRESHOLD_DEGRADED = parseInt(process.env.DD_REPORT_THRESHOLD_DEGRADED || '100', 10);
-const THRESHOLD_MAJOR = parseInt(process.env.DD_REPORT_THRESHOLD_MAJOR || '500', 10);
+const ENV_THRESHOLD_DEGRADED = parseInt(process.env.DD_REPORT_THRESHOLD_DEGRADED || '100', 10);
+const ENV_THRESHOLD_MAJOR = parseInt(process.env.DD_REPORT_THRESHOLD_MAJOR || '500', 10);
 
-function reportCountToStatus(count: number): ServiceStatus {
-  if (count >= THRESHOLD_MAJOR) return 'major_outage';
-  if (count >= THRESHOLD_DEGRADED) return 'degraded';
+interface DdThresholds {
+  degraded?: number;
+  major?: number;
+}
+
+function reportCountToStatus(count: number, thresholds: DdThresholds): ServiceStatus {
+  const major = thresholds.major ?? ENV_THRESHOLD_MAJOR;
+  const degraded = thresholds.degraded ?? ENV_THRESHOLD_DEGRADED;
+  if (count >= major) return 'major_outage';
+  if (count >= degraded) return 'degraded';
   return 'operational';
 }
 
 export async function fetchDowndetectorStatus(
   slug: string | null,
-  serviceSlug: string
+  serviceSlug: string,
+  thresholds: DdThresholds = {},
 ): Promise<StatusResult> {
   const result: StatusResult = {
     serviceSlug,
@@ -96,22 +104,24 @@ export async function fetchDowndetectorStatus(
     // count up based on the word "problems" appearing somewhere in a class
     // matching [class*="status"] produced false positives in the past.
     const statusText = $('.entry-title, .main-title').first().text().toLowerCase();
+    const threshDegraded = thresholds.degraded ?? ENV_THRESHOLD_DEGRADED;
+    const threshMajor = thresholds.major ?? ENV_THRESHOLD_MAJOR;
     if (statusText.includes('no problems') || statusText.includes('no issues')) {
-      reportCount = Math.min(reportCount, THRESHOLD_DEGRADED - 1);
+      reportCount = Math.min(reportCount, threshDegraded - 1);
     }
 
     // Pattern 4: Check for warning/danger CSS classes
     const hasWarning = $('.text-warning, .warning, [class*="warning"]').length > 0;
     const hasDanger = $('.text-danger, .danger, [class*="danger"]').length > 0;
 
-    if (hasDanger && reportCount < THRESHOLD_MAJOR) {
-      reportCount = THRESHOLD_MAJOR;
-    } else if (hasWarning && reportCount < THRESHOLD_DEGRADED) {
-      reportCount = THRESHOLD_DEGRADED;
+    if (hasDanger && reportCount < threshMajor) {
+      reportCount = threshMajor;
+    } else if (hasWarning && reportCount < threshDegraded) {
+      reportCount = threshDegraded;
     }
 
     result.reportCount = reportCount;
-    result.status = reportCountToStatus(reportCount);
+    result.status = reportCountToStatus(reportCount, thresholds);
     result.details = `${reportCount} reports on Downdetector`;
   } catch (err) {
     console.error(`[downdetector] Failed to fetch ${slug}:`, err);

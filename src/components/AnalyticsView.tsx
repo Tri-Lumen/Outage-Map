@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useServiceStatus, useHistory, useIncidents } from '@/hooks/useStatus';
+import { usePreferences } from '@/hooks/usePreferences';
 import { HistoryPoint } from '@/lib/types';
 import PageHeader from './ui/PageHeader';
 import StatTile from './ui/StatTile';
@@ -15,6 +16,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
   Cell,
+  Legend,
 } from 'recharts';
 
 function uptimeForService(points: HistoryPoint[]): number {
@@ -31,9 +33,14 @@ function mttrForService(points: HistoryPoint[]): number {
 }
 
 export default function AnalyticsView() {
+  const [rangeDays, setRangeDays] = useState<7 | 30 | 90>(30);
+  const [search, setSearch] = useState('');
+  const prefs = usePreferences();
+  const slaTarget = prefs.slaTarget ?? 99.9;
+
   const { data: statusData } = useServiceStatus();
-  const { data: historyData } = useHistory(30);
-  const { data: incidentData } = useIncidents(30);
+  const { data: historyData } = useHistory(rangeDays);
+  const { data: incidentData } = useIncidents(rangeDays);
 
   const services = useMemo(() => statusData?.services || [], [statusData]);
   const history = useMemo(() => historyData?.history || {}, [historyData]);
@@ -67,10 +74,50 @@ export default function AnalyticsView() {
       rows.reduce((s, r) => s + r.uptime, 0) / Math.max(rows.length, 1);
     const totalDowntime = rows.reduce((s, r) => s + r.totalDowntime, 0);
     const totalIncidents = rows.reduce((s, r) => s + r.incidents, 0);
-    const slaTarget = 99.9;
     const meetingSla = rows.filter((r) => r.uptime >= slaTarget).length;
     return { avgUptime, totalDowntime, totalIncidents, slaTarget, meetingSla };
-  }, [rows]);
+  }, [rows, slaTarget]);
+
+  const incidentChartData = useMemo(() => {
+    return rows
+      .filter((r) => r.incidents > 0)
+      .map((r) => {
+        const svcIncidents = incidents.filter((i) => i.service === r.slug);
+        return {
+          name: r.name.split(' ')[0],
+          critical: svcIncidents.filter((i) => i.severity === 'critical').length,
+          major:    svcIncidents.filter((i) => i.severity === 'major').length,
+          minor:    svcIncidents.filter((i) => i.severity === 'minor').length,
+        };
+      })
+      .sort((a, b) => (b.critical + b.major + b.minor) - (a.critical + a.major + a.minor));
+  }, [rows, incidents]);
+
+  const visibleRows = useMemo(
+    () => rows.filter((r) => r.name.toLowerCase().includes(search.toLowerCase())),
+    [rows, search],
+  );
+
+  const exportCsv = useCallback(() => {
+    const headers = ['Service', 'Uptime %', 'Downtime (min)', 'MTTR (min)', 'Incidents', 'Critical', 'SLA'];
+    const csvRows = visibleRows.map((r) => [
+      r.name,
+      r.uptimeLabel,
+      r.totalDowntime,
+      r.mttr,
+      r.incidents,
+      r.criticalIncidents,
+      r.uptime >= aggregate.slaTarget ? 'Met' : 'Breached',
+    ]);
+    const csv = [headers, ...csvRows].map((row) => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `outage-analytics-${rangeDays}d.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, [visibleRows, aggregate.slaTarget, rangeDays]);
 
   const uptimeChartData = rows.map((r) => ({
     name: r.name.split(' ')[0],
@@ -85,10 +132,26 @@ export default function AnalyticsView() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="30-Day Analytics"
+        eyebrow={`${rangeDays}-Day Analytics`}
         title="Reliability & SLA trends"
         description="Uptime, downtime minutes, and incident distribution across monitored services."
       />
+
+      <div className="flex items-center gap-2">
+        <div className="inline-flex items-center gap-1 bg-white/5 rounded-full p-1">
+          {([7, 30, 90] as const).map((d) => (
+            <button
+              key={d}
+              onClick={() => setRangeDays(d)}
+              className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                rangeDays === d ? 'bg-accent text-white' : 'text-muted hover:text-foreground'
+              }`}
+            >
+              {d}d
+            </button>
+          ))}
+        </div>
+      </div>
 
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
         <StatTile
@@ -96,8 +159,8 @@ export default function AnalyticsView() {
           value={`${aggregate.avgUptime.toFixed(2)}%`}
           accent="green"
           hint="Across all services"
-          trend={aggregate.avgUptime >= 99.9 ? 'up' : 'down'}
-          trendLabel={aggregate.avgUptime >= 99.9 ? 'Above SLA' : 'Below 99.9%'}
+          trend={aggregate.avgUptime >= aggregate.slaTarget ? 'up' : 'down'}
+          trendLabel={aggregate.avgUptime >= aggregate.slaTarget ? 'Above SLA' : `Below ${aggregate.slaTarget}%`}
         />
         <StatTile
           label="SLA Compliance"
@@ -109,10 +172,10 @@ export default function AnalyticsView() {
           label="Total Downtime"
           value={`${Math.round(aggregate.totalDowntime / 60)}h`}
           accent="amber"
-          hint={`${aggregate.totalDowntime.toLocaleString()} min · last 30d`}
+          hint={`${aggregate.totalDowntime.toLocaleString()} min · last ${rangeDays}d`}
         />
         <StatTile
-          label="Incidents (30d)"
+          label={`Incidents (${rangeDays}d)`}
           value={aggregate.totalIncidents}
           accent={aggregate.totalIncidents > 10 ? 'red' : 'indigo'}
           hint="All severities"
@@ -124,7 +187,7 @@ export default function AnalyticsView() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-sm font-semibold text-foreground">Uptime by service</h2>
-              <p className="text-xs text-muted mt-0.5">30-day rolling window</p>
+              <p className="text-xs text-muted mt-0.5">{rangeDays}-day rolling window</p>
             </div>
             <span className="text-xs text-muted">SLA target: {aggregate.slaTarget}%</span>
           </div>
@@ -164,11 +227,105 @@ export default function AnalyticsView() {
         </Card>
       </section>
 
+      {rows.length > 0 && aggregate.totalIncidents > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-1 h-5 rounded-full bg-accent" />
+            <h2 className="text-base font-semibold text-foreground">Top services by incidents</h2>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[...rows]
+              .filter((r) => r.incidents > 0)
+              .sort((a, b) => b.incidents - a.incidents)
+              .slice(0, 5)
+              .map((r, i) => (
+                <div
+                  key={r.slug}
+                  className="flex items-center gap-3 px-4 py-2.5 rounded-xl surface-card border border-subtle"
+                >
+                  <span className="text-xs font-bold text-muted w-4">#{i + 1}</span>
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: r.color }} />
+                  <span className="text-sm font-medium text-foreground">{r.name}</span>
+                  <span className="text-xs text-muted ml-2">{r.incidents} incidents</span>
+                  {r.criticalIncidents > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">
+                      {r.criticalIncidents} crit
+                    </span>
+                  )}
+                </div>
+              ))}
+          </div>
+        </section>
+      )}
+
+      {incidentChartData.length > 0 && (
+        <section>
+          <Card>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">Incident breakdown by severity</h2>
+                <p className="text-xs text-muted mt-0.5">Services with at least one incident in the period</p>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={incidentChartData} margin={{ top: 10, right: 20, bottom: 0, left: -10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fill: 'var(--muted)', fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={{ stroke: 'var(--border-strong)' }}
+                />
+                <YAxis
+                  tick={{ fill: 'var(--muted)', fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={{ stroke: 'var(--border-strong)' }}
+                  allowDecimals={false}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: 'var(--surface-elevated)',
+                    border: '1px solid var(--border-strong)',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    color: 'var(--foreground)',
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 11, color: 'var(--muted)' }} />
+                <Bar dataKey="critical" stackId="a" fill="#EF5350" name="Critical" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="major" stackId="a" fill="#FF8A65" name="Major" />
+                <Bar dataKey="minor" stackId="a" fill="#FFD54F" name="Minor" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
+        </section>
+      )}
+
       <section>
-        <h2 className="text-base font-semibold text-foreground mb-3 flex items-center gap-2">
-          <span className="w-1 h-5 rounded-full bg-accent-cyan" />
-          Service reliability breakdown
-        </h2>
+        <div className="flex items-center justify-between mb-3 gap-4 flex-wrap">
+          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+            <span className="w-1 h-5 rounded-full bg-accent-cyan" />
+            Service reliability breakdown
+          </h2>
+          <div className="flex items-center gap-2">
+            <input
+              type="search"
+              placeholder="Filter services…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="px-3 py-1.5 text-xs rounded-lg bg-white/5 border border-subtle text-foreground placeholder-muted focus:outline-none focus:border-accent"
+            />
+            <button
+              onClick={exportCsv}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-white/5 border border-subtle text-foreground hover:bg-white/10 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              Export CSV
+            </button>
+          </div>
+        </div>
         <Card padded={false} className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -183,7 +340,7 @@ export default function AnalyticsView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
-                {rows.map((r) => {
+                {visibleRows.map((r) => {
                   const meets = r.uptime >= aggregate.slaTarget;
                   return (
                     <tr key={r.slug} className="hover:bg-white/[0.02] transition-colors">
@@ -199,7 +356,7 @@ export default function AnalyticsView() {
                       <td className="px-5 py-3 text-right tabular-nums">
                         <span
                           className={
-                            r.uptime >= 99.9
+                            r.uptime >= aggregate.slaTarget
                               ? 'text-emerald-400'
                               : r.uptime >= 99
                                 ? 'text-yellow-400'

@@ -53,6 +53,7 @@ const StatForm: ConfigForm = ({ tile, onUpdate }) => {
           <option value="incidents">Active incidents</option>
           <option value="dd">DD reports</option>
           <option value="mttr">MTTR (30d)</option>
+          <option value="sla">SLA compliance</option>
         </select>
       </div>
     </>
@@ -112,7 +113,8 @@ const SEVERITIES = ['critical', 'major', 'minor'] as const;
 const STATUSES = ['investigating', 'identified', 'monitoring', 'resolved'] as const;
 
 const IncidentFeedForm: ConfigForm = ({ tile, onUpdate }) => {
-  const filters = (tile.config.filters ?? {}) as { severity?: string[]; statuses?: string[] };
+  const filters = (tile.config.filters ?? {}) as { severity?: string[]; statuses?: string[]; days?: number };
+  const days = filters.days ?? 7;
   const toggle = (key: 'severity' | 'statuses', value: string) => {
     const current = filters[key] ?? [];
     const next = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
@@ -121,6 +123,20 @@ const IncidentFeedForm: ConfigForm = ({ tile, onUpdate }) => {
   return (
     <>
       {common(tile, onUpdate)}
+      <div className="twk-row">
+        <div className="twk-lbl"><span>Window</span></div>
+        <div className="twk-seg">
+          {[7, 14, 30].map((d) => (
+            <button
+              key={d}
+              data-on={days === d}
+              onClick={() => update(tile, onUpdate, { filters: { ...filters, days: d } })}
+            >
+              {d}d
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="twk-row">
         <div className="twk-lbl"><span>Severity</span></div>
         <div className="twk-chips">
@@ -153,8 +169,9 @@ const IncidentFeedForm: ConfigForm = ({ tile, onUpdate }) => {
   );
 };
 
-const ServiceGridForm: ConfigForm = ({ tile, onUpdate }) => {
+const ServiceGridForm: ConfigForm = ({ tile, live, onUpdate }) => {
   const filters = (tile.config.filters ?? {}) as { hideOperational?: boolean };
+  const selectedServices = (tile.config.services ?? []) as string[];
   return (
     <>
       {common(tile, onUpdate, { hideRefresh: true })}
@@ -170,6 +187,28 @@ const ServiceGridForm: ConfigForm = ({ tile, onUpdate }) => {
         >
           <i />
         </button>
+      </div>
+      <div className="twk-row">
+        <div className="twk-lbl"><span>Services</span></div>
+        <div className="twk-chips" style={{ maxHeight: 120, overflowY: 'auto' }}>
+          {live.services.map((s) => {
+            const selected = selectedServices.includes(s.slug);
+            return (
+              <button
+                key={s.slug}
+                className={`chip ${selected ? 'chip-on' : ''}`}
+                onClick={() => {
+                  const next = selected
+                    ? selectedServices.filter((x) => x !== s.slug)
+                    : [...selectedServices, s.slug];
+                  update(tile, onUpdate, { services: next.length ? next : undefined });
+                }}
+              >
+                {s.name}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </>
   );
@@ -214,6 +253,7 @@ const UptimeChartForm: ConfigForm = ({ tile, live, onUpdate }) => {
 
 const RssForm: ConfigForm = ({ tile, onUpdate }) => {
   const feed = (tile.config.feed as string) || 'aws-blog';
+  const customFeedUrl = (tile.config.customFeedUrl as string) || '';
   return (
     <>
       {common(tile, onUpdate, { hideRefresh: true })}
@@ -226,8 +266,21 @@ const RssForm: ConfigForm = ({ tile, onUpdate }) => {
         >
           <option value="aws-blog">AWS What&apos;s New</option>
           <option value="gh-blog">GitHub Engineering</option>
+          <option value="custom">Custom URL</option>
         </select>
       </div>
+      {feed === 'custom' && (
+        <div className="twk-row">
+          <div className="twk-lbl"><span>URL</span></div>
+          <input
+            type="url"
+            className="twk-field"
+            placeholder="https://example.com/feed.xml"
+            value={customFeedUrl}
+            onChange={(e) => update(tile, onUpdate, { customFeedUrl: e.target.value })}
+          />
+        </div>
+      )}
     </>
   );
 };
@@ -235,13 +288,38 @@ const RssForm: ConfigForm = ({ tile, onUpdate }) => {
 const StatusMapForm: ConfigForm = ({ tile, onUpdate }) => common(tile, onUpdate, { hideRefresh: true });
 const StatusPageForm: ConfigForm = ({ tile, onUpdate }) => common(tile, onUpdate, { hideRefresh: true });
 
+const IncidentMetricsForm: ConfigForm = ({ tile, onUpdate }) => {
+  const days = typeof tile.config.days === 'number' ? tile.config.days : 30;
+  return (
+    <>
+      {common(tile, onUpdate, { hideRefresh: true })}
+      <div className="twk-row">
+        <div className="twk-lbl"><span>Default range</span></div>
+        <div className="twk-seg">
+          {[7, 30, 90].map((d) => (
+            <button key={d} data-on={days === d} onClick={() => update(tile, onUpdate, { days: d })}>
+              {d}d
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+};
+
+const FetcherHealthForm: ConfigForm = ({ tile, onUpdate }) => common(tile, onUpdate, { hideRefresh: true });
+const AlertAuditForm: ConfigForm = ({ tile, onUpdate }) => common(tile, onUpdate, { hideRefresh: true });
+
 export const TILE_CONFIG_FORMS: Record<TileType, ConfigForm> = {
-  'stat':          StatForm,
-  'service-watch': ServiceWatchForm,
-  'service-grid':  ServiceGridForm,
-  'incident-feed': IncidentFeedForm,
-  'rss':           RssForm,
-  'uptime-chart':  UptimeChartForm,
-  'status-map':    StatusMapForm,
-  'statuspage':    StatusPageForm,
+  'stat':              StatForm,
+  'service-watch':     ServiceWatchForm,
+  'service-grid':      ServiceGridForm,
+  'incident-feed':     IncidentFeedForm,
+  'rss':               RssForm,
+  'uptime-chart':      UptimeChartForm,
+  'status-map':        StatusMapForm,
+  'statuspage':        StatusPageForm,
+  'incident-metrics':  IncidentMetricsForm,
+  'fetcher-health':    FetcherHealthForm,
+  'alert-audit':       AlertAuditForm,
 };

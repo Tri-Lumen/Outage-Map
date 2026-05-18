@@ -1,7 +1,13 @@
 'use client';
 
 import useSWR from 'swr';
-import { ServiceStatusResponse, IncidentResponse, HistoryResponse } from '@/lib/types';
+import { ServiceStatusResponse, IncidentResponse, HistoryResponse, SummaryResponse } from '@/lib/types';
+
+interface RssFeedResponse {
+  feed: string;
+  title: string;
+  items: Array<{ title: string; url: string | null; publishedAt: string | null }>;
+}
 
 const fetcher = async (url: string) => {
   const res = await fetch(url);
@@ -40,5 +46,83 @@ export function useHistory(days: number = 30, refreshIntervalMs?: number) {
       refreshInterval: refreshIntervalMs ?? 300000,
       revalidateOnFocus: true,
     }
+  );
+}
+
+export function useSummary(refreshIntervalMs?: number) {
+  return useSWR<SummaryResponse>(
+    '/api/summary',
+    fetcher,
+    {
+      refreshInterval: refreshIntervalMs ?? 60000,
+      revalidateOnFocus: true,
+    }
+  );
+}
+
+export function useRssFeed(feedId: string, customUrl?: string, refreshIntervalMs?: number) {
+  const key = feedId === 'custom' && customUrl
+    ? `/api/rss?feed=custom&url=${encodeURIComponent(customUrl)}`
+    : feedId ? `/api/rss?feed=${encodeURIComponent(feedId)}` : null;
+  return useSWR<RssFeedResponse>(key, fetcher, {
+    refreshInterval: refreshIntervalMs ?? 300000,
+    revalidateOnFocus: false,
+  });
+}
+
+interface FetcherHealthEntry {
+  service: string;
+  source: string;
+  lastSuccessAt: string | null;
+  lastErrorAt: string | null;
+  lastError: string | null;
+  lastLatencyMs: number | null;
+  consecutiveFailures: number;
+}
+
+export function useFetcherHealth(refreshIntervalMs?: number) {
+  return useSWR<{ fetchers: FetcherHealthEntry[] }>(
+    '/api/health/fetchers',
+    fetcher,
+    {
+      refreshInterval: refreshIntervalMs ?? 30000,
+      revalidateOnFocus: true,
+    }
+  );
+}
+
+interface AlertLogEntry {
+  id: number;
+  service_slug: string;
+  incident_id: string | null;
+  alert_type: string;
+  sent_at: string;
+}
+
+export function useAlertLog(enabled: boolean, refreshIntervalMs?: number) {
+  return useSWR<{ log: AlertLogEntry[] }>(
+    enabled ? '/api/alerts/log' : null,
+    fetcher,
+    { refreshInterval: refreshIntervalMs ?? 60000, revalidateOnFocus: false }
+  );
+}
+
+export type { FetcherHealthEntry, AlertLogEntry };
+
+export interface IncidentMetrics {
+  days: number;
+  mttrBySeverity: { critical?: number; major?: number; minor?: number };
+  resolutionRate: number;
+  totalIncidents: number;
+  resolvedIncidents: number;
+  countBySeverity: { critical?: number; major?: number; minor?: number };
+  topServices: { service_slug: string; count: number }[];
+}
+
+export function useIncidentMetrics(days = 30, refreshIntervalMs = 60000) {
+  return useSWR<IncidentMetrics>(
+    `/api/incidents/metrics?days=${days}`,
+    fetcher,
+    { refreshInterval: refreshIntervalMs, revalidateOnFocus: false }
   );
 }

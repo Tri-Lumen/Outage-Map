@@ -77,6 +77,7 @@ export default function OutageMapView() {
   const [selectedService, setSelectedService] = useState<string>('all');
   const [scope, setScope] = useState<Scope>('global');
   const [hoverRegion, setHoverRegion] = useState<string | null>(null);
+  const [hotspotPct, setHotspotPct] = useState(50);
 
   const filteredServices = useMemo(
     () =>
@@ -127,7 +128,7 @@ export default function OutageMapView() {
   const activeData = scope === 'global' ? worldData : naData;
   const maxReports = Math.max(1, ...activeData.map((r) => r.total));
   const totalReports = activeData.reduce((s, r) => s + r.total, 0);
-  const hotspotRegions = activeData.filter((r) => r.total > maxReports * 0.5).length;
+  const hotspotRegions = activeData.filter((r) => r.total > maxReports * (hotspotPct / 100)).length;
   const peak = activeData.length
     ? activeData.reduce((a, b) => (b.total > a.total ? b : a), activeData[0])
     : null;
@@ -152,7 +153,7 @@ export default function OutageMapView() {
           label="Hotspots"
           value={hotspotRegions}
           accent={hotspotRegions > 0 ? 'red' : 'green'}
-          hint=">50% of peak"
+          hint={`>${hotspotPct}% of peak`}
         />
         <StatTile
           label="Peak Region"
@@ -213,6 +214,21 @@ export default function OutageMapView() {
                 {s.name.split(' ')[0]}
               </button>
             ))}
+          </div>
+          <div className="flex items-center gap-4 flex-wrap px-1">
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-muted whitespace-nowrap">Hotspot ≥</label>
+              <input
+                type="range"
+                min={10}
+                max={90}
+                step={5}
+                value={hotspotPct}
+                onChange={(e) => setHotspotPct(Number(e.target.value))}
+                className="w-24 accent-accent"
+              />
+              <span className="text-xs text-muted-strong w-8 tabular-nums">{hotspotPct}%</span>
+            </div>
           </div>
         </div>
 

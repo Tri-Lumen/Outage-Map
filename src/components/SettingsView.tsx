@@ -219,6 +219,28 @@ export default function SettingsView() {
               />
             </button>
           </div>
+
+          <div className="flex items-center justify-between py-2 border-t border-subtle">
+            <div>
+              <p className="text-sm text-foreground">SLA target</p>
+              <p className="text-[11px] text-muted">Uptime % threshold for compliance badges in Analytics</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={90}
+                max={100}
+                step={0.01}
+                value={prefs.slaTarget ?? 99.9}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v) && v >= 90 && v <= 100) update('slaTarget', v);
+                }}
+                className="w-20 px-2 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground text-right focus:outline-none focus:border-accent"
+              />
+              <span className="text-xs text-muted">%</span>
+            </div>
+          </div>
         </div>
       </Card>
 

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import useSWR from 'swr';
+import { useFetcherHealth, type FetcherHealthEntry } from '@/hooks/useStatus';
 import PageHeader from './ui/PageHeader';
 import ImportSlideOver from './ImportSlideOver';
 
@@ -84,6 +85,10 @@ export default function SourcesView() {
   });
   const sourceRows = data?.sources ?? [];
   const sources = sourceRows.map(rowToView);
+  const { data: healthData } = useFetcherHealth();
+  const healthBySlug: Record<string, FetcherHealthEntry> = Object.fromEntries(
+    (healthData?.fetchers ?? []).map((f) => [f.service, f])
+  );
   const [importOpen, setImportOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +96,8 @@ export default function SourcesView() {
   const [contributing, setContributing] = useState(false);
   const [contributeMessage, setContributeMessage] = useState<{ ok: boolean; text: string; url?: string } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{ name: string; color: string; refreshSeconds: number } | null>(null);
 
   const openContribute = () => {
     setContributeMessage(null);
@@ -153,6 +160,41 @@ export default function SourcesView() {
         setError(body.error || `Request failed (HTTP ${res.status})`);
         return;
       }
+      mutate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Network error');
+    }
+  };
+
+  const startEdit = (src: ImportedSource) => {
+    const row = sourceRows.find((r) => r.id === src.id);
+    setEditingId(src.id);
+    setEditDraft({
+      name: src.name,
+      color: src.color,
+      refreshSeconds: row?.refreshSeconds ?? src.refresh,
+    });
+  };
+
+  const handleEditSave = async (id: string) => {
+    if (!editDraft) return;
+    try {
+      const res = await fetch(`${SOURCES_API}/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editDraft.name,
+          color: editDraft.color,
+          refreshSeconds: editDraft.refreshSeconds,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.error || `Update failed (HTTP ${res.status})`);
+        return;
+      }
+      setEditingId(null);
+      setEditDraft(null);
       mutate();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error');
@@ -277,18 +319,22 @@ export default function SourcesView() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {filtered.map((src) => (
+          {filtered.map((src) => {
+            const row = sourceRows.find((r) => r.id === src.id);
+            const h = row ? healthBySlug[row.slug] : undefined;
+            const latencyColor = !h || h.lastLatencyMs === null ? 'var(--muted-strong)'
+              : h.lastLatencyMs < 500 ? '#2aa198'
+              : h.lastLatencyMs < 2000 ? '#b58900'
+              : '#dc322f';
+            return (
+            <div key={src.id} style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
             <div
-              key={src.id}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 14,
                 padding: '14px 16px',
                 background: 'var(--surface)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 12,
-                transition: 'border-color 140ms ease',
               }}
             >
               {/* Logo */}
@@ -338,8 +384,40 @@ export default function SourcesView() {
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0, fontSize: 11, color: 'var(--muted-strong)' }}>
                 <span>Refresh every {src.refresh < 60 ? `${src.refresh}s` : `${src.refresh / 60}m`}</span>
                 <span>Added {relTime(src.addedAt)}</span>
+                {h && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {h.lastLatencyMs !== null && (
+                      <span style={{ color: latencyColor }}>{h.lastLatencyMs}ms</span>
+                    )}
+                    {h.consecutiveFailures > 0 ? (
+                      <span
+                        title={h.lastError ?? undefined}
+                        style={{ padding: '1px 5px', borderRadius: 999, background: 'rgba(220,50,47,0.15)', color: '#dc322f' }}
+                      >
+                        {h.consecutiveFailures} fail
+                      </span>
+                    ) : h.lastSuccessAt ? (
+                      <span style={{ color: '#2aa198' }}>✓ {relTime(h.lastSuccessAt)}</span>
+                    ) : null}
+                  </div>
+                )}
               </div>
 
+              {/* Edit */}
+              <button
+                onClick={() => editingId === src.id ? (setEditingId(null), setEditDraft(null)) : startEdit(src)}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 30, height: 30, background: 'transparent', border: 0,
+                  color: editingId === src.id ? 'var(--accent)' : 'var(--muted-strong)',
+                  borderRadius: 8, cursor: 'pointer', flexShrink: 0,
+                }}
+                title="Edit source"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </button>
               {/* Remove */}
               <button
                 onClick={() => handleRemove(src.id)}
@@ -363,7 +441,52 @@ export default function SourcesView() {
                 </svg>
               </button>
             </div>
-          ))}
+            {editingId === src.id && editDraft && (
+              <div style={{
+                padding: '12px 16px',
+                borderTop: '1px solid var(--border-subtle)',
+                background: 'var(--surface-elevated)',
+                display: 'flex',
+                gap: 10,
+                alignItems: 'flex-end',
+                flexWrap: 'wrap',
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.4 }}>Name</label>
+                  <input
+                    style={{ padding: '5px 8px', borderRadius: 7, background: 'var(--surface)', border: '1px solid var(--border-subtle)', color: 'var(--foreground)', fontSize: 13, fontFamily: 'inherit', width: 160 }}
+                    value={editDraft.name}
+                    onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.4 }}>Color</label>
+                  <input
+                    type="color"
+                    style={{ width: 40, height: 30, borderRadius: 7, border: '1px solid var(--border-subtle)', cursor: 'pointer', padding: 2 }}
+                    value={editDraft.color}
+                    onChange={(e) => setEditDraft({ ...editDraft, color: e.target.value })}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.4 }}>Refresh (s)</label>
+                  <input
+                    type="number"
+                    min={10}
+                    style={{ padding: '5px 8px', borderRadius: 7, background: 'var(--surface)', border: '1px solid var(--border-subtle)', color: 'var(--foreground)', fontSize: 13, fontFamily: 'inherit', width: 80 }}
+                    value={editDraft.refreshSeconds}
+                    onChange={(e) => setEditDraft({ ...editDraft, refreshSeconds: Math.max(10, parseInt(e.target.value) || 60) })}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="board-btn" onClick={() => { setEditingId(null); setEditDraft(null); }}>Cancel</button>
+                  <button className="board-btn board-btn-primary" onClick={() => handleEditSave(src.id)}>Save</button>
+                </div>
+              </div>
+            )}
+            </div>
+            );
+          })}
         </div>
       )}
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRecentIncidents } from '@/lib/db';
+import { getPaginatedIncidents } from '@/lib/db';
 import { getServices } from '@/lib/services';
 import { IncidentResponse, asIncidentSeverity, asIncidentStatus } from '@/lib/types';
 
@@ -8,22 +8,32 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+
     const daysParam = Number(searchParams.get('days'));
     const days = Number.isFinite(daysParam) && daysParam > 0
       ? Math.min(Math.floor(daysParam), 90)
       : 7;
-    const serviceFilter = searchParams.get('service');
+
+    const limitParam = Number(searchParams.get('limit'));
+    const limit = Number.isFinite(limitParam) && limitParam > 0
+      ? Math.min(Math.floor(limitParam), 200)
+      : 50;
+
+    const offsetParam = Number(searchParams.get('offset'));
+    const offset = Number.isFinite(offsetParam) && offsetParam >= 0
+      ? Math.floor(offsetParam)
+      : 0;
+
+    const since = searchParams.get('since') || null;
+
     const allServices = getServices();
     const validSlugs = new Set(allServices.map((s) => s.slug));
+    const serviceFilter = searchParams.get('service');
     const service = serviceFilter && serviceFilter !== 'all' && validSlugs.has(serviceFilter)
       ? serviceFilter
       : null;
 
-    let incidents = getRecentIncidents(days);
-
-    if (service) {
-      incidents = incidents.filter((i) => i.service_slug === service);
-    }
+    const { incidents, total } = getPaginatedIncidents({ days, service, limit, offset, since });
 
     const serviceMap = new Map(allServices.map((s) => [s.slug, s.name]));
 
@@ -41,7 +51,7 @@ export async function GET(request: NextRequest) {
       updatedAt: i.updated_at,
     }));
 
-    return NextResponse.json({ incidents: response });
+    return NextResponse.json({ incidents: response, total, limit, offset });
   } catch (err) {
     console.error('[api/incidents] Error:', err);
     return NextResponse.json(

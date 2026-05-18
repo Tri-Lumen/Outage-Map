@@ -1,29 +1,13 @@
-import { NextResponse } from 'next/server';
+import { createHash } from 'crypto';
+import { NextRequest, NextResponse } from 'next/server';
 import { getServiceStatuses, getActiveIncidentCounts } from '@/lib/db';
 import { getServices } from '@/lib/services';
 import { ServiceStatus, ServiceStatusResponse } from '@/lib/types';
+import { deriveOverallStatus } from '@/lib/statusUtils';
 
 export const dynamic = 'force-dynamic';
 
-function deriveOverallStatus(
-  official: ServiceStatus,
-  downdetector: ServiceStatus,
-  officialIncidentCount: number,
-): ServiceStatus {
-  // Official outage signal always wins.
-  if (official === 'down' || official === 'major_outage') return official;
-  // Only escalate to major based on Downdetector alone if the official source
-  // also has an active incident — Downdetector spikes by themselves are noisy.
-  if ((downdetector === 'down' || downdetector === 'major_outage') && officialIncidentCount > 0) {
-    return 'major_outage';
-  }
-  if (official === 'degraded' || downdetector === 'degraded') return 'degraded';
-  if (official === 'operational') return 'operational';
-  if (official === 'unknown' && downdetector !== 'unknown') return downdetector;
-  return official;
-}
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const statuses = getServiceStatuses();
     const activeIncidentCounts = getActiveIncidentCounts();
@@ -64,9 +48,19 @@ export async function GET() {
       return latest;
     }, null as string | null);
 
-    return NextResponse.json({
+    const responseData = {
       services,
       lastUpdated: latestCheck || new Date().toISOString(),
+    };
+
+    const body = JSON.stringify(responseData);
+    const etag = `"${createHash('md5').update(body).digest('hex')}"`;
+    if (request.headers.get('if-none-match') === etag) {
+      return new NextResponse(null, { status: 304, headers: { ETag: etag } });
+    }
+
+    return NextResponse.json(responseData, {
+      headers: { ETag: etag, 'Cache-Control': 'no-cache' },
     });
   } catch (err) {
     console.error('[api/status] Error:', err);

@@ -120,9 +120,18 @@ function initTables(db: Database.Database) {
   `);
 
   // Safe migration for pre-existing databases — add incident_count if missing.
-  const cols = db.prepare(`PRAGMA table_info(status_history)`).all() as Array<{ name: string }>;
-  if (!cols.some((c) => c.name === 'incident_count')) {
+  const historyCols = db.prepare(`PRAGMA table_info(status_history)`).all() as Array<{ name: string }>;
+  if (!historyCols.some((c) => c.name === 'incident_count')) {
     db.exec(`ALTER TABLE status_history ADD COLUMN incident_count INTEGER DEFAULT 0`);
+  }
+
+  // Safe migration — add webhook columns to alert_rules if missing.
+  const ruleCols = db.prepare(`PRAGMA table_info(alert_rules)`).all() as Array<{ name: string }>;
+  if (!ruleCols.some((c) => c.name === 'webhook_url')) {
+    db.exec(`ALTER TABLE alert_rules ADD COLUMN webhook_url TEXT`);
+  }
+  if (!ruleCols.some((c) => c.name === 'webhook_enabled')) {
+    db.exec(`ALTER TABLE alert_rules ADD COLUMN webhook_enabled INTEGER NOT NULL DEFAULT 0`);
   }
 }
 
@@ -218,26 +227,59 @@ export function getActiveIncidentCounts(): Record<string, number> {
   return out;
 }
 
+type IncidentRow = {
+  id: number;
+  service_slug: string;
+  incident_id: string;
+  title: string;
+  status: string;
+  severity: string;
+  started_at: string | null;
+  resolved_at: string | null;
+  description: string | null;
+  source_url: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export function getRecentIncidents(days: number = 7) {
   const db = getDb();
   return db.prepare(`
     SELECT * FROM incidents
     WHERE created_at >= datetime('now', '-' || ? || ' days')
     ORDER BY started_at DESC, created_at DESC
-  `).all(days) as Array<{
-    id: number;
-    service_slug: string;
-    incident_id: string;
-    title: string;
-    status: string;
-    severity: string;
-    started_at: string | null;
-    resolved_at: string | null;
-    description: string | null;
-    source_url: string | null;
-    created_at: string;
-    updated_at: string;
-  }>;
+  `).all(days) as IncidentRow[];
+}
+
+export function getPaginatedIncidents(opts: {
+  days?: number;
+  service?: string | null;
+  limit?: number;
+  offset?: number;
+  since?: string | null;
+}): { incidents: IncidentRow[]; total: number } {
+  const db = getDb();
+  const { days = 7, service = null, limit = 50, offset = 0, since = null } = opts;
+
+  const conditions: string[] = [`created_at >= datetime('now', '-' || ? || ' days')`];
+  const params: Array<string | number> = [days];
+
+  if (service) {
+    conditions.push('service_slug = ?');
+    params.push(service);
+  }
+  if (since) {
+    conditions.push('updated_at > ?');
+    params.push(since);
+  }
+
+  const where = `WHERE ${conditions.join(' AND ')}`;
+  const total = (db.prepare(`SELECT COUNT(*) as n FROM incidents ${where}`).get(...params) as { n: number }).n;
+  const incidents = db.prepare(
+    `SELECT * FROM incidents ${where} ORDER BY started_at DESC, created_at DESC LIMIT ? OFFSET ?`
+  ).all(...params, limit, offset) as IncidentRow[];
+
+  return { incidents, total };
 }
 
 export function getStatusHistory(serviceSlug: string | null, days: number = 30) {
@@ -318,26 +360,26 @@ export interface AlertRuleRow {
   services: string;
   min_severity: string;
   email_enabled: number;
+  webhook_url: string | null;
+  webhook_enabled: number;
   enabled: number;
   created_at: string;
   updated_at: string;
 }
 
+const RULE_COLS = 'id, email, services, min_severity, email_enabled, webhook_url, webhook_enabled, enabled, created_at, updated_at';
+
 export function listAlertRules(): AlertRuleRow[] {
   const db = getDb();
   return db.prepare(`
-    SELECT id, email, services, min_severity, email_enabled, enabled, created_at, updated_at
-    FROM alert_rules
-    ORDER BY created_at DESC
+    SELECT ${RULE_COLS} FROM alert_rules ORDER BY created_at DESC
   `).all() as AlertRuleRow[];
 }
 
 export function listEnabledAlertRules(): AlertRuleRow[] {
   const db = getDb();
   return db.prepare(`
-    SELECT id, email, services, min_severity, email_enabled, enabled, created_at, updated_at
-    FROM alert_rules
-    WHERE enabled = 1
+    SELECT ${RULE_COLS} FROM alert_rules WHERE enabled = 1
   `).all() as AlertRuleRow[];
 }
 
@@ -347,18 +389,22 @@ export function insertAlertRule(row: {
   services: string;
   minSeverity: string;
   emailEnabled: boolean;
+  webhookUrl?: string | null;
+  webhookEnabled?: boolean;
   enabled: boolean;
 }) {
   const db = getDb();
   db.prepare(`
-    INSERT INTO alert_rules (id, email, services, min_severity, email_enabled, enabled)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO alert_rules (id, email, services, min_severity, email_enabled, webhook_url, webhook_enabled, enabled)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     row.id,
     row.email,
     row.services,
     row.minSeverity,
     row.emailEnabled ? 1 : 0,
+    row.webhookUrl ?? null,
+    row.webhookEnabled ? 1 : 0,
     row.enabled ? 1 : 0,
   );
 }
@@ -370,16 +416,20 @@ export function updateAlertRule(
     services: string;
     minSeverity: string;
     emailEnabled: boolean;
+    webhookUrl: string | null;
+    webhookEnabled: boolean;
     enabled: boolean;
   }>,
 ): boolean {
   const db = getDb();
   const fields: string[] = [];
-  const values: Array<string | number> = [];
+  const values: Array<string | number | null> = [];
   if (patch.email !== undefined) { fields.push('email = ?'); values.push(patch.email); }
   if (patch.services !== undefined) { fields.push('services = ?'); values.push(patch.services); }
   if (patch.minSeverity !== undefined) { fields.push('min_severity = ?'); values.push(patch.minSeverity); }
   if (patch.emailEnabled !== undefined) { fields.push('email_enabled = ?'); values.push(patch.emailEnabled ? 1 : 0); }
+  if (patch.webhookUrl !== undefined) { fields.push('webhook_url = ?'); values.push(patch.webhookUrl); }
+  if (patch.webhookEnabled !== undefined) { fields.push('webhook_enabled = ?'); values.push(patch.webhookEnabled ? 1 : 0); }
   if (patch.enabled !== undefined) { fields.push('enabled = ?'); values.push(patch.enabled ? 1 : 0); }
   if (fields.length === 0) return false;
   fields.push(`updated_at = datetime('now')`);

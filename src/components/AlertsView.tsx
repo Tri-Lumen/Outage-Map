@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import useSWR from 'swr';
-import { useServiceStatus } from '@/hooks/useStatus';
+import { useServiceStatus, useAlertLog } from '@/hooks/useStatus';
 import { AlertRule, IncidentSeverity } from '@/lib/types';
 import PageHeader from './ui/PageHeader';
 import Card from './ui/Card';
@@ -62,18 +62,26 @@ export default function AlertsView() {
     minSeverity: IncidentSeverity;
     emailEnabled: boolean;
     desktopEnabled: boolean;
+    webhookUrl: string;
+    webhookEnabled: boolean;
   }>({
     email: '',
     services: [],
     minSeverity: 'major',
     emailEnabled: true,
     desktopEnabled: false,
+    webhookUrl: '',
+    webhookEnabled: false,
   });
   const [showForm, setShowForm] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<TestFeedback | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<typeof draft | null>(null);
+  const [logOpen, setLogOpen] = useState(false);
+  const { data: logData } = useAlertLog(logOpen);
 
   // One-shot migration: lift any rules left in localStorage from the old
   // client-only implementation up into the server, then clear the key.
@@ -122,6 +130,7 @@ export default function AlertsView() {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      const webhookUrlTrimmed = draft.webhookUrl.trim();
       const res = await fetch(RULES_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -130,6 +139,8 @@ export default function AlertsView() {
           services: draft.services,
           minSeverity: draft.minSeverity,
           emailEnabled: draft.emailEnabled,
+          webhookUrl: webhookUrlTrimmed || undefined,
+          webhookEnabled: draft.webhookEnabled && !!webhookUrlTrimmed,
           enabled: true,
         }),
       });
@@ -152,6 +163,8 @@ export default function AlertsView() {
         minSeverity: 'major',
         emailEnabled: true,
         desktopEnabled: false,
+        webhookUrl: '',
+        webhookEnabled: false,
       });
       setShowForm(false);
       mutate();
@@ -186,6 +199,44 @@ export default function AlertsView() {
       mutate();
     } catch {
       mutate();
+    }
+  };
+
+  const startEdit = (rule: AlertRule) => {
+    setEditingId(rule.id);
+    setEditDraft({
+      email: rule.email,
+      services: rule.services ?? [],
+      minSeverity: rule.minSeverity,
+      emailEnabled: rule.emailEnabled ?? true,
+      desktopEnabled: false,
+      webhookUrl: rule.webhookUrl ?? '',
+      webhookEnabled: rule.webhookEnabled ?? false,
+    });
+  };
+
+  const handleSave = async (id: string) => {
+    if (!editDraft) return;
+    const webhookUrlTrimmed = editDraft.webhookUrl.trim();
+    try {
+      const res = await fetch(`${RULES_API}/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          services: editDraft.services,
+          minSeverity: editDraft.minSeverity,
+          emailEnabled: editDraft.emailEnabled,
+          webhookUrl: webhookUrlTrimmed || undefined,
+          webhookEnabled: editDraft.webhookEnabled && !!webhookUrlTrimmed,
+        }),
+      });
+      if (res.ok) {
+        setEditingId(null);
+        setEditDraft(null);
+        mutate();
+      }
+    } catch {
+      /* ignore */
     }
   };
 
@@ -374,6 +425,32 @@ export default function AlertsView() {
                 </label>
               </div>
             </div>
+
+            <div className="lg:col-span-2">
+              <label className="block text-xs font-medium text-muted mb-2">Webhook URL <span className="text-muted-strong font-normal">(optional — Slack, Teams, or any HTTP endpoint)</span></label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="url"
+                  value={draft.webhookUrl}
+                  onChange={(e) => setDraft({ ...draft, webhookUrl: e.target.value, webhookEnabled: draft.webhookEnabled && !!e.target.value.trim() })}
+                  placeholder="https://hooks.slack.com/services/..."
+                  className="flex-1 px-3 py-2 rounded-md bg-white/5 border border-subtle text-sm text-foreground placeholder:text-muted-strong focus:outline-none focus:border-accent/50"
+                />
+                <label className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-subtle cursor-pointer hover:border-strong whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={draft.webhookEnabled}
+                    disabled={!draft.webhookUrl.trim() || !/^https?:\/\//i.test(draft.webhookUrl.trim())}
+                    onChange={(e) => setDraft({ ...draft, webhookEnabled: e.target.checked })}
+                    className="accent-accent"
+                  />
+                  <span className="text-xs text-foreground">Enable</span>
+                </label>
+              </div>
+              {draft.webhookUrl.trim() && !/^https?:\/\//i.test(draft.webhookUrl.trim()) && (
+                <p className="text-[11px] text-red-400 mt-1">URL must start with https://</p>
+              )}
+            </div>
           </div>
 
           {submitError && (
@@ -457,6 +534,11 @@ export default function AlertsView() {
                       {r.emailEnabled && (
                         <span className="text-[10px] text-muted">· email</span>
                       )}
+                      {r.webhookEnabled && r.webhookUrl && (
+                        <span className="text-[10px] text-muted" title={r.webhookUrl}>
+                          · webhook ({(() => { try { return new URL(r.webhookUrl).hostname; } catch { return r.webhookUrl.slice(0, 30); } })()})
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-muted mt-1 truncate">
                       {serviceNames.join(', ')}
@@ -473,6 +555,15 @@ export default function AlertsView() {
                     {isTesting ? 'Sending…' : 'Send test'}
                   </button>
                   <button
+                    onClick={() => editingId === r.id ? (setEditingId(null), setEditDraft(null)) : startEdit(r)}
+                    className="p-2 rounded-md text-muted hover:text-accent-cyan hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    aria-label={`Edit rule for ${r.email}`}
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                    </svg>
+                  </button>
+                  <button
                     onClick={() => deleteRule(r.id)}
                     className="p-2 rounded-md text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                     aria-label={`Delete rule for ${r.email}`}
@@ -482,6 +573,102 @@ export default function AlertsView() {
                     </svg>
                   </button>
                 </div>
+                {editingId === r.id && editDraft && (
+                  <div className="mt-3 pt-3 border-t border-subtle space-y-4">
+                    <p className="text-xs text-muted">Editing rule for <span className="text-foreground font-medium">{r.email}</span></p>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-muted mb-1.5">Minimum severity</label>
+                        <div className="flex items-center gap-0.5 p-1 rounded-lg bg-surface border border-subtle">
+                          {SEVERITY_ORDER.map((s) => (
+                            <button
+                              key={s}
+                              onClick={() => setEditDraft({ ...editDraft, minSeverity: s })}
+                              aria-pressed={editDraft.minSeverity === s}
+                              className={`flex-1 px-3 py-1.5 rounded-md text-xs capitalize transition-all duration-150 ${
+                                editDraft.minSeverity === s
+                                  ? 'bg-surface-elevated text-foreground font-semibold shadow-sm'
+                                  : 'font-medium text-muted hover:text-foreground'
+                              }`}
+                            >
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-muted mb-1.5">Channels</label>
+                        <div className="flex flex-wrap gap-2">
+                          <label className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-subtle cursor-pointer hover:border-strong">
+                            <input type="checkbox" checked={editDraft.emailEnabled}
+                              onChange={(e) => setEditDraft({ ...editDraft, emailEnabled: e.target.checked })}
+                              className="accent-accent" />
+                            <span className="text-xs text-foreground">Email</span>
+                          </label>
+                        </div>
+                      </div>
+                      <div className="lg:col-span-2">
+                        <label className="block text-xs font-medium text-muted mb-1.5">Services ({editDraft.services.length} selected)</label>
+                        <div className="flex flex-wrap gap-2">
+                          {services.map((s) => {
+                            const sel = editDraft.services.includes(s.slug);
+                            return (
+                              <button
+                                key={s.slug}
+                                onClick={() => setEditDraft({
+                                  ...editDraft,
+                                  services: sel
+                                    ? editDraft.services.filter((x) => x !== s.slug)
+                                    : [...editDraft.services, s.slug],
+                                })}
+                                aria-pressed={sel}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                                  sel ? 'border-accent bg-surface-elevated text-foreground' : 'border-subtle text-muted hover:border-strong'
+                                }`}
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.color }} />
+                                {s.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className="lg:col-span-2">
+                        <label className="block text-xs font-medium text-muted mb-1.5">Webhook URL</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="url"
+                            value={editDraft.webhookUrl}
+                            onChange={(e) => setEditDraft({ ...editDraft, webhookUrl: e.target.value })}
+                            placeholder="https://hooks.slack.com/..."
+                            className="flex-1 px-3 py-2 rounded-md bg-white/5 border border-subtle text-sm text-foreground placeholder:text-muted-strong focus:outline-none focus:border-accent/50"
+                          />
+                          <label className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-subtle cursor-pointer hover:border-strong whitespace-nowrap">
+                            <input type="checkbox" checked={editDraft.webhookEnabled}
+                              disabled={!editDraft.webhookUrl.trim() || !/^https?:\/\//i.test(editDraft.webhookUrl.trim())}
+                              onChange={(e) => setEditDraft({ ...editDraft, webhookEnabled: e.target.checked })}
+                              className="accent-accent" />
+                            <span className="text-xs text-foreground">Enable</span>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-subtle">
+                      <button
+                        onClick={() => { setEditingId(null); setEditDraft(null); }}
+                        className="px-4 py-2 rounded-md text-xs font-medium text-muted hover:text-foreground"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleSave(r.id)}
+                        className="px-4 py-2 rounded-md bg-accent hover:opacity-90 text-white text-xs font-medium transition-opacity"
+                      >
+                        Save changes
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {ruleFeedback && (
                   <div
                     role="status"
@@ -499,6 +686,56 @@ export default function AlertsView() {
               </Card>
             );
           })
+        )}
+      </section>
+
+      <section>
+        <button
+          onClick={() => setLogOpen((o) => !o)}
+          className="inline-flex items-center gap-2 text-xs font-medium text-muted hover:text-foreground transition-colors mb-3"
+        >
+          <svg
+            className={`w-3.5 h-3.5 transition-transform ${logOpen ? 'rotate-90' : ''}`}
+            fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+          </svg>
+          Alert history
+        </button>
+        {logOpen && (
+          <Card padded={false} className="overflow-hidden">
+            {!logData ? (
+              <p className="px-5 py-4 text-xs text-muted">Loading…</p>
+            ) : logData.log.length === 0 ? (
+              <p className="px-5 py-4 text-xs text-muted">No alerts have been sent yet.</p>
+            ) : (
+              <ul className="divide-y divide-white/[0.04]">
+                {logData.log.map((entry) => {
+                  const dotColor = entry.alert_type === 'email' ? '#268bd2'
+                    : entry.alert_type === 'webhook' ? '#6c71c4'
+                    : '#2aa198';
+                  const ts = new Date(entry.sent_at);
+                  const diffMs = Date.now() - ts.getTime();
+                  const diffMin = Math.floor(diffMs / 60000);
+                  const timeLabel = diffMin < 60 ? `${diffMin}m ago`
+                    : diffMin < 1440 ? `${Math.floor(diffMin / 60)}h ago`
+                    : `${Math.floor(diffMin / 1440)}d ago`;
+                  return (
+                    <li key={entry.id} className="flex items-center gap-3 px-5 py-2.5 text-xs">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: dotColor }} />
+                      <span className="text-muted-strong tabular-nums w-16 flex-shrink-0">{timeLabel}</span>
+                      <span className="text-foreground font-medium">{entry.service_slug}</span>
+                      <span className="text-muted">·</span>
+                      <span className="text-muted">{entry.alert_type}</span>
+                      {entry.incident_id && (
+                        <span className="ml-auto text-muted text-[10px] tabular-nums">#{entry.incident_id.slice(0, 8)}</span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Card>
         )}
       </section>
     </div>

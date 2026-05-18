@@ -12,6 +12,30 @@ export default function ServiceGridTile({ config, editing, onResize, onRemove, o
     shown = shown.filter((s) => s.overallStatus !== 'operational');
   }
 
+  const counts = {
+    operational: shown.filter((s) => s.overallStatus === 'operational').length,
+    degraded:    shown.filter((s) => s.overallStatus === 'degraded').length,
+    outage:      shown.filter((s) => s.overallStatus === 'major_outage' || s.overallStatus === 'down').length,
+  };
+
+  const statusBadge = (
+    <div style={{ display: 'flex', gap: 4 }}>
+      {counts.outage > 0 && (
+        <span className="count-pill" style={{ background: 'rgba(239,83,80,0.18)', color: '#EF5350' }}>
+          {counts.outage} down
+        </span>
+      )}
+      {counts.degraded > 0 && (
+        <span className="count-pill" style={{ background: 'rgba(255,213,79,0.18)', color: '#FFD54F' }}>
+          {counts.degraded} degraded
+        </span>
+      )}
+      {counts.outage === 0 && counts.degraded === 0 && (
+        <span className="count-pill">{shown.length}</span>
+      )}
+    </div>
+  );
+
   return (
     <TileChrome
       title="Service Grid"
@@ -23,9 +47,7 @@ export default function ServiceGridTile({ config, editing, onResize, onRemove, o
           <rect x="14" y="14" width="7" height="7" />
         </svg>
       }
-      badge={
-        <span className="count-pill">{shown.length}</span>
-      }
+      badge={statusBadge}
       label={typeof config.label === 'string' ? config.label : null}
       iconText={typeof config.icon === 'string' ? config.icon : null}
       tag={typeof config.tag === 'string' ? config.tag : null}
@@ -36,6 +58,13 @@ export default function ServiceGridTile({ config, editing, onResize, onRemove, o
       onRename={onRename}
       onConfigure={onConfigure}
     >
+      {shown.length > 0 && (counts.degraded > 0 || counts.outage > 0) && (
+        <div style={{ fontSize: 11, color: 'var(--muted-strong)', marginBottom: 8, borderBottom: '1px solid var(--border-subtle)', paddingBottom: 6 }}>
+          {counts.operational} operational
+          {counts.degraded > 0 && <span style={{ color: '#FFD54F' }}> · {counts.degraded} degraded</span>}
+          {counts.outage > 0 && <span style={{ color: '#EF5350' }}> · {counts.outage} down</span>}
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8, overflowY: 'auto', flex: 1 }}>
         {shown.map((s) => {
           const c = getStatusColor(s.overallStatus);

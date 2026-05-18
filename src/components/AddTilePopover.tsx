@@ -20,13 +20,16 @@ interface Props {
 }
 
 const TILES: { type: TileType; name: string; desc: string }[] = [
-  { type: 'stat',          name: 'Stat',          desc: 'Single metric: uptime, MTTR, incidents…' },
-  { type: 'service-watch', name: 'Service Watch',  desc: 'Single service with sparkline + datapoints' },
-  { type: 'service-grid',  name: 'Service Grid',   desc: 'Status of many services at a glance' },
-  { type: 'incident-feed', name: 'Incident Feed',  desc: 'Recent + active incidents timeline' },
-  { type: 'uptime-chart',  name: 'Uptime Chart',   desc: '30-day uptime history for one service' },
-  { type: 'status-map',    name: 'Heat Map',       desc: 'Geographic outage report density' },
-  { type: 'rss',           name: 'RSS Feed',       desc: 'Engineering blogs, release notes' },
+  { type: 'stat',             name: 'Stat',             desc: 'Single metric: uptime, MTTR, incidents…' },
+  { type: 'service-watch',    name: 'Service Watch',    desc: 'Single service with sparkline + datapoints' },
+  { type: 'service-grid',     name: 'Service Grid',     desc: 'Status of many services at a glance' },
+  { type: 'incident-feed',    name: 'Incident Feed',    desc: 'Recent + active incidents timeline' },
+  { type: 'uptime-chart',     name: 'Uptime Chart',     desc: '30-day uptime history for one service' },
+  { type: 'status-map',       name: 'Heat Map',         desc: 'Geographic outage report density' },
+  { type: 'rss',              name: 'RSS Feed',         desc: 'Engineering blogs, release notes' },
+  { type: 'incident-metrics', name: 'Incident Metrics', desc: 'MTTR by severity & resolution rate' },
+  { type: 'fetcher-health',   name: 'Fetcher Health',   desc: 'Source latency & consecutive failures' },
+  { type: 'alert-audit',      name: 'Alert History',    desc: 'Last 50 alert delivery events' },
 ];
 
 type Tab = 'tiles' | 'templates';
