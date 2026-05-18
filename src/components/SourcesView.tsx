@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import useSWR from 'swr';
+import { useFetcherHealth, type FetcherHealthEntry } from '@/hooks/useStatus';
 import PageHeader from './ui/PageHeader';
 import ImportSlideOver from './ImportSlideOver';
 
@@ -84,6 +85,10 @@ export default function SourcesView() {
   });
   const sourceRows = data?.sources ?? [];
   const sources = sourceRows.map(rowToView);
+  const { data: healthData } = useFetcherHealth();
+  const healthBySlug: Record<string, FetcherHealthEntry> = Object.fromEntries(
+    (healthData?.fetchers ?? []).map((f) => [f.service, f])
+  );
   const [importOpen, setImportOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -277,7 +282,14 @@ export default function SourcesView() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {filtered.map((src) => (
+          {filtered.map((src) => {
+            const row = sourceRows.find((r) => r.id === src.id);
+            const h = row ? healthBySlug[row.slug] : undefined;
+            const latencyColor = !h || h.lastLatencyMs === null ? 'var(--muted-strong)'
+              : h.lastLatencyMs < 500 ? '#2aa198'
+              : h.lastLatencyMs < 2000 ? '#b58900'
+              : '#dc322f';
+            return (
             <div
               key={src.id}
               style={{
@@ -338,6 +350,23 @@ export default function SourcesView() {
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0, fontSize: 11, color: 'var(--muted-strong)' }}>
                 <span>Refresh every {src.refresh < 60 ? `${src.refresh}s` : `${src.refresh / 60}m`}</span>
                 <span>Added {relTime(src.addedAt)}</span>
+                {h && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {h.lastLatencyMs !== null && (
+                      <span style={{ color: latencyColor }}>{h.lastLatencyMs}ms</span>
+                    )}
+                    {h.consecutiveFailures > 0 ? (
+                      <span
+                        title={h.lastError ?? undefined}
+                        style={{ padding: '1px 5px', borderRadius: 999, background: 'rgba(220,50,47,0.15)', color: '#dc322f' }}
+                      >
+                        {h.consecutiveFailures} fail
+                      </span>
+                    ) : h.lastSuccessAt ? (
+                      <span style={{ color: '#2aa198' }}>✓ {relTime(h.lastSuccessAt)}</span>
+                    ) : null}
+                  </div>
+                )}
               </div>
 
               {/* Remove */}
@@ -363,7 +392,8 @@ export default function SourcesView() {
                 </svg>
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

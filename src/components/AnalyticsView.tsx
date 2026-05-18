@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { useServiceStatus, useHistory, useIncidents } from '@/hooks/useStatus';
+import { usePreferences } from '@/hooks/usePreferences';
 import { HistoryPoint } from '@/lib/types';
 import PageHeader from './ui/PageHeader';
 import StatTile from './ui/StatTile';
@@ -15,6 +16,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
   Cell,
+  Legend,
 } from 'recharts';
 
 function uptimeForService(points: HistoryPoint[]): number {
@@ -33,6 +35,8 @@ function mttrForService(points: HistoryPoint[]): number {
 export default function AnalyticsView() {
   const [rangeDays, setRangeDays] = useState<7 | 30 | 90>(30);
   const [search, setSearch] = useState('');
+  const prefs = usePreferences();
+  const slaTarget = prefs.slaTarget ?? 99.9;
 
   const { data: statusData } = useServiceStatus();
   const { data: historyData } = useHistory(rangeDays);
@@ -70,10 +74,24 @@ export default function AnalyticsView() {
       rows.reduce((s, r) => s + r.uptime, 0) / Math.max(rows.length, 1);
     const totalDowntime = rows.reduce((s, r) => s + r.totalDowntime, 0);
     const totalIncidents = rows.reduce((s, r) => s + r.incidents, 0);
-    const slaTarget = 99.9;
     const meetingSla = rows.filter((r) => r.uptime >= slaTarget).length;
     return { avgUptime, totalDowntime, totalIncidents, slaTarget, meetingSla };
-  }, [rows]);
+  }, [rows, slaTarget]);
+
+  const incidentChartData = useMemo(() => {
+    return rows
+      .filter((r) => r.incidents > 0)
+      .map((r) => {
+        const svcIncidents = incidents.filter((i) => i.service === r.slug);
+        return {
+          name: r.name.split(' ')[0],
+          critical: svcIncidents.filter((i) => i.severity === 'critical').length,
+          major:    svcIncidents.filter((i) => i.severity === 'major').length,
+          minor:    svcIncidents.filter((i) => i.severity === 'minor').length,
+        };
+      })
+      .sort((a, b) => (b.critical + b.major + b.minor) - (a.critical + a.major + a.minor));
+  }, [rows, incidents]);
 
   const visibleRows = useMemo(
     () => rows.filter((r) => r.name.toLowerCase().includes(search.toLowerCase())),
@@ -141,8 +159,8 @@ export default function AnalyticsView() {
           value={`${aggregate.avgUptime.toFixed(2)}%`}
           accent="green"
           hint="Across all services"
-          trend={aggregate.avgUptime >= 99.9 ? 'up' : 'down'}
-          trendLabel={aggregate.avgUptime >= 99.9 ? 'Above SLA' : 'Below 99.9%'}
+          trend={aggregate.avgUptime >= aggregate.slaTarget ? 'up' : 'down'}
+          trendLabel={aggregate.avgUptime >= aggregate.slaTarget ? 'Above SLA' : `Below ${aggregate.slaTarget}%`}
         />
         <StatTile
           label="SLA Compliance"
@@ -209,6 +227,49 @@ export default function AnalyticsView() {
         </Card>
       </section>
 
+      {incidentChartData.length > 0 && (
+        <section>
+          <Card>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">Incident breakdown by severity</h2>
+                <p className="text-xs text-muted mt-0.5">Services with at least one incident in the period</p>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={incidentChartData} margin={{ top: 10, right: 20, bottom: 0, left: -10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fill: 'var(--muted)', fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={{ stroke: 'var(--border-strong)' }}
+                />
+                <YAxis
+                  tick={{ fill: 'var(--muted)', fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={{ stroke: 'var(--border-strong)' }}
+                  allowDecimals={false}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: 'var(--surface-elevated)',
+                    border: '1px solid var(--border-strong)',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    color: 'var(--foreground)',
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 11, color: 'var(--muted)' }} />
+                <Bar dataKey="critical" stackId="a" fill="#EF5350" name="Critical" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="major" stackId="a" fill="#FF8A65" name="Major" />
+                <Bar dataKey="minor" stackId="a" fill="#FFD54F" name="Minor" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
+        </section>
+      )}
+
       <section>
         <div className="flex items-center justify-between mb-3 gap-4 flex-wrap">
           <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
@@ -264,7 +325,7 @@ export default function AnalyticsView() {
                       <td className="px-5 py-3 text-right tabular-nums">
                         <span
                           className={
-                            r.uptime >= 99.9
+                            r.uptime >= aggregate.slaTarget
                               ? 'text-emerald-400'
                               : r.uptime >= 99
                                 ? 'text-yellow-400'

@@ -5,6 +5,7 @@ import { useRssFeed } from '@/hooks/useStatus';
 const FEED_NAMES: Record<string, string> = {
   'aws-blog': "AWS What's New",
   'gh-blog': 'GitHub Engineering',
+  'custom': 'Custom Feed',
 };
 
 function formatDate(pubDate: string | null): string {
@@ -21,9 +22,10 @@ function formatDate(pubDate: string | null): string {
 
 export default function RssFeedTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure }: TileProps) {
   const feedId = (config.feed as string) || 'aws-blog';
+  const customUrl = (config.customFeedUrl as string) || '';
   const feedName = FEED_NAMES[feedId] || feedId;
 
-  const { data, isLoading, error } = useRssFeed(feedId);
+  const { data, isLoading, error } = useRssFeed(feedId, customUrl);
 
   const displayName = data?.title || feedName;
 

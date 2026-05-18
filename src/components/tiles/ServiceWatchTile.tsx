@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import TileChrome from './TileChrome';
 import Sparkline from '../Sparkline';
 import { getStatusColor, historyToSparkline } from '@/lib/boardColors';
@@ -124,6 +125,23 @@ export default function ServiceWatchTile({
       ? ((hist.filter((p) => p.status === 'operational').length / hist.length) * 100).toFixed(2)
       : '—';
 
+  const stabilityText = useMemo(() => {
+    if (!hist.length) return null;
+    const reversed = [...hist].reverse();
+    const idx = reversed.findIndex((p) => p.status !== 'operational' || p.outageMinutes > 0);
+    if (idx === -1) return `Stable ${hist.length}d`;
+    if (idx === 0) return 'Issue today';
+    return `Last issue ${idx}d ago`;
+  }, [hist]);
+
+  const stabilityColor = useMemo(() => {
+    if (!hist.length) return 'var(--muted)';
+    const reversed = [...hist].reverse();
+    const idx = reversed.findIndex((p) => p.status !== 'operational' || p.outageMinutes > 0);
+    if (idx === -1 || idx > 3) return 'var(--muted)';
+    return idx === 0 ? '#EF5350' : '#FFD54F';
+  }, [hist]);
+
   return (
     <TileChrome
       title={svc.name}
@@ -160,8 +178,13 @@ export default function ServiceWatchTile({
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div>
             <StatusBadge status={status} />
+            {stabilityText && (
+              <p style={{ margin: '4px 0 0', fontSize: 10, color: stabilityColor, letterSpacing: 0.3 }}>
+                {stabilityText}
+              </p>
+            )}
             {svc.details && (
-              <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>
+              <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>
                 {svc.details}
               </p>
             )}

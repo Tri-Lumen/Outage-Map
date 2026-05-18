@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useServiceStatus } from '@/hooks/useStatus';
+import { useServiceStatus, useSummary } from '@/hooks/useStatus';
 import { useSidebar } from './SidebarContext';
 
 interface NavItem {
@@ -88,9 +88,13 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { collapsed, setCollapsed } = useSidebar();
   const { data } = useServiceStatus();
+  const { data: summary } = useSummary(60000);
   const services = data?.services || [];
   const health = getOverallHealth(services.map((s) => s.overallStatus));
-  const operational = services.filter((s) => s.overallStatus === 'operational').length;
+  const operational = summary?.operational ?? services.filter((s) => s.overallStatus === 'operational').length;
+  const total = summary?.totalServices ?? services.length;
+  const activeIncidents = summary?.activeIncidents ?? 0;
+  const uptimePct = summary?.uptimePct;
 
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname?.startsWith(href);
@@ -170,15 +174,23 @@ export default function Sidebar() {
             <span className={`text-xs font-medium ${health.tone}`}>{health.label}</span>
           </div>
           <div className="text-[11px] text-muted">
-            {operational}/{services.length || '—'} services operational
+            {operational}/{total || '—'} services operational
           </div>
+          {activeIncidents > 0 && (
+            <div className="text-[11px] text-amber-400 mt-1">
+              {activeIncidents} active incident{activeIncidents !== 1 ? 's' : ''}
+            </div>
+          )}
+          {uptimePct !== undefined && (
+            <div className="text-[11px] text-muted mt-1">
+              {uptimePct.toFixed(1)}% uptime
+            </div>
+          )}
           <div className="mt-2 w-full h-1 rounded-full bg-white/5 overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-emerald-400 to-cyan-400 transition-all"
               style={{
-                width: services.length
-                  ? `${(operational / services.length) * 100}%`
-                  : '0%',
+                width: total ? `${(operational / total) * 100}%` : '0%',
               }}
             />
           </div>

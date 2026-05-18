@@ -7,6 +7,7 @@ export interface Preferences {
   compactCards: boolean;
   showDowndetector: boolean;
   pinnedServices: string[];
+  slaTarget: number;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -14,6 +15,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   compactCards: false,
   showDowndetector: true,
   pinnedServices: [],
+  slaTarget: 99.9,
 };
 
 export const PREFERENCES_STORAGE_KEY = 'outage-map-prefs';

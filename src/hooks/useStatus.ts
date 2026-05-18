@@ -60,13 +60,51 @@ export function useSummary(refreshIntervalMs?: number) {
   );
 }
 
-export function useRssFeed(feedId: string, refreshIntervalMs?: number) {
-  return useSWR<RssFeedResponse>(
-    feedId ? `/api/rss?feed=${encodeURIComponent(feedId)}` : null,
+export function useRssFeed(feedId: string, customUrl?: string, refreshIntervalMs?: number) {
+  const key = feedId === 'custom' && customUrl
+    ? `/api/rss?feed=custom&url=${encodeURIComponent(customUrl)}`
+    : feedId ? `/api/rss?feed=${encodeURIComponent(feedId)}` : null;
+  return useSWR<RssFeedResponse>(key, fetcher, {
+    refreshInterval: refreshIntervalMs ?? 300000,
+    revalidateOnFocus: false,
+  });
+}
+
+interface FetcherHealthEntry {
+  service: string;
+  source: string;
+  lastSuccessAt: string | null;
+  lastErrorAt: string | null;
+  lastError: string | null;
+  lastLatencyMs: number | null;
+  consecutiveFailures: number;
+}
+
+export function useFetcherHealth(refreshIntervalMs?: number) {
+  return useSWR<{ fetchers: FetcherHealthEntry[] }>(
+    '/api/health/fetchers',
     fetcher,
     {
-      refreshInterval: refreshIntervalMs ?? 300000,
-      revalidateOnFocus: false,
+      refreshInterval: refreshIntervalMs ?? 30000,
+      revalidateOnFocus: true,
     }
   );
 }
+
+interface AlertLogEntry {
+  id: number;
+  service_slug: string;
+  incident_id: string | null;
+  alert_type: string;
+  sent_at: string;
+}
+
+export function useAlertLog(enabled: boolean, refreshIntervalMs?: number) {
+  return useSWR<{ log: AlertLogEntry[] }>(
+    enabled ? '/api/alerts/log' : null,
+    fetcher,
+    { refreshInterval: refreshIntervalMs ?? 60000, revalidateOnFocus: false }
+  );
+}
+
+export type { FetcherHealthEntry, AlertLogEntry };

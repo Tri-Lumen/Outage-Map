@@ -9,6 +9,9 @@ const ALLOWED_FEEDS: Record<string, string> = {
   'gh-blog': 'https://github.blog/engineering/feed/',
 };
 
+const PRIVATE_IP_RE =
+  /^(localhost|127\.|0\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|::1|fc00:|fe80:)/i;
+
 interface RssItem {
   title: string;
   url: string | null;
@@ -53,17 +56,39 @@ function parseRss(xml: string): { title: string; items: RssItem[] } {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const feedId = searchParams.get('feed') || '';
+  const customUrl = searchParams.get('url') || '';
 
-  const feedUrl = ALLOWED_FEEDS[feedId];
-  if (!feedUrl) {
-    return NextResponse.json(
-      { error: `Unknown feed. Valid values: ${Object.keys(ALLOWED_FEEDS).join(', ')}` },
-      { status: 400 },
-    );
+  let feedUrl: string;
+  let cacheKey: string;
+
+  if (feedId === 'custom') {
+    if (!customUrl || !/^https?:\/\//i.test(customUrl)) {
+      return NextResponse.json({ error: 'Invalid custom URL: must start with http:// or https://' }, { status: 400 });
+    }
+    let hostname: string;
+    try {
+      hostname = new URL(customUrl).hostname;
+    } catch {
+      return NextResponse.json({ error: 'Invalid custom URL' }, { status: 400 });
+    }
+    if (PRIVATE_IP_RE.test(hostname)) {
+      return NextResponse.json({ error: 'Private/internal URLs are not allowed' }, { status: 400 });
+    }
+    feedUrl = customUrl;
+    cacheKey = `custom:${customUrl}`;
+  } else {
+    feedUrl = ALLOWED_FEEDS[feedId];
+    if (!feedUrl) {
+      return NextResponse.json(
+        { error: `Unknown feed. Valid values: ${Object.keys(ALLOWED_FEEDS).join(', ')}, custom` },
+        { status: 400 },
+      );
+    }
+    cacheKey = feedId;
   }
 
   const now = Date.now();
-  const cached = cache.get(feedId);
+  const cached = cache.get(cacheKey);
   if (cached && cached.expiresAt > now) {
     return NextResponse.json({ feed: feedId, title: cached.feedTitle, items: cached.items });
   }
@@ -82,7 +107,7 @@ export async function GET(request: NextRequest) {
     const xml = await res.text();
     const { title: feedTitle, items } = parseRss(xml);
 
-    cache.set(feedId, { items, feedTitle, expiresAt: now + CACHE_TTL_MS });
+    cache.set(cacheKey, { items, feedTitle, expiresAt: now + CACHE_TTL_MS });
 
     return NextResponse.json({ feed: feedId, title: feedTitle, items });
   } catch (err) {
