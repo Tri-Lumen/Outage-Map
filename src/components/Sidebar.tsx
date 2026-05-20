@@ -137,7 +137,26 @@ export default function Sidebar() {
         </button>
       </div>
 
-      <nav className="flex-1 px-3 space-y-1 mt-2 overflow-y-auto">
+      <div className="px-3 mt-1 mb-2">
+        <button
+          onClick={() => window.dispatchEvent(new Event('open-command-palette'))}
+          title={collapsed ? 'Search (⌘K)' : undefined}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg surface-elevated border border-subtle text-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          aria-label="Open command palette"
+        >
+          <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+          </svg>
+          {!collapsed && (
+            <>
+              <span className="text-xs flex-1 text-left">Search…</span>
+              <kbd className="text-[10px] px-1.5 py-0.5 rounded border border-subtle text-muted-strong">⌘K</kbd>
+            </>
+          )}
+        </button>
+      </div>
+
+      <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map((item) => {
           const active = isActive(item.href);
           return (

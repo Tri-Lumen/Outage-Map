@@ -11,6 +11,7 @@ interface ShortcutRow {
 }
 
 const GLOBAL: ShortcutRow[] = [
+  { keys: ['⌘', 'K'],  desc: 'Command palette' },
   { keys: ['E'],       desc: 'Toggle edit mode' },
   { keys: ['A'],       desc: 'Add tile' },
   { keys: ['I'],       desc: 'Import' },
