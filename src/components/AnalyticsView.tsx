@@ -7,6 +7,7 @@ import { HistoryPoint } from '@/lib/types';
 import PageHeader from './ui/PageHeader';
 import StatTile from './ui/StatTile';
 import Card from './ui/Card';
+import Sparkline from './Sparkline';
 import {
   BarChart,
   Bar,
@@ -32,9 +33,12 @@ function mttrForService(points: HistoryPoint[]): number {
   return affected.reduce((s, p) => s + p.outageMinutes, 0) / affected.length;
 }
 
+type SortKey = 'name' | 'uptime' | 'totalDowntime' | 'mttr' | 'incidents';
+
 export default function AnalyticsView() {
   const [rangeDays, setRangeDays] = useState<7 | 30 | 90>(30);
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'uptime', dir: 'asc' });
   const prefs = usePreferences();
   const slaTarget = prefs.slaTarget ?? 99.9;
 
@@ -62,6 +66,7 @@ export default function AnalyticsView() {
         mttr: Math.round(mttr),
         outageDays: points.filter((p) => p.outageMinutes > 0).length,
         totalDowntime: points.reduce((sum, p) => sum + p.outageMinutes, 0),
+        trend: points.map((p) => Math.max(0, Math.min(1, (1440 - (p.outageMinutes || 0)) / 1440))),
         incidents: serviceIncidents.length,
         criticalIncidents: serviceIncidents.filter((i) => i.severity === 'critical').length,
         status: live?.overallStatus || 'unknown',
@@ -93,10 +98,22 @@ export default function AnalyticsView() {
       .sort((a, b) => (b.critical + b.major + b.minor) - (a.critical + a.major + a.minor));
   }, [rows, incidents]);
 
-  const visibleRows = useMemo(
-    () => rows.filter((r) => r.name.toLowerCase().includes(search.toLowerCase())),
-    [rows, search],
-  );
+  const visibleRows = useMemo(() => {
+    const filtered = rows.filter((r) => r.name.toLowerCase().includes(search.toLowerCase()));
+    const factor = sort.dir === 'asc' ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      if (sort.key === 'name') return a.name.localeCompare(b.name) * factor;
+      return (a[sort.key] - b[sort.key]) * factor;
+    });
+  }, [rows, search, sort]);
+
+  const toggleSort = useCallback((key: SortKey) => {
+    setSort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: key === 'name' ? 'asc' : 'desc' },
+    );
+  }, []);
 
   const exportCsv = useCallback(() => {
     const headers = ['Service', 'Uptime %', 'Downtime (min)', 'MTTR (min)', 'Incidents', 'Critical', 'SLA'];
@@ -331,11 +348,12 @@ export default function AnalyticsView() {
             <table className="w-full text-sm">
               <thead className="bg-white/[0.02] border-b border-subtle">
                 <tr className="text-left text-xs uppercase tracking-wider text-muted">
-                  <th className="px-5 py-3 font-medium">Service</th>
-                  <th className="px-5 py-3 font-medium text-right">Uptime</th>
-                  <th className="px-5 py-3 font-medium text-right">Downtime</th>
-                  <th className="px-5 py-3 font-medium text-right">MTTR</th>
-                  <th className="px-5 py-3 font-medium text-right">Incidents</th>
+                  <SortHeader label="Service" col="name" sort={sort} onSort={toggleSort} />
+                  <SortHeader label="Uptime" col="uptime" sort={sort} onSort={toggleSort} align="right" />
+                  <th className="px-5 py-3 font-medium hidden md:table-cell">{rangeDays}d trend</th>
+                  <SortHeader label="Downtime" col="totalDowntime" sort={sort} onSort={toggleSort} align="right" />
+                  <SortHeader label="MTTR" col="mttr" sort={sort} onSort={toggleSort} align="right" />
+                  <SortHeader label="Incidents" col="incidents" sort={sort} onSort={toggleSort} align="right" />
                   <th className="px-5 py-3 font-medium text-right">SLA</th>
                 </tr>
               </thead>
@@ -365,6 +383,15 @@ export default function AnalyticsView() {
                         >
                           {r.uptimeLabel}%
                         </span>
+                      </td>
+                      <td className="px-5 py-3 hidden md:table-cell w-[120px]">
+                        {r.trend.length >= 2 ? (
+                          <div className="w-[100px] h-8" title={`${r.uptimeLabel}% uptime over ${rangeDays}d`}>
+                            <Sparkline data={r.trend} color={r.color} height={32} />
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-strong">—</span>
+                        )}
                       </td>
                       <td className="px-5 py-3 text-right text-foreground tabular-nums">
                         {r.totalDowntime > 60
@@ -402,5 +429,36 @@ export default function AnalyticsView() {
         </Card>
       </section>
     </div>
+  );
+}
+
+function SortHeader({
+  label,
+  col,
+  sort,
+  onSort,
+  align = 'left',
+}: {
+  label: string;
+  col: SortKey;
+  sort: { key: SortKey; dir: 'asc' | 'desc' };
+  onSort: (key: SortKey) => void;
+  align?: 'left' | 'right';
+}) {
+  const active = sort.key === col;
+  return (
+    <th className={`px-5 py-3 font-medium ${align === 'right' ? 'text-right' : ''}`}>
+      <button
+        onClick={() => onSort(col)}
+        className={`inline-flex items-center gap-1 uppercase tracking-wider transition-colors hover:text-foreground ${
+          active ? 'text-foreground' : ''
+        } ${align === 'right' ? 'flex-row-reverse' : ''}`}
+      >
+        {label}
+        <span className={`text-[9px] leading-none ${active ? 'opacity-100' : 'opacity-30'}`}>
+          {active ? (sort.dir === 'asc' ? '▲' : '▼') : '▾'}
+        </span>
+      </button>
+    </th>
   );
 }
