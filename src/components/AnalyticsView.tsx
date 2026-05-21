@@ -7,6 +7,7 @@ import { HistoryPoint } from '@/lib/types';
 import PageHeader from './ui/PageHeader';
 import StatTile from './ui/StatTile';
 import Card from './ui/Card';
+import Sparkline from './Sparkline';
 import {
   BarChart,
   Bar,
@@ -65,6 +66,7 @@ export default function AnalyticsView() {
         mttr: Math.round(mttr),
         outageDays: points.filter((p) => p.outageMinutes > 0).length,
         totalDowntime: points.reduce((sum, p) => sum + p.outageMinutes, 0),
+        trend: points.map((p) => Math.max(0, Math.min(1, (1440 - (p.outageMinutes || 0)) / 1440))),
         incidents: serviceIncidents.length,
         criticalIncidents: serviceIncidents.filter((i) => i.severity === 'critical').length,
         status: live?.overallStatus || 'unknown',
@@ -348,6 +350,7 @@ export default function AnalyticsView() {
                 <tr className="text-left text-xs uppercase tracking-wider text-muted">
                   <SortHeader label="Service" col="name" sort={sort} onSort={toggleSort} />
                   <SortHeader label="Uptime" col="uptime" sort={sort} onSort={toggleSort} align="right" />
+                  <th className="px-5 py-3 font-medium hidden md:table-cell">{rangeDays}d trend</th>
                   <SortHeader label="Downtime" col="totalDowntime" sort={sort} onSort={toggleSort} align="right" />
                   <SortHeader label="MTTR" col="mttr" sort={sort} onSort={toggleSort} align="right" />
                   <SortHeader label="Incidents" col="incidents" sort={sort} onSort={toggleSort} align="right" />
@@ -380,6 +383,15 @@ export default function AnalyticsView() {
                         >
                           {r.uptimeLabel}%
                         </span>
+                      </td>
+                      <td className="px-5 py-3 hidden md:table-cell w-[120px]">
+                        {r.trend.length >= 2 ? (
+                          <div className="w-[100px] h-8" title={`${r.uptimeLabel}% uptime over ${rangeDays}d`}>
+                            <Sparkline data={r.trend} color={r.color} height={32} />
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-strong">—</span>
+                        )}
                       </td>
                       <td className="px-5 py-3 text-right text-foreground tabular-nums">
                         {r.totalDowntime > 60
