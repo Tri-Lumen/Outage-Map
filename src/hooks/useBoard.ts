@@ -16,7 +16,8 @@ export type TileType =
   | 'statuspage'
   | 'incident-metrics'
   | 'fetcher-health'
-  | 'alert-audit';
+  | 'alert-audit'
+  | 'anomaly-alert';
 
 export interface TileConfig {
   id: string;
@@ -290,6 +291,7 @@ export function useBoard({ bp = 'desktop', boardId, tiles, onCommit }: UseBoardP
       'incident-metrics':  { days: 30 },
       'fetcher-health':    {},
       'alert-audit':       {},
+      'anomaly-alert':     {},
     };
     const defaultSizes: Record<TileType, { w: number; h: number }> = {
       'stat':              { w: 1, h: 2 },
@@ -303,6 +305,7 @@ export function useBoard({ bp = 'desktop', boardId, tiles, onCommit }: UseBoardP
       'incident-metrics':  { w: 2, h: 2 },
       'fetcher-health':    { w: 2, h: 2 },
       'alert-audit':       { w: 2, h: 2 },
+      'anomaly-alert':     { w: 2, h: 2 },
     };
     const defaultDataPoints: Record<TileType, string[]> = {
       'stat':              [],
@@ -316,6 +319,7 @@ export function useBoard({ bp = 'desktop', boardId, tiles, onCommit }: UseBoardP
       'incident-metrics':  [],
       'fetcher-health':    [],
       'alert-audit':       [],
+      'anomaly-alert':     [],
     };
     const id = 't' + Date.now();
     const size = defaultSizes[type];

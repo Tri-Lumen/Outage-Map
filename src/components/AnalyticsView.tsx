@@ -1,9 +1,10 @@
 'use client';
 
 import { useMemo, useState, useCallback } from 'react';
+import useSWR from 'swr';
 import { useServiceStatus, useHistory, useIncidents } from '@/hooks/useStatus';
 import { usePreferences } from '@/hooks/usePreferences';
-import { HistoryPoint } from '@/lib/types';
+import { HistoryPoint, HistoryResponse } from '@/lib/types';
 import PageHeader from './ui/PageHeader';
 import StatTile from './ui/StatTile';
 import Card from './ui/Card';
@@ -34,11 +35,15 @@ function mttrForService(points: HistoryPoint[]): number {
 }
 
 type SortKey = 'name' | 'uptime' | 'totalDowntime' | 'mttr' | 'incidents';
+type RangePreset = 7 | 30 | 60 | 90;
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default function AnalyticsView() {
-  const [rangeDays, setRangeDays] = useState<7 | 30 | 90>(30);
+  const [rangeDays, setRangeDays] = useState<RangePreset>(30);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'uptime', dir: 'asc' });
+  const [exporting, setExporting] = useState(false);
   const prefs = usePreferences();
   const slaTarget = prefs.slaTarget ?? 99.9;
 
@@ -46,14 +51,28 @@ export default function AnalyticsView() {
   const { data: historyData } = useHistory(rangeDays);
   const { data: incidentData } = useIncidents(rangeDays);
 
+  // Prior period for trend comparison
+  const priorDays = rangeDays;
+  const { data: priorHistoryData } = useSWR<HistoryResponse>(
+    `/api/history?days=${priorDays * 2}`,
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+
   const services = useMemo(() => statusData?.services || [], [statusData]);
   const history = useMemo(() => historyData?.history || {}, [historyData]);
   const incidents = useMemo(() => incidentData?.incidents || [], [incidentData]);
+  const priorHistory = useMemo(() => priorHistoryData?.history || {}, [priorHistoryData]);
 
   const rows = useMemo(() => {
     return services.map((s) => {
       const points = history[s.slug] || [];
+      const allPrior = priorHistory[s.slug] || [];
+      // Prior period = first half of the 2x window
+      const priorPoints = allPrior.slice(0, rangeDays);
       const uptime = uptimeForService(points);
+      const priorUptime = priorPoints.length ? uptimeForService(priorPoints) : null;
+      const uptimeDelta = priorUptime !== null ? uptime - priorUptime : null;
       const mttr = mttrForService(points);
       const live = s;
       const serviceIncidents = incidents.filter((i) => i.service === s.slug);
@@ -62,6 +81,8 @@ export default function AnalyticsView() {
         name: s.name,
         color: s.color,
         uptime,
+        priorUptime,
+        uptimeDelta,
         uptimeLabel: uptime.toFixed(2),
         mttr: Math.round(mttr),
         outageDays: points.filter((p) => p.outageMinutes > 0).length,
@@ -72,7 +93,7 @@ export default function AnalyticsView() {
         status: live?.overallStatus || 'unknown',
       };
     });
-  }, [history, incidents, services]);
+  }, [history, priorHistory, incidents, services, rangeDays]);
 
   const aggregate = useMemo(() => {
     const avgUptime =
@@ -115,26 +136,53 @@ export default function AnalyticsView() {
     );
   }, []);
 
-  const exportCsv = useCallback(() => {
-    const headers = ['Service', 'Uptime %', 'Downtime (min)', 'MTTR (min)', 'Incidents', 'Critical', 'SLA'];
-    const csvRows = visibleRows.map((r) => [
-      r.name,
-      r.uptimeLabel,
-      r.totalDowntime,
-      r.mttr,
-      r.incidents,
-      r.criticalIncidents,
-      r.uptime >= aggregate.slaTarget ? 'Met' : 'Breached',
-    ]);
-    const csv = [headers, ...csvRows].map((row) => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `outage-analytics-${rangeDays}d.csv`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }, [visibleRows, aggregate.slaTarget, rangeDays]);
+  const exportCsv = useCallback(async () => {
+    setExporting(true);
+    try {
+      const res = await fetch(`/api/reports/sla?format=csv&sla=${slaTarget}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sla-report-${rangeDays}d.csv`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      // Fallback to local CSV
+      const headers = ['Service', 'Uptime %', 'Downtime (min)', 'MTTR (min)', 'Incidents', 'Critical', 'SLA'];
+      const csvRows = visibleRows.map((r) => [
+        r.name, r.uptimeLabel, r.totalDowntime, r.mttr,
+        r.incidents, r.criticalIncidents,
+        r.uptime >= aggregate.slaTarget ? 'Met' : 'Breached',
+      ]);
+      const csv = [headers, ...csvRows].map((row) => row.join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `outage-analytics-${rangeDays}d.csv`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } finally {
+      setExporting(false);
+    }
+  }, [visibleRows, aggregate.slaTarget, rangeDays, slaTarget]);
+
+  const exportPdf = useCallback(async () => {
+    setExporting(true);
+    try {
+      const res = await fetch(`/api/reports/sla?format=pdf&sla=${slaTarget}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url, '_blank');
+      if (win) win.focus();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } finally {
+      setExporting(false);
+    }
+  }, [slaTarget]);
 
   const uptimeChartData = rows.map((r) => ({
     name: r.name.split(' ')[0],
@@ -156,7 +204,7 @@ export default function AnalyticsView() {
 
       <div className="flex items-center gap-2">
         <div className="inline-flex items-center gap-1 bg-white/5 rounded-full p-1">
-          {([7, 30, 90] as const).map((d) => (
+          {([7, 30, 60, 90] as const).map((d) => (
             <button
               key={d}
               onClick={() => setRangeDays(d)}
@@ -324,7 +372,7 @@ export default function AnalyticsView() {
             <span className="w-1 h-5 rounded-full bg-accent-cyan" />
             Service reliability breakdown
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <input
               type="search"
               placeholder="Filter services…"
@@ -334,12 +382,23 @@ export default function AnalyticsView() {
             />
             <button
               onClick={exportCsv}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-white/5 border border-subtle text-foreground hover:bg-white/10 transition-colors"
+              disabled={exporting}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-white/5 border border-subtle text-foreground hover:bg-white/10 transition-colors disabled:opacity-50"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
               </svg>
-              Export CSV
+              {exporting ? 'Exporting…' : 'Export CSV'}
+            </button>
+            <button
+              onClick={exportPdf}
+              disabled={exporting}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-white/5 border border-subtle text-foreground hover:bg-white/10 transition-colors disabled:opacity-50"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+              </svg>
+              Export PDF
             </button>
           </div>
         </div>
@@ -360,8 +419,10 @@ export default function AnalyticsView() {
               <tbody className="divide-y divide-white/[0.04]">
                 {visibleRows.map((r) => {
                   const meets = r.uptime >= aggregate.slaTarget;
+                  const trendUp = r.uptimeDelta !== null && r.uptimeDelta > 0.05;
+                  const trendDown = r.uptimeDelta !== null && r.uptimeDelta < -0.05;
                   return (
-                    <tr key={r.slug} className="hover:bg-white/[0.02] transition-colors">
+                    <tr key={r.slug} className={`hover:bg-white/[0.02] transition-colors ${!meets ? 'border-l-2 border-l-red-500/60' : ''}`}>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-3">
                           <span
@@ -372,17 +433,25 @@ export default function AnalyticsView() {
                         </div>
                       </td>
                       <td className="px-5 py-3 text-right tabular-nums">
-                        <span
-                          className={
-                            r.uptime >= aggregate.slaTarget
-                              ? 'text-emerald-400'
-                              : r.uptime >= 99
-                                ? 'text-yellow-400'
-                                : 'text-red-400'
-                          }
-                        >
-                          {r.uptimeLabel}%
-                        </span>
+                        <div className="inline-flex items-center gap-1.5">
+                          <span
+                            className={
+                              r.uptime >= aggregate.slaTarget
+                                ? 'text-emerald-400'
+                                : r.uptime >= 99
+                                  ? 'text-yellow-400'
+                                  : 'text-red-400'
+                            }
+                          >
+                            {r.uptimeLabel}%
+                          </span>
+                          {trendUp && (
+                            <span className="text-[10px] text-emerald-400" title={`+${r.uptimeDelta!.toFixed(2)}% vs prior ${rangeDays}d`}>▲</span>
+                          )}
+                          {trendDown && (
+                            <span className="text-[10px] text-red-400" title={`${r.uptimeDelta!.toFixed(2)}% vs prior ${rangeDays}d`}>▼</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-3 hidden md:table-cell w-[120px]">
                         {r.trend.length >= 2 ? (

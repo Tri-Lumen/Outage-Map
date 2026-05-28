@@ -150,6 +150,7 @@ interface Registry {
   pollCycles: Counter;
   fetcherFailures: Counter;
   alertsSent: Counter;
+  incidentsTotal: Counter;
   fetcherLatency: Histogram;
   pollCycleDuration: Histogram;
   serviceStatus: Gauge;
@@ -173,41 +174,45 @@ function getRegistry(): Registry {
   if (!r) {
     r = {
       pollCycles: new Counter(
-        'outage_poll_cycles_total',
+        'outage_map_poll_cycles_total',
         'Number of poll cycles run, by result',
       ),
       fetcherFailures: new Counter(
-        'outage_fetcher_failures_total',
+        'outage_map_fetcher_errors_total',
         'Number of fetcher failures, by service and source',
       ),
       alertsSent: new Counter(
-        'outage_alerts_sent_total',
+        'outage_map_alerts_sent_total',
         'Number of alerts dispatched, by channel and severity',
       ),
+      incidentsTotal: new Counter(
+        'outage_map_incidents_total',
+        'Number of new incidents observed, by service and severity',
+      ),
       fetcherLatency: new Histogram(
-        'outage_fetcher_latency_seconds',
+        'outage_map_poll_duration_seconds',
         'Fetcher request latency in seconds',
         [0.1, 0.5, 1, 2, 5, 10, 15, 30],
       ),
       pollCycleDuration: new Histogram(
-        'outage_poll_cycle_duration_seconds',
+        'outage_map_poll_cycle_duration_seconds',
         'Total duration of a poll cycle in seconds',
         [1, 5, 10, 30, 60, 120],
       ),
       serviceStatus: new Gauge(
-        'outage_service_status',
+        'outage_map_service_status_gauge',
         'Current service status (0=operational, 1=degraded, 2=major_outage, 3=down, 4=unknown)',
       ),
       lastPollTimestamp: new Gauge(
-        'outage_last_poll_timestamp_seconds',
+        'outage_map_last_poll_timestamp_seconds',
         'Unix timestamp of the last completed poll cycle',
       ),
       lastPollAge: new Gauge(
-        'outage_last_poll_age_seconds',
+        'outage_map_last_poll_age_seconds',
         'Seconds since the last completed poll cycle',
       ),
       circuitState: new Gauge(
-        'outage_fetcher_circuit_state',
+        'outage_map_fetcher_circuit_state',
         'Per-fetcher circuit breaker state (0=closed, 1=half-open, 2=open)',
       ),
       lastPollAt: null,
@@ -218,6 +223,9 @@ function getRegistry(): Registry {
 }
 
 export const metrics = {
+  incIncidents(service: string, severity: string) {
+    getRegistry().incidentsTotal.inc({ service, severity });
+  },
   recordPollCycle(result: 'success' | 'skipped' | 'failure', durationSec: number) {
     const r = getRegistry();
     r.pollCycles.inc({ result });
@@ -251,6 +259,7 @@ export const metrics = {
       r.pollCycles.expose(),
       r.fetcherFailures.expose(),
       r.alertsSent.expose(),
+      r.incidentsTotal.expose(),
       r.fetcherLatency.expose(),
       r.pollCycleDuration.expose(),
       r.serviceStatus.expose(),

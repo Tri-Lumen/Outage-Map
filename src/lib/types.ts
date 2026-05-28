@@ -3,6 +3,7 @@ export type IncidentStatus = 'investigating' | 'identified' | 'monitoring' | 're
 export type IncidentSeverity = 'minor' | 'major' | 'critical';
 export type AlertType = 'new_incident' | 'status_change' | 'resolved';
 export type FetcherType = 'statuspage' | 'microsoft' | 'salesforce' | 'google' | 'workday' | 'aws';
+export type ChannelType = 'slack' | 'teams' | 'discord' | 'generic';
 
 export interface ServiceConfig {
   name: string;
@@ -55,6 +56,9 @@ export interface ServiceStatusResponse {
   statusUrl: string;
   downdetectorUrl: string;
   brandFont: string;
+  isAnomaly: boolean;
+  anomalyZScore: number | null;
+  inMaintenance: boolean;
 }
 
 export interface IncidentResponse {
@@ -69,6 +73,7 @@ export interface IncidentResponse {
   description: string | null;
   sourceUrl: string | null;
   updatedAt: string;
+  hasPostmortem?: boolean;
 }
 
 export interface HistoryPoint {
@@ -91,6 +96,10 @@ export interface AlertRule {
   emailEnabled: boolean;
   webhookUrl: string | null;
   webhookEnabled: boolean;
+  channelType: ChannelType;
+  escalationEnabled: boolean;
+  escalationIntervals: number[];
+  notifyOnAnomaly: boolean;
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
@@ -106,6 +115,16 @@ export interface SummaryResponse {
   activeIncidents: number;
   uptimePct: number;
   lastUpdated: string;
+}
+
+export interface MaintenanceWindow {
+  id: string;
+  serviceSlugs: string[];
+  startTime: string;
+  endTime: string;
+  note: string | null;
+  createdBy: string | null;
+  createdAt: string;
 }
 
 const INCIDENT_STATUSES: ReadonlyArray<IncidentStatus> = [
@@ -127,4 +146,11 @@ export function asIncidentStatus(value: unknown): IncidentStatus {
 
 export function asIncidentSeverity(value: unknown): IncidentSeverity {
   return isIncidentSeverity(value) ? value : 'minor';
+}
+
+export function asChannelType(value: unknown): ChannelType {
+  const valid: ChannelType[] = ['slack', 'teams', 'discord', 'generic'];
+  return typeof value === 'string' && (valid as string[]).includes(value)
+    ? (value as ChannelType)
+    : 'generic';
 }

@@ -64,6 +64,9 @@ export default function AlertsView() {
     desktopEnabled: boolean;
     webhookUrl: string;
     webhookEnabled: boolean;
+    channelType: string;
+    escalationEnabled: boolean;
+    notifyOnAnomaly: boolean;
   }>({
     email: '',
     services: [],
@@ -72,6 +75,9 @@ export default function AlertsView() {
     desktopEnabled: false,
     webhookUrl: '',
     webhookEnabled: false,
+    channelType: 'generic',
+    escalationEnabled: false,
+    notifyOnAnomaly: false,
   });
   const [showForm, setShowForm] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
@@ -141,6 +147,9 @@ export default function AlertsView() {
           emailEnabled: draft.emailEnabled,
           webhookUrl: webhookUrlTrimmed || undefined,
           webhookEnabled: draft.webhookEnabled && !!webhookUrlTrimmed,
+          channelType: draft.channelType,
+          escalationEnabled: draft.escalationEnabled,
+          notifyOnAnomaly: draft.notifyOnAnomaly,
           enabled: true,
         }),
       });
@@ -165,6 +174,9 @@ export default function AlertsView() {
         desktopEnabled: false,
         webhookUrl: '',
         webhookEnabled: false,
+        channelType: 'generic',
+        escalationEnabled: false,
+        notifyOnAnomaly: false,
       });
       setShowForm(false);
       mutate();
@@ -212,6 +224,9 @@ export default function AlertsView() {
       desktopEnabled: false,
       webhookUrl: rule.webhookUrl ?? '',
       webhookEnabled: rule.webhookEnabled ?? false,
+      channelType: rule.channelType ?? 'generic',
+      escalationEnabled: rule.escalationEnabled ?? false,
+      notifyOnAnomaly: rule.notifyOnAnomaly ?? false,
     });
   };
 
@@ -228,6 +243,9 @@ export default function AlertsView() {
           emailEnabled: editDraft.emailEnabled,
           webhookUrl: webhookUrlTrimmed || undefined,
           webhookEnabled: editDraft.webhookEnabled && !!webhookUrlTrimmed,
+          channelType: editDraft.channelType,
+          escalationEnabled: editDraft.escalationEnabled,
+          notifyOnAnomaly: editDraft.notifyOnAnomaly,
         }),
       });
       if (res.ok) {
@@ -427,7 +445,7 @@ export default function AlertsView() {
             </div>
 
             <div className="lg:col-span-2">
-              <label className="block text-xs font-medium text-muted mb-2">Webhook URL <span className="text-muted-strong font-normal">(optional — Slack, Teams, or any HTTP endpoint)</span></label>
+              <label className="block text-xs font-medium text-muted mb-2">Webhook URL <span className="text-muted-strong font-normal">(optional)</span></label>
               <div className="flex items-center gap-2">
                 <input
                   type="url"
@@ -450,6 +468,51 @@ export default function AlertsView() {
               {draft.webhookUrl.trim() && !/^https?:\/\//i.test(draft.webhookUrl.trim()) && (
                 <p className="text-[11px] text-red-400 mt-1">URL must start with https://</p>
               )}
+              {draft.webhookUrl.trim() && draft.webhookEnabled && (
+                <div className="mt-2">
+                  <label className="block text-xs font-medium text-muted mb-1.5">Webhook format</label>
+                  <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-surface border border-subtle w-fit">
+                    {(['generic', 'slack', 'teams', 'discord'] as const).map((ct) => (
+                      <button
+                        key={ct}
+                        type="button"
+                        onClick={() => setDraft({ ...draft, channelType: ct })}
+                        className={`px-2.5 py-1 rounded-md text-xs capitalize transition-all ${
+                          draft.channelType === ct
+                            ? 'bg-surface-elevated text-foreground font-semibold shadow-sm'
+                            : 'text-muted hover:text-foreground'
+                        }`}
+                      >
+                        {ct === 'generic' ? 'Generic' : ct.charAt(0).toUpperCase() + ct.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="lg:col-span-2">
+              <label className="block text-xs font-medium text-muted mb-2">Advanced</label>
+              <div className="flex flex-wrap gap-3">
+                <label className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-subtle cursor-pointer hover:border-strong">
+                  <input
+                    type="checkbox"
+                    checked={draft.escalationEnabled}
+                    onChange={(e) => setDraft({ ...draft, escalationEnabled: e.target.checked })}
+                    className="accent-accent"
+                  />
+                  <span className="text-xs text-foreground">Level escalation (re-alert at 4h, 24h)</span>
+                </label>
+                <label className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-subtle cursor-pointer hover:border-strong">
+                  <input
+                    type="checkbox"
+                    checked={draft.notifyOnAnomaly}
+                    onChange={(e) => setDraft({ ...draft, notifyOnAnomaly: e.target.checked })}
+                    className="accent-accent"
+                  />
+                  <span className="text-xs text-foreground">Notify on DD anomaly spike</span>
+                </label>
+              </div>
             </div>
           </div>
 

@@ -309,6 +309,7 @@ const IncidentMetricsForm: ConfigForm = ({ tile, onUpdate }) => {
 
 const FetcherHealthForm: ConfigForm = ({ tile, onUpdate }) => common(tile, onUpdate, { hideRefresh: true });
 const AlertAuditForm: ConfigForm = ({ tile, onUpdate }) => common(tile, onUpdate, { hideRefresh: true });
+const AnomalyAlertForm: ConfigForm = ({ tile, onUpdate }) => common(tile, onUpdate, { hideRefresh: true });
 
 export const TILE_CONFIG_FORMS: Record<TileType, ConfigForm> = {
   'stat':              StatForm,
@@ -322,4 +323,5 @@ export const TILE_CONFIG_FORMS: Record<TileType, ConfigForm> = {
   'incident-metrics':  IncidentMetricsForm,
   'fetcher-health':    FetcherHealthForm,
   'alert-audit':       AlertAuditForm,
+  'anomaly-alert':     AnomalyAlertForm,
 };

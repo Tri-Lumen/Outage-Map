@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { health } from '@/lib/health';
+import { getFetcherLatency24h } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -12,14 +13,19 @@ export const revalidate = 0;
 export function GET() {
   const snapshot = health.snapshot();
   return NextResponse.json({
-    fetchers: snapshot.map((entry) => ({
-      service: entry.service,
-      source: entry.source,
-      lastSuccessAt: entry.lastSuccessAt ? new Date(entry.lastSuccessAt).toISOString() : null,
-      lastErrorAt: entry.lastErrorAt ? new Date(entry.lastErrorAt).toISOString() : null,
-      lastError: entry.lastError,
-      lastLatencyMs: entry.lastLatencyMs,
-      consecutiveFailures: entry.consecutiveFailures,
-    })),
+    fetchers: snapshot.map((entry) => {
+      const latencyRows = getFetcherLatency24h(entry.service, entry.source);
+      const latency24h = latencyRows.map((r) => r.latency_ms);
+      return {
+        service: entry.service,
+        source: entry.source,
+        lastSuccessAt: entry.lastSuccessAt ? new Date(entry.lastSuccessAt).toISOString() : null,
+        lastErrorAt: entry.lastErrorAt ? new Date(entry.lastErrorAt).toISOString() : null,
+        lastError: entry.lastError,
+        lastLatencyMs: entry.lastLatencyMs,
+        consecutiveFailures: entry.consecutiveFailures,
+        latency24h,
+      };
+    }),
   });
 }

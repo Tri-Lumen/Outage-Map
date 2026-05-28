@@ -2,9 +2,25 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { mutate } from 'swr';
 import { useServiceStatus } from '@/hooks/useStatus';
 import { useTheme, THEMES, Theme } from './ThemeProvider';
 import { enterPresent } from '@/hooks/usePresentMode';
+
+const HISTORY_KEY = 'outage-map-palette-history';
+const MAX_HISTORY = 5;
+
+function loadHistory(): string[] {
+  if (typeof window === 'undefined') return [];
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]'); } catch { return []; }
+}
+
+function saveHistory(id: string) {
+  try {
+    const prev = loadHistory().filter((h) => h !== id);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify([id, ...prev].slice(0, MAX_HISTORY)));
+  } catch { /* ignore */ }
+}
 
 type CommandKind = 'page' | 'service' | 'appearance' | 'action';
 
@@ -34,6 +50,8 @@ const NAV_PAGES: { href: string; label: string; hint: string }[] = [
   { href: '/alerts', label: 'Alerts', hint: 'Rules & subscriptions' },
   { href: '/sources', label: 'Sources', hint: 'Imported services' },
   { href: '/settings', label: 'Settings', hint: 'Preferences & theme' },
+  { href: '/maintenance', label: 'Maintenance', hint: 'Planned downtime windows' },
+  { href: '/dependencies', label: 'Dependencies', hint: 'Service dependency graph' },
 ];
 
 function PaletteIcon({ kind }: { kind: CommandKind }) {
@@ -70,6 +88,7 @@ export default function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
+  const [history, setHistory] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -77,6 +96,12 @@ export default function CommandPalette() {
     setOpen(false);
     setQuery('');
     setActive(0);
+  }, []);
+
+  const run = useCallback((cmd: Command) => {
+    saveHistory(cmd.id);
+    setHistory(loadHistory());
+    cmd.run();
   }, []);
 
   const services = useMemo(() => data?.services ?? [], [data]);
@@ -129,10 +154,7 @@ export default function CommandPalette() {
         group: 'Appearance',
         kind: 'action',
         keywords: 'cycle theme next toggle appearance',
-        run: () => {
-          toggle();
-          close();
-        },
+        run: () => { toggle(); close(); },
       },
       {
         id: 'action:present',
@@ -141,10 +163,46 @@ export default function CommandPalette() {
         group: 'Actions',
         kind: 'action',
         keywords: 'present presentation kiosk fullscreen tv display',
+        run: () => { close(); enterPresent(); },
+      },
+      {
+        id: 'action:refresh',
+        label: 'Refresh status now',
+        hint: 'Force immediate status poll',
+        group: 'Actions',
+        kind: 'action',
+        keywords: 'refresh reload fetch poll update status now',
+        run: () => {
+          mutate('/api/status');
+          mutate((key: string) => key.startsWith('/api/incidents'));
+          close();
+        },
+      },
+      {
+        id: 'action:export-csv',
+        label: 'Export SLA report (CSV)',
+        hint: 'Download reliability CSV',
+        group: 'Actions',
+        kind: 'action',
+        keywords: 'export csv sla report download analytics',
         run: () => {
           close();
-          enterPresent();
+          fetch('/api/reports/sla?format=csv').then((r) => r.blob()).then((blob) => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'sla-report.csv'; a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+          }).catch(() => {});
         },
+      },
+      {
+        id: 'action:dependencies',
+        label: 'Open dependency graph',
+        hint: 'Service dependency visualization',
+        group: 'Actions',
+        kind: 'action',
+        keywords: 'dependency graph services cascade',
+        run: go('/dependencies'),
       },
     ];
 
@@ -158,6 +216,14 @@ export default function CommandPalette() {
       `${c.label} ${c.hint ?? ''} ${c.keywords ?? ''}`.toLowerCase().includes(q),
     );
   }, [commands, query]);
+
+  const recentCommands = useMemo(() => {
+    if (query.trim()) return [];
+    return history
+      .map((id) => commands.find((c) => c.id === id))
+      .filter((c): c is Command => c !== undefined)
+      .slice(0, MAX_HISTORY);
+  }, [history, commands, query]);
 
   const groups = useMemo(() => {
     const map = new Map<string, Command[]>();
@@ -176,6 +242,12 @@ export default function CommandPalette() {
         e.preventDefault();
         setOpen((v) => !v);
       }
+      // Cmd+Shift+K → seed with #actions
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setQuery('#actions');
+        setOpen(true);
+      }
     };
     const openEvt = () => setOpen(true);
     window.addEventListener('keydown', handler);
@@ -189,6 +261,7 @@ export default function CommandPalette() {
   useEffect(() => {
     if (open) {
       setActive(0);
+      setHistory(loadHistory());
       const id = requestAnimationFrame(() => inputRef.current?.focus());
       return () => cancelAnimationFrame(id);
     }
@@ -218,7 +291,8 @@ export default function CommandPalette() {
       setActive((i) => (filtered.length ? (i - 1 + filtered.length) % filtered.length : 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      filtered[active]?.run();
+      const cmd = filtered[active];
+      if (cmd) run(cmd);
     }
   };
 
@@ -250,8 +324,38 @@ export default function CommandPalette() {
 
         <div ref={listRef} className="max-h-[52vh] overflow-y-auto py-2">
           {filtered.length === 0 && (
-            <div className="px-4 py-8 text-center text-sm text-muted">No matches for “{query}”</div>
+            <div className="px-4 py-8 text-center text-sm text-muted">{`No matches for "${query}"`}</div>
           )}
+
+          {/* Recent commands shown when query is empty */}
+          {recentCommands.length > 0 && !query.trim() && (
+            <div className="px-2 pb-1">
+              <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-strong">Recent</div>
+              {recentCommands.map((c) => {
+                flatIndex += 1;
+                const idx = flatIndex;
+                const isActive = idx === active;
+                return (
+                  <button
+                    key={`recent:${c.id}`}
+                    data-index={idx}
+                    onClick={() => run(c)}
+                    onMouseMove={() => setActive(idx)}
+                    className={`w-full flex items-center gap-3 px-2 py-2 rounded-lg text-left transition-colors ${
+                      isActive ? 'bg-surface-elevated' : 'hover:bg-white/5'
+                    }`}
+                  >
+                    <svg className="w-3.5 h-3.5 text-muted flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-sm text-foreground font-medium flex-shrink-0">{c.label}</span>
+                    {c.hint && <span className="text-xs text-muted truncate ml-auto">{c.hint}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {groups.map(([group, items]) => (
             <div key={group} className="px-2 pb-1">
               <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-strong">{group}</div>
@@ -263,7 +367,7 @@ export default function CommandPalette() {
                   <button
                     key={c.id}
                     data-index={idx}
-                    onClick={c.run}
+                    onClick={() => run(c)}
                     onMouseMove={() => setActive(idx)}
                     className={`w-full flex items-center gap-3 px-2 py-2 rounded-lg text-left transition-colors ${
                       isActive ? 'bg-surface-elevated' : 'hover:bg-white/5'

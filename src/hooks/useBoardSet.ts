@@ -86,6 +86,8 @@ export interface UseBoardSet {
   deleteBoard: (id: string) => void;
   duplicateBoard: (id: string) => void;
   starBoard: (id: string) => void;
+  nextBoard: () => void;
+  prevBoard: () => void;
 }
 
 export function useBoardSet(): UseBoardSet {
@@ -173,6 +175,22 @@ export function useBoardSet(): UseBoardSet {
     }));
   }, []);
 
+  const nextBoard = useCallback(() => {
+    setState((s) => {
+      const idx = s.boards.findIndex((b) => b.id === s.active);
+      const next = s.boards[(idx + 1) % s.boards.length];
+      return { ...s, active: next.id };
+    });
+  }, []);
+
+  const prevBoard = useCallback(() => {
+    setState((s) => {
+      const idx = s.boards.findIndex((b) => b.id === s.active);
+      const prev = s.boards[(idx - 1 + s.boards.length) % s.boards.length];
+      return { ...s, active: prev.id };
+    });
+  }, []);
+
   return {
     boards: state.boards,
     activeId: state.active,
@@ -185,5 +203,7 @@ export function useBoardSet(): UseBoardSet {
     deleteBoard,
     duplicateBoard,
     starBoard,
+    nextBoard,
+    prevBoard,
   };
 }

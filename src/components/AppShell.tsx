@@ -3,6 +3,7 @@
 import { ReactNode } from 'react';
 import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
+import MobileTabBar from './MobileTabBar';
 import CommandPalette from './CommandPalette';
 import { SidebarProvider, useSidebar } from './SidebarContext';
 import { usePresentMode } from '@/hooks/usePresentMode';
@@ -28,11 +29,12 @@ function ShellInner({ children }: { children: ReactNode }) {
         }`}
       >
         <MobileNav />
-        <main className="px-4 sm:px-6 lg:px-10 py-6 lg:py-8 max-w-[1500px] mx-auto">
+        <main className="px-4 sm:px-6 lg:px-10 py-6 lg:py-8 pb-20 lg:pb-8 max-w-[1500px] mx-auto">
           {children}
         </main>
       </div>
       <CommandPalette />
+      <MobileTabBar />
     </div>
   );
 }

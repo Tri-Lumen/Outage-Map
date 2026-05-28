@@ -1,0 +1,221 @@
+'use client';
+
+import { useState } from 'react';
+import { useMaintenance } from '@/hooks/useMaintenance';
+import { useServiceStatus } from '@/hooks/useStatus';
+import { mutate } from 'swr';
+import type { MaintenanceWindow } from '@/lib/types';
+
+function formatDateTime(iso: string) {
+  try {
+    return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return iso;
+  }
+}
+
+function isActive(w: MaintenanceWindow) {
+  const now = Date.now();
+  return new Date(w.startTime).getTime() <= now && new Date(w.endTime).getTime() >= now;
+}
+
+export default function MaintenanceView() {
+  const { data, isLoading } = useMaintenance();
+  const { data: statusData } = useServiceStatus();
+  const services = statusData?.services ?? [];
+
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({
+    serviceSlugs: [] as string[],
+    startTime: '',
+    endTime: '',
+    note: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setSaving(true);
+    try {
+      const res = await fetch('/api/maintenance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          serviceSlugs: form.serviceSlugs,
+          startTime: new Date(form.startTime).toISOString(),
+          endTime: new Date(form.endTime).toISOString(),
+          note: form.note || null,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        setError(d.error || 'Failed to create window');
+        return;
+      }
+      await mutate('/api/maintenance');
+      setCreating(false);
+      setForm({ serviceSlugs: [], startTime: '', endTime: '', note: '' });
+    } catch {
+      setError('Network error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('Delete this maintenance window?')) return;
+    await fetch(`/api/maintenance/${id}`, { method: 'DELETE' });
+    await mutate('/api/maintenance');
+  }
+
+  const windows = data?.windows ?? [];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-muted">
+          {windows.length} window{windows.length !== 1 ? 's' : ''} scheduled
+        </div>
+        <button
+          onClick={() => setCreating(true)}
+          className="px-4 py-2 rounded-lg bg-accent-soft text-foreground text-sm font-medium hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          + Schedule Window
+        </button>
+      </div>
+
+      {creating && (
+        <form onSubmit={handleCreate} className="surface-card rounded-xl p-5 space-y-4 border border-subtle">
+          <h3 className="font-semibold text-foreground">New Maintenance Window</h3>
+
+          <div>
+            <label className="block text-xs text-muted mb-1">Services (leave empty = all)</label>
+            <div className="flex flex-wrap gap-2">
+              {services.map((s) => (
+                <label key={s.slug} className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.serviceSlugs.includes(s.slug)}
+                    onChange={(e) => {
+                      setForm((f) => ({
+                        ...f,
+                        serviceSlugs: e.target.checked
+                          ? [...f.serviceSlugs, s.slug]
+                          : f.serviceSlugs.filter((sl) => sl !== s.slug),
+                      }));
+                    }}
+                    className="accent-cyan-400"
+                  />
+                  <span className="text-xs text-foreground">{s.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-muted mb-1">Start time</label>
+              <input
+                type="datetime-local"
+                required
+                value={form.startTime}
+                onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
+                className="w-full px-3 py-1.5 rounded-lg surface-elevated border border-subtle text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted mb-1">End time</label>
+              <input
+                type="datetime-local"
+                required
+                value={form.endTime}
+                onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
+                className="w-full px-3 py-1.5 rounded-lg surface-elevated border border-subtle text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs text-muted mb-1">Note (optional)</label>
+            <input
+              type="text"
+              value={form.note}
+              onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+              placeholder="e.g. Scheduled DB maintenance"
+              className="w-full px-3 py-1.5 rounded-lg surface-elevated border border-subtle text-sm text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </div>
+
+          {error && <p className="text-xs text-red-400">{error}</p>}
+
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-4 py-2 rounded-lg bg-accent-soft text-foreground text-sm font-medium disabled:opacity-50 hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setCreating(false); setError(''); }}
+              className="px-4 py-2 rounded-lg text-muted text-sm hover:text-foreground hover:bg-white/5 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
+      {isLoading && (
+        <div className="text-sm text-muted text-center py-8">Loading…</div>
+      )}
+
+      {!isLoading && windows.length === 0 && (
+        <div className="text-center py-12 text-muted">
+          <svg className="w-12 h-12 mx-auto mb-3 text-muted-strong" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z" />
+          </svg>
+          <p>No maintenance windows scheduled.</p>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {windows.map((w) => {
+          const active = isActive(w);
+          return (
+            <div key={w.id} className={`surface-card rounded-xl p-4 border ${active ? 'border-amber-500/50' : 'border-subtle'}`}>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    {active && (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-semibold uppercase tracking-wide">Active</span>
+                    )}
+                    <span className="text-xs text-muted">
+                      {w.serviceSlugs.length === 0 ? 'All services' : w.serviceSlugs.join(', ')}
+                    </span>
+                  </div>
+                  <p className="text-sm text-foreground font-medium">
+                    {formatDateTime(w.startTime)} → {formatDateTime(w.endTime)}
+                  </p>
+                  {w.note && <p className="text-xs text-muted mt-1">{w.note}</p>}
+                </div>
+                <button
+                  onClick={() => handleDelete(w.id)}
+                  className="text-muted hover:text-red-400 transition-colors p-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  aria-label="Delete window"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

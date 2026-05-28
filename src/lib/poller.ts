@@ -8,9 +8,12 @@ import {
   cleanupOldHistory,
   cleanupOldIncidents,
   vacuumDb,
+  isServiceInMaintenance,
+  getActiveUnresolvedIncidents,
+  insertFetcherLatency,
 } from './db';
-import { sendIncidentAlert, sendStatusChangeAlert } from './email';
-import { evaluateRulesForIncident, evaluateRulesForWebhook } from './alerts/rules';
+import { sendIncidentAlert, sendStatusChangeAlert, sendEscalationAlert } from './email';
+import { evaluateRulesForIncident, evaluateRulesForWebhook, evaluateRulesForEscalation, evaluateRulesForAnomaly } from './alerts/rules';
 import { sendWebhookAlerts } from './webhook';
 import { metrics } from './metrics';
 import { health, HealthSource } from './health';
@@ -22,25 +25,17 @@ import { fetchGoogleStatus } from './fetchers/google';
 import { fetchWorkdayStatus } from './fetchers/workday';
 import { fetchAwsStatus } from './fetchers/aws';
 import { fetchDowndetectorStatus } from './fetchers/downdetector';
+import { broadcastSSE } from './sse';
+import { computeZScore } from './anomaly';
 
-// Wrap a fetcher call with latency, success, and failure bookkeeping. Both
-// underlying fetchers catch exceptions internally and return a result with
-// `status: 'unknown'` plus a `details` message, so we treat "unknown" as a
-// failure for health tracking purposes — it's the most reliable signal that
-// the upstream didn't give us a useful answer.
-//
-// The circuit breaker layer short-circuits the call when an upstream has been
-// failing repeatedly: instead of making the network request, it returns a
-// fabricated "unknown" result via the supplied factory. This prevents the
-// poller from hammering a broken upstream every 3 minutes while still
-// generating one probe call per cooldown to detect recovery.
+// Wrap a fetcher call with latency, success, and failure bookkeeping.
 async function timedFetch<T>(
   serviceSlug: string,
   source: HealthSource,
   call: () => Promise<T>,
   inspect: (result: T) => { status: ServiceStatus; details: string | null },
   unknownFactory: (reason: string) => T,
-): Promise<T> {
+): Promise<{ result: T; latencyMs: number }> {
   if (circuit.shouldAttempt(serviceSlug, source) === 'block') {
     const until = circuit.openUntil(serviceSlug, source);
     const reason = until
@@ -48,7 +43,7 @@ async function timedFetch<T>(
       : 'circuit open';
     metrics.recordFetcherFailure(serviceSlug, source, 'circuit_open');
     metrics.setCircuitState(serviceSlug, source, 'open');
-    return unknownFactory(reason);
+    return { result: unknownFactory(reason), latencyMs: 0 };
   }
 
   const start = Date.now();
@@ -66,7 +61,7 @@ async function timedFetch<T>(
       circuit.recordSuccess(serviceSlug, source);
     }
     metrics.setCircuitState(serviceSlug, source, circuit.getState(serviceSlug, source));
-    return result;
+    return { result, latencyMs };
   } catch (err) {
     const latencyMs = Date.now() - start;
     metrics.recordFetcherLatency(serviceSlug, source, latencyMs / 1000);
@@ -141,17 +136,17 @@ function getPreviousStatus(serviceSlug: string): ServiceStatus | null {
   }
 }
 
+const changedServices: string[] = [];
+
 async function pollService(service: ServiceConfig): Promise<{ ddReports: number }> {
   if (process.env.DEBUG === 'true') {
     console.log(`[poller] Polling ${service.name}...`);
   }
 
   const previousStatus = getPreviousStatus(service.slug);
+  const inMaintenance = isServiceInMaintenance(service.slug);
 
-  // Fetch official status and Downdetector in parallel, with per-call latency
-  // and health tracking. Each fetcher already swallows exceptions internally,
-  // so timedFetch promotes "status: unknown" into a failure observation.
-  const [officialResult, ddResult] = await Promise.allSettled([
+  const [officialSettled, ddSettled] = await Promise.allSettled([
     timedFetch<FetchResult>(
       service.slug,
       'official',
@@ -174,19 +169,19 @@ async function pollService(service: ServiceConfig): Promise<{ ddReports: number 
   // Process official status
   let officialStatus: StatusResult | null = null;
   let activeIncidentCount = 0;
-  if (officialResult.status === 'fulfilled') {
-    officialStatus = officialResult.value.status;
-    upsertServiceStatus(
-      service.slug,
-      'official',
-      officialStatus.status,
-      officialStatus.details,
-      officialStatus.reportCount
-    );
+  if (officialSettled.status === 'fulfilled') {
+    const { result, latencyMs } = officialSettled.value;
+    officialStatus = result.status;
+    if (latencyMs > 0) insertFetcherLatency(service.slug, 'official', latencyMs);
+
+    upsertServiceStatus(service.slug, 'official', officialStatus.status, officialStatus.details, officialStatus.reportCount);
     metrics.setServiceStatus(service.slug, 'official', officialStatus.status);
 
-    // Process incidents
-    for (const incident of officialResult.value.incidents) {
+    if (previousStatus && previousStatus !== officialStatus.status) {
+      changedServices.push(service.slug);
+    }
+
+    for (const incident of result.incidents) {
       if (!incident.resolvedAt) activeIncidentCount++;
       const { isNew } = upsertIncident(
         incident.serviceSlug,
@@ -200,46 +195,65 @@ async function pollService(service: ServiceConfig): Promise<{ ddReports: number 
         incident.sourceUrl
       );
 
-      // Send alert for new major/critical incidents. Recipients come from the
-      // alert_rules table; if no rule matches, fall back to ALERT_EMAILS so
-      // env-only deployments keep working.
-      if (isNew && (incident.severity === 'major' || incident.severity === 'critical')) {
+      if (isNew) {
+        metrics.incIncidents(incident.serviceSlug, incident.severity);
+      }
+
+      // Send alerts only when not in a maintenance window
+      if (isNew && (incident.severity === 'major' || incident.severity === 'critical') && !inMaintenance) {
         const ruleRecipients = evaluateRulesForIncident(incident);
-        const webhookUrls = evaluateRulesForWebhook(incident);
+        const webhooks = evaluateRulesForWebhook(incident);
         await Promise.all([
           sendIncidentAlert(incident, ruleRecipients),
-          sendWebhookAlerts(incident, webhookUrls),
+          sendWebhookAlerts(incident, webhooks),
         ]);
       }
     }
 
-    // Check for status change alerts
-    if (previousStatus && previousStatus !== officialStatus.status) {
+    if (!inMaintenance && previousStatus && previousStatus !== officialStatus.status) {
       await sendStatusChangeAlert(service.slug, previousStatus, officialStatus.status);
     }
   } else {
-    console.debug(`[poller] ${service.name} official fetch rejected:`, officialResult.reason);
+    console.debug(`[poller] ${service.name} official fetch rejected:`, officialSettled.reason);
   }
 
   // Process Downdetector
   let ddStatus: StatusResult | null = null;
-  if (ddResult.status === 'fulfilled') {
-    ddStatus = ddResult.value;
-    upsertServiceStatus(
-      service.slug,
-      'downdetector',
-      ddStatus.status,
-      ddStatus.details,
-      ddStatus.reportCount
-    );
+  if (ddSettled.status === 'fulfilled') {
+    const { result, latencyMs } = ddSettled.value;
+    ddStatus = result;
+    if (latencyMs > 0) insertFetcherLatency(service.slug, 'downdetector', latencyMs);
+
+    // Anomaly detection (F9)
+    const reportCount = ddStatus.reportCount ?? 0;
+    const { isAnomaly, zScore } = computeZScore(service.slug, reportCount);
+
+    upsertServiceStatus(service.slug, 'downdetector', ddStatus.status, ddStatus.details, ddStatus.reportCount, isAnomaly, zScore);
     metrics.setServiceStatus(service.slug, 'downdetector', ddStatus.status);
+
+    if (isAnomaly && !inMaintenance) {
+      const anomalyRecipients = evaluateRulesForAnomaly(service.slug);
+      if (anomalyRecipients.length > 0) {
+        await sendIncidentAlert(
+          {
+            serviceSlug: service.slug,
+            incidentId: `anomaly_${service.slug}_${Date.now()}`,
+            title: `Unusual spike in community reports (Z=${zScore.toFixed(1)})`,
+            status: 'investigating',
+            severity: 'minor',
+            startedAt: new Date().toISOString(),
+            resolvedAt: null,
+            description: `Downdetector reports are significantly above normal (Z-score: ${zScore.toFixed(2)}). This may indicate an emerging issue.`,
+            sourceUrl: null,
+          },
+          anomalyRecipients,
+        );
+      }
+    }
   } else {
-    console.debug(`[poller] ${service.name} downdetector fetch rejected:`, ddResult.reason);
+    console.debug(`[poller] ${service.name} downdetector fetch rejected:`, ddSettled.reason);
   }
 
-  // Record history point — include active incident count so services whose
-  // Statuspage reports issues still show a non-empty history even when DD
-  // is disabled or returns zero reports.
   const effectiveStatus = officialStatus?.status || ddStatus?.status || 'unknown';
   const reportCount = ddStatus?.reportCount || 0;
   insertStatusHistory(service.slug, effectiveStatus, reportCount, activeIncidentCount);
@@ -251,6 +265,20 @@ async function pollService(service: ServiceConfig): Promise<{ ddReports: number 
   }
 
   return { ddReports: reportCount };
+}
+
+async function processEscalations() {
+  try {
+    const unresolved = getActiveUnresolvedIncidents(4);
+    for (const incident of unresolved) {
+      const recipients = evaluateRulesForEscalation(incident);
+      for (const { email, level } of recipients) {
+        await sendEscalationAlert(incident.service_slug, incident.incident_id, incident.title, level, [email]);
+      }
+    }
+  } catch (err) {
+    console.error('[poller] Escalation processing failed:', err);
+  }
 }
 
 let isPolling = false;
@@ -265,6 +293,7 @@ export async function runPollCycle(): Promise<{ success: boolean; polled: number
   }
 
   isPolling = true;
+  changedServices.length = 0;
   const cycleStart = Date.now();
   if (process.env.DEBUG === 'true') {
     console.log(`[poller] Starting poll cycle at ${new Date().toISOString()}`);
@@ -297,7 +326,12 @@ export async function runPollCycle(): Promise<{ success: boolean; polled: number
       );
     }
 
-    // Cleanup old history + resolved incidents; VACUUM at most once per day.
+    // Escalation alerts for long-running unresolved incidents
+    await processEscalations();
+
+    // Broadcast SSE event so connected clients refresh immediately (F1)
+    broadcastSSE({ type: 'poll_complete', ts: Date.now(), services_changed: [...changedServices] });
+
     cleanupOldHistory(35);
     const prunedIncidents = cleanupOldIncidents(90);
     if (Date.now() - lastVacuumAt > VACUUM_INTERVAL_MS) {
@@ -316,8 +350,6 @@ export async function runPollCycle(): Promise<{ success: boolean; polled: number
   } finally {
     isPolling = false;
     const durationSec = (Date.now() - cycleStart) / 1000;
-    // "success" means at least one fetcher completed; "failure" only when
-    // every service errored, which usually means the host lost outbound DNS.
     metrics.recordPollCycle(polled > 0 ? 'success' : 'failure', durationSec);
   }
 

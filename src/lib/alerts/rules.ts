@@ -1,6 +1,6 @@
-import { listEnabledAlertRules, type AlertRuleRow } from '../db';
+import { listEnabledAlertRules, type AlertRuleRow, getAlertEscalationState, type IncidentRow } from '../db';
 import type { AlertRule, IncidentResult, IncidentSeverity } from '../types';
-import { asIncidentSeverity } from '../types';
+import { asIncidentSeverity, asChannelType } from '../types';
 
 const SEVERITY_RANK: Record<IncidentSeverity, number> = {
   minor: 1,
@@ -17,6 +17,15 @@ function parseServices(json: string): string[] {
   }
 }
 
+function parseIntervals(json: string): number[] {
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed.filter((n): n is number => typeof n === 'number') : [240, 1440];
+  } catch {
+    return [240, 1440];
+  }
+}
+
 export function rowToRule(row: AlertRuleRow): AlertRule {
   return {
     id: row.id,
@@ -26,6 +35,10 @@ export function rowToRule(row: AlertRuleRow): AlertRule {
     emailEnabled: row.email_enabled === 1,
     webhookUrl: row.webhook_url ?? null,
     webhookEnabled: row.webhook_enabled === 1,
+    channelType: asChannelType(row.channel_type),
+    escalationEnabled: row.escalation_enabled === 1,
+    escalationIntervals: parseIntervals(row.escalation_intervals),
+    notifyOnAnomaly: row.notify_on_anomaly === 1,
     enabled: row.enabled === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -54,15 +67,59 @@ export function evaluateRulesForIncident(incident: IncidentResult): string[] {
 }
 
 /**
- * Returns deduplicated webhook URLs whose enabled rules match the incident.
+ * Returns deduplicated webhook {url, channelType} pairs whose enabled rules match the incident.
  */
-export function evaluateRulesForWebhook(incident: IncidentResult): string[] {
+export function evaluateRulesForWebhook(incident: IncidentResult): { url: string; channelType: string }[] {
   const rules = listEnabledAlertRules().map(rowToRule);
-  const matched = new Set<string>();
+  const matched = new Map<string, string>();
   for (const rule of rules) {
     if (!rule.webhookEnabled || !rule.webhookUrl) continue;
     if (!ruleMatchesIncident(rule, incident)) continue;
-    matched.add(rule.webhookUrl);
+    if (!matched.has(rule.webhookUrl)) {
+      matched.set(rule.webhookUrl, rule.channelType);
+    }
+  }
+  return Array.from(matched.entries()).map(([url, channelType]) => ({ url, channelType }));
+}
+
+/**
+ * Returns email recipients that should receive escalation alerts for a long-running incident.
+ * Only used for incidents that are unresolved and older than escalationIntervals[0] minutes.
+ */
+export function evaluateRulesForEscalation(
+  incident: IncidentRow,
+): { email: string; level: number }[] {
+  const rules = listEnabledAlertRules().map(rowToRule);
+  const out: { email: string; level: number }[] = [];
+
+  for (const rule of rules) {
+    if (!rule.emailEnabled || !rule.escalationEnabled) continue;
+    if (rule.services.length > 0 && !rule.services.includes(incident.service_slug)) continue;
+    if (SEVERITY_RANK[asIncidentSeverity(incident.severity)] < SEVERITY_RANK[rule.minSeverity]) continue;
+
+    const state = getAlertEscalationState(
+      incident.service_slug,
+      incident.incident_id,
+      'new_incident',
+      rule.escalationIntervals,
+    );
+    if (state.shouldAlert && rule.email) {
+      out.push({ email: rule.email, level: state.nextLevel });
+    }
+  }
+  return out;
+}
+
+/**
+ * Returns email recipients to notify when a Downdetector anomaly is detected.
+ */
+export function evaluateRulesForAnomaly(serviceSlug: string): string[] {
+  const rules = listEnabledAlertRules().map(rowToRule);
+  const matched = new Set<string>();
+  for (const rule of rules) {
+    if (!rule.emailEnabled || !rule.notifyOnAnomaly) continue;
+    if (rule.services.length > 0 && !rule.services.includes(serviceSlug)) continue;
+    if (rule.email) matched.add(rule.email);
   }
   return Array.from(matched);
 }

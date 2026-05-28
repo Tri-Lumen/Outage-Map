@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
 
-export type Theme = 'solarized-dark' | 'solarized-light' | 'black-grey' | 'midnight' | 'auto' | 'custom';
+export type Theme = 'solarized-dark' | 'solarized-light' | 'black-grey' | 'midnight' | 'ocean' | 'forest' | 'corporate' | 'auto' | 'custom';
 
 export const THEMES: { value: Theme; label: string; description: string }[] = [
   { value: 'auto',            label: 'Auto (system)',  description: 'Follows your OS light/dark preference.' },
@@ -10,10 +10,13 @@ export const THEMES: { value: Theme; label: string; description: string }[] = [
   { value: 'solarized-light', label: 'Solarized Light', description: 'Cream-and-ink variant of the Solarized palette.' },
   { value: 'black-grey',      label: 'Classic Dark',   description: 'Traditional near-black background with neutral greys.' },
   { value: 'midnight',        label: 'Midnight',        description: 'Deep navy blue with slate accents.' },
+  { value: 'ocean',           label: 'Ocean',           description: 'Deep blue oceanic palette with cyan highlights.' },
+  { value: 'forest',          label: 'Forest',          description: 'Dark forest green with natural earth tones.' },
+  { value: 'corporate',       label: 'Corporate',       description: 'Clean light theme suited for professional presentations.' },
   { value: 'custom',          label: 'Custom…',        description: 'Pick your own background / surface / foreground / muted.' },
 ];
 
-const CONCRETE_THEMES: Theme[] = ['solarized-dark', 'solarized-light', 'black-grey', 'midnight', 'custom'];
+const CONCRETE_THEMES: Theme[] = ['solarized-dark', 'solarized-light', 'black-grey', 'midnight', 'ocean', 'forest', 'corporate', 'custom'];
 const VALID_THEMES: Theme[] = THEMES.map((t) => t.value);
 const DEFAULT_THEME: Theme = 'solarized-dark';
 const STORAGE_KEY = 'outage-map-theme';

@@ -55,6 +55,24 @@ const THEME_PREVIEWS: Record<Theme, {
     secondaryBar: 'bg-[var(--muted)]',
     accentBar: 'bg-[var(--accent)]',
   },
+  'ocean': {
+    wrapper: 'bg-[#0a1628] border-[#1a2e4a]',
+    primaryBar: 'bg-[#cdd9e5]',
+    secondaryBar: 'bg-[#5a7a9a]',
+    accentBar: 'bg-[#00b4d8]',
+  },
+  'forest': {
+    wrapper: 'bg-[#0d1f0d] border-[#1a3a1a]',
+    primaryBar: 'bg-[#c8e6c9]',
+    secondaryBar: 'bg-[#5a8a5a]',
+    accentBar: 'bg-[#52b788]',
+  },
+  'corporate': {
+    wrapper: 'bg-[#f4f6f9] border-[#d1d9e0]',
+    primaryBar: 'bg-[#1a2436]',
+    secondaryBar: 'bg-[#64748b]',
+    accentBar: 'bg-[#2563eb]',
+  },
 };
 
 export default function SettingsView() {

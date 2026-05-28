@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { getServiceStatuses, getActiveIncidentCounts } from '@/lib/db';
+import { getServiceStatuses, getActiveIncidentCounts, listActiveMaintenanceWindows } from '@/lib/db';
 import { getServices } from '@/lib/services';
 import { ServiceStatus, ServiceStatusResponse } from '@/lib/types';
 import { deriveOverallStatus } from '@/lib/statusUtils';
@@ -11,6 +11,19 @@ export async function GET(request: NextRequest) {
   try {
     const statuses = getServiceStatuses();
     const activeIncidentCounts = getActiveIncidentCounts();
+    const activeWindows = listActiveMaintenanceWindows();
+
+    const maintenanceSet = new Set<string>();
+    for (const w of activeWindows) {
+      let slugs: string[] = [];
+      try { slugs = JSON.parse(w.service_slugs); } catch { /* ignore */ }
+      if (slugs.length === 0) {
+        // All services in maintenance
+        for (const s of getServices()) maintenanceSet.add(s.slug);
+      } else {
+        for (const s of slugs) maintenanceSet.add(s);
+      }
+    }
 
     const services: ServiceStatusResponse[] = getServices().map((service) => {
       const official = statuses.find(
@@ -40,6 +53,9 @@ export async function GET(request: NextRequest) {
           ? `https://downdetector.com/status/${service.downdetectorSlug}/`
           : '',
         brandFont: service.brandFont,
+        isAnomaly: dd?.is_anomaly === 1,
+        anomalyZScore: dd?.anomaly_z_score ?? null,
+        inMaintenance: maintenanceSet.has(service.slug),
       };
     });
 

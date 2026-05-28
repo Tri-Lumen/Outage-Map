@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPaginatedIncidents } from '@/lib/db';
 import { getServices } from '@/lib/services';
-import { IncidentResponse, asIncidentSeverity, asIncidentStatus } from '@/lib/types';
+import { IncidentResponse, asIncidentSeverity, asIncidentStatus, isIncidentSeverity } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +25,13 @@ export async function GET(request: NextRequest) {
       : 0;
 
     const since = searchParams.get('since') || null;
+    const cursor = searchParams.get('cursor') || null;
+    const q = searchParams.get('q') || null;
+    const dateFrom = searchParams.get('dateFrom') || null;
+    const dateTo = searchParams.get('dateTo') || null;
+
+    const rawSeverities = searchParams.getAll('severity');
+    const severities = rawSeverities.filter(isIncidentSeverity);
 
     const allServices = getServices();
     const validSlugs = new Set(allServices.map((s) => s.slug));
@@ -33,7 +40,11 @@ export async function GET(request: NextRequest) {
       ? serviceFilter
       : null;
 
-    const { incidents, total } = getPaginatedIncidents({ days, service, limit, offset, since });
+    const { incidents, total, nextCursor } = getPaginatedIncidents({
+      days, service, limit, offset, since, q, cursor,
+      severities: severities.length > 0 ? severities : null,
+      dateFrom, dateTo,
+    });
 
     const serviceMap = new Map(allServices.map((s) => [s.slug, s.name]));
 
@@ -51,7 +62,7 @@ export async function GET(request: NextRequest) {
       updatedAt: i.updated_at,
     }));
 
-    return NextResponse.json({ incidents: response, total, limit, offset });
+    return NextResponse.json({ incidents: response, total, limit, offset, nextCursor });
   } catch (err) {
     console.error('[api/incidents] Error:', err);
     return NextResponse.json(

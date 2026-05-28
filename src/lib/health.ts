@@ -92,6 +92,12 @@ export const health = {
     }
     return out;
   },
+  reset(service: string, source: Source) {
+    const entry = getOrInit(service, source);
+    entry.consecutiveFailures = 0;
+    entry.lastErrorAt = null;
+    entry.lastError = null;
+  },
   isReady(): { ready: boolean; reason: string | null } {
     const threshold = readyThreshold();
     let failing: FetcherHealth | null = null;
