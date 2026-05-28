@@ -1,9 +1,8 @@
-import { NextRequest } from 'next/server';
 import { registerSSEClient } from '@/lib/sse';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(_request: NextRequest) {
+export async function GET() {
   let unregister: (() => void) | null = null;
 
   const stream = new ReadableStream<Uint8Array>({

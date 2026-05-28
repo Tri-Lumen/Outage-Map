@@ -40,7 +40,7 @@ export function useSSE() {
     connect();
 
     return () => {
-      retryTimeout && clearTimeout(retryTimeout);
+      if (retryTimeout) clearTimeout(retryTimeout);
       esRef.current?.close();
       esRef.current = null;
     };

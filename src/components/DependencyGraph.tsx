@@ -15,12 +15,6 @@ interface Node {
   vy: number;
 }
 
-interface Edge {
-  from: string;
-  to: string;
-  cascading: boolean;
-}
-
 const DEGRADED_STATUSES = new Set(['degraded', 'major_outage', 'down']);
 
 export default function DependencyGraph() {
