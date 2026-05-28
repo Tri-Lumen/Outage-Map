@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import TileChrome from './TileChrome';
 import type { TileProps } from './types';
 import { useFetcherHealth } from '@/hooks/useStatus';
+import Sparkline from '../Sparkline';
 
 function latencyColor(ms: number | null): string {
   if (ms === null) return 'var(--muted)';
@@ -22,9 +24,23 @@ function relTime(iso: string | null): string {
 export default function FetcherHealthTile({
   config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure,
 }: TileProps) {
-  const { data, isLoading } = useFetcherHealth(30000);
+  const { data, isLoading, mutate } = useFetcherHealth(30000);
   const fetchers = data?.fetchers ?? [];
   const failing = fetchers.filter((f) => f.consecutiveFailures > 0).length;
+  const [resetting, setResetting] = useState<string | null>(null);
+
+  const handleReset = async (service: string, source: string) => {
+    const key = `${service}/${source}`;
+    setResetting(key);
+    try {
+      await fetch(`/api/health/fetchers/${encodeURIComponent(service)}/${encodeURIComponent(source)}/reset`, {
+        method: 'POST',
+      });
+      await mutate();
+    } finally {
+      setResetting(null);
+    }
+  };
 
   return (
     <TileChrome
@@ -63,45 +79,82 @@ export default function FetcherHealthTile({
         ) : (
           fetchers.map((f) => {
             const ok = f.consecutiveFailures === 0;
+            const resetKey = `${f.service}/${f.source}`;
+            const isResetting = resetting === resetKey;
+            const sparkData = f.latency24h ?? [];
+            const normalizedSpark = sparkData.map((v) => Math.min(1, v / 3000));
+            const errorRate = f.errorRate24h ?? null;
+
             return (
               <div
-                key={`${f.service}-${f.source}`}
+                key={resetKey}
                 style={{
                   display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
+                  flexDirection: 'column',
+                  gap: 4,
                   padding: '5px 0',
                   borderBottom: '1px solid var(--border-subtle)',
                 }}
               >
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    background: ok ? '#7CB342' : '#EF5350',
-                    flexShrink: 0,
-                  }}
-                />
-                <span style={{ fontSize: 11, color: 'var(--foreground)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {f.service}
-                </span>
-                {f.consecutiveFailures > 0 ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span
-                    title={f.lastError ?? undefined}
-                    style={{ fontSize: 10, color: '#EF5350', flexShrink: 0 }}
-                  >
-                    {f.consecutiveFailures}× fail
+                    style={{
+                      width: 6, height: 6, borderRadius: '50%',
+                      background: ok ? '#7CB342' : '#EF5350',
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--foreground)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {f.service}
+                    <span style={{ fontSize: 9, color: 'var(--muted)', marginLeft: 4 }}>{f.source}</span>
                   </span>
-                ) : (
-                  <span style={{ fontSize: 10, color: 'var(--muted)', flexShrink: 0 }}>
-                    ✓ {relTime(f.lastSuccessAt)}
-                  </span>
-                )}
-                {f.lastLatencyMs !== null && (
-                  <span style={{ fontSize: 10, color: latencyColor(f.lastLatencyMs), width: 36, textAlign: 'right', flexShrink: 0 }}>
-                    {f.lastLatencyMs}ms
-                  </span>
+
+                  {errorRate !== null && errorRate > 0 && (
+                    <span style={{ fontSize: 9, color: '#EF5350', flexShrink: 0, background: 'rgba(239,83,80,0.12)', padding: '1px 4px', borderRadius: 4 }}>
+                      {(errorRate * 100).toFixed(0)}% err
+                    </span>
+                  )}
+
+                  {f.consecutiveFailures > 0 ? (
+                    <>
+                      <span title={f.lastError ?? undefined} style={{ fontSize: 10, color: '#EF5350', flexShrink: 0 }}>
+                        {f.consecutiveFailures}× fail
+                      </span>
+                      <button
+                        onClick={() => handleReset(f.service, f.source)}
+                        disabled={isResetting}
+                        title="Reset circuit breaker"
+                        style={{
+                          fontSize: 9, color: 'var(--muted)', cursor: 'pointer',
+                          background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)',
+                          borderRadius: 4, padding: '1px 5px', flexShrink: 0,
+                          opacity: isResetting ? 0.5 : 1,
+                        }}
+                      >
+                        {isResetting ? '…' : 'Reset'}
+                      </button>
+                    </>
+                  ) : (
+                    <span style={{ fontSize: 10, color: 'var(--muted)', flexShrink: 0 }}>
+                      ✓ {relTime(f.lastSuccessAt)}
+                    </span>
+                  )}
+
+                  {f.lastLatencyMs !== null && (
+                    <span style={{ fontSize: 10, color: latencyColor(f.lastLatencyMs), width: 36, textAlign: 'right', flexShrink: 0 }}>
+                      {f.lastLatencyMs}ms
+                    </span>
+                  )}
+                </div>
+
+                {normalizedSpark.length >= 4 && (
+                  <div style={{ paddingLeft: 14, height: 16 }}>
+                    <Sparkline
+                      data={normalizedSpark}
+                      color={ok ? '#7CB342' : '#EF5350'}
+                      height={16}
+                    />
+                  </div>
                 )}
               </div>
             );

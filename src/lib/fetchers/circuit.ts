@@ -108,4 +108,12 @@ export const circuit = {
     if (entry.state !== 'open' || entry.openedAt === null) return null;
     return entry.openedAt + entry.cooldownMs;
   },
+
+  reset(service: string, source: string) {
+    const entry = getOrInit(service, source);
+    entry.state = 'closed';
+    entry.failures = 0;
+    entry.openedAt = null;
+    entry.cooldownMs = BASE_COOLDOWN_MS;
+  },
 };

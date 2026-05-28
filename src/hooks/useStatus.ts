@@ -15,12 +15,15 @@ const fetcher = async (url: string) => {
   return res.json();
 };
 
-export function useServiceStatus(refreshIntervalMs?: number) {
+export function useServiceStatus(refreshIntervalMs?: number, opts?: { sse?: boolean }) {
+  const sse = opts?.sse ?? false;
   return useSWR<{ services: ServiceStatusResponse[]; lastUpdated: string }>(
     '/api/status',
     fetcher,
     {
-      refreshInterval: refreshIntervalMs ?? 30000,
+      // When SSE is active the push event triggers mutate(), so we can
+      // poll less aggressively as a fallback only.
+      refreshInterval: sse ? 120000 : (refreshIntervalMs ?? 30000),
       revalidateOnFocus: true,
       dedupingInterval: Math.min(10000, refreshIntervalMs ?? 10000),
     }
@@ -38,9 +41,16 @@ export function useIncidents(days: number = 7, refreshIntervalMs?: number) {
   );
 }
 
-export function useHistory(days: number = 30, refreshIntervalMs?: number) {
+export function useHistory(
+  days: number = 30,
+  refreshIntervalMs?: number,
+  opts?: { from?: string; to?: string },
+) {
+  const params = new URLSearchParams({ days: String(days) });
+  if (opts?.from) params.set('from', opts.from);
+  if (opts?.to) params.set('to', opts.to);
   return useSWR<HistoryResponse>(
-    `/api/history?days=${days}`,
+    `/api/history?${params.toString()}`,
     fetcher,
     {
       refreshInterval: refreshIntervalMs ?? 300000,
@@ -78,6 +88,8 @@ interface FetcherHealthEntry {
   lastError: string | null;
   lastLatencyMs: number | null;
   consecutiveFailures: number;
+  latency24h?: number[];
+  errorRate24h?: number;
 }
 
 export function useFetcherHealth(refreshIntervalMs?: number) {

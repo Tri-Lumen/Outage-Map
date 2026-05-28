@@ -81,9 +81,11 @@ export async function GET(request: NextRequest) {
       ? Math.min(Math.floor(daysParam), 90)
       : 30;
     const serviceFilter = searchParams.get('service') || null;
+    const from = searchParams.get('from') || null;
+    const to = searchParams.get('to') || null;
 
     const serviceSlug = serviceFilter && serviceFilter !== 'all' ? serviceFilter : null;
-    const rows = getStatusHistory(serviceSlug, days);
+    const rows = getStatusHistory(serviceSlug, days, from, to);
 
     const history = aggregateByDay(rows);
 

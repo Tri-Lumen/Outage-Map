@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { hasRecentAlert, logAlert } from './db';
+import { hasRecentAlert, logAlert, getAlertEscalationState } from './db';
 import { getServiceBySlug } from './services';
 import { IncidentResult, ServiceStatus } from './types';
 import { statusHex, statusLabel } from './statusColors';
@@ -178,6 +178,57 @@ export async function sendTestAlert(email: string): Promise<TestAlertResult> {
       reason: 'send_failed',
       detail: err instanceof Error ? err.message : undefined,
     };
+  }
+}
+
+export async function sendEscalationAlert(
+  serviceSlug: string,
+  incidentId: string,
+  incidentTitle: string,
+  level: number,
+  recipients: string[],
+): Promise<boolean> {
+  const state = getAlertEscalationState(serviceSlug, incidentId, 'new_incident');
+  if (!state.shouldAlert) return false;
+
+  const transporter = getTransporter();
+  const deduped = dedupe(recipients);
+  if (!transporter || deduped.length === 0) return false;
+
+  const service = getServiceBySlug(serviceSlug);
+  const serviceName = service?.name || serviceSlug;
+  const levelLabel = level >= 3 ? 'L3 – CRITICAL ESCALATION' : level === 2 ? 'L2 – Escalation' : 'Reminder';
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: #7c2d12; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+        <h2 style="margin: 0;">[${escapeHtml(levelLabel)}] Ongoing Incident</h2>
+      </div>
+      <div style="border: 1px solid #e2e8f0; padding: 20px; border-radius: 0 0 8px 8px;">
+        <h3 style="margin: 0 0 8px 0; color: #1e293b;">${escapeHtml(serviceName)}</h3>
+        <p style="font-size: 16px; margin: 0 0 16px 0; color: #334155;">${escapeHtml(incidentTitle)}</p>
+        <p style="color: #64748b;">This incident has been ongoing and has not yet been resolved. No further escalation emails will be sent unless the situation persists beyond the next threshold.</p>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 16px 0;">
+        <p style="font-size: 12px; color: #94a3b8; margin: 0;">
+          Escalation level ${escapeHtml(String(level))} — sent by Enterprise Outage Dashboard at ${new Date().toISOString()}
+        </p>
+      </div>
+    </div>
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: process.env.ALERT_FROM || process.env.SMTP_USER,
+      to: deduped.join(', '),
+      subject: sanitizeHeader(`[ESCALATION L${level}] ${serviceName}: ${incidentTitle} (still ongoing)`),
+      html,
+    });
+    logAlert(serviceSlug, incidentId, 'new_incident', level);
+    metrics.recordAlertSent('email_escalation', `level_${level}`);
+    return true;
+  } catch (err) {
+    console.error('[email] Escalation alert failed:', err);
+    return false;
   }
 }
 

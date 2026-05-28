@@ -14,6 +14,7 @@ import StatusPageTile from './tiles/StatusPageTile';
 import IncidentMetricsTile from './tiles/IncidentMetricsTile';
 import FetcherHealthTile from './tiles/FetcherHealthTile';
 import AlertAuditTile from './tiles/AlertAuditTile';
+import AnomalyAlertTile from './tiles/AnomalyAlertTile';
 
 const ROW_HEIGHT = 88;            // matches .tile-grid grid-auto-rows in globals.css
 const ROW_HEIGHT_COMPACT = 72;    // ".compact" density override
@@ -79,6 +80,7 @@ function TileComponent({ tile, editing, live, onUpdate, onRemove, onResize, onTo
     case 'incident-metrics':  return <IncidentMetricsTile   {...common} />;
     case 'fetcher-health':    return <FetcherHealthTile     {...common} />;
     case 'alert-audit':       return <AlertAuditTile        {...common} />;
+    case 'anomaly-alert':     return <AnomalyAlertTile      {...common} />;
     default:               return null;
   }
 }
