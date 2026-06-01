@@ -8,10 +8,25 @@ export interface BoardFile {
   tweaks?: Tweaks;
 }
 
-const TILE_TYPES: TileType[] = [
-  'stat', 'service-watch', 'service-grid', 'incident-feed',
-  'rss', 'uptime-chart', 'status-map', 'statuspage',
-];
+// Keyed by TileType so the compiler forces this to stay in sync with the
+// union in useBoard.ts — adding a tile type without listing it here is a build
+// error. Previously this list omitted several types, which silently dropped
+// those tiles on import.
+const TILE_TYPE_SET: Record<TileType, true> = {
+  'stat': true,
+  'service-watch': true,
+  'service-grid': true,
+  'incident-feed': true,
+  'rss': true,
+  'uptime-chart': true,
+  'status-map': true,
+  'statuspage': true,
+  'incident-metrics': true,
+  'fetcher-health': true,
+  'alert-audit': true,
+  'anomaly-alert': true,
+};
+const TILE_TYPES = Object.keys(TILE_TYPE_SET) as TileType[];
 
 export function serializeBoard(input: { board: TileConfig[]; tweaks?: Tweaks }): string {
   const payload: BoardFile = {

@@ -112,10 +112,10 @@ const ServiceWatchForm: ConfigForm = ({ tile, live, onUpdate }) => {
 const SEVERITIES = ['critical', 'major', 'minor'] as const;
 const STATUSES = ['investigating', 'identified', 'monitoring', 'resolved'] as const;
 
-const IncidentFeedForm: ConfigForm = ({ tile, onUpdate }) => {
-  const filters = (tile.config.filters ?? {}) as { severity?: string[]; statuses?: string[]; days?: number };
+const IncidentFeedForm: ConfigForm = ({ tile, live, onUpdate }) => {
+  const filters = (tile.config.filters ?? {}) as { severity?: string[]; statuses?: string[]; services?: string[]; days?: number };
   const days = filters.days ?? 7;
-  const toggle = (key: 'severity' | 'statuses', value: string) => {
+  const toggle = (key: 'severity' | 'statuses' | 'services', value: string) => {
     const current = filters[key] ?? [];
     const next = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
     update(tile, onUpdate, { filters: { ...filters, [key]: next.length ? next : undefined } });
@@ -161,6 +161,20 @@ const IncidentFeedForm: ConfigForm = ({ tile, onUpdate }) => {
               onClick={() => toggle('statuses', s)}
             >
               {s}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="twk-row">
+        <div className="twk-lbl"><span>Services</span></div>
+        <div className="twk-chips" style={{ maxHeight: 120, overflowY: 'auto' }}>
+          {live.services.map((s) => (
+            <button
+              key={s.slug}
+              className={`chip ${filters.services?.includes(s.slug) ? 'chip-on' : ''}`}
+              onClick={() => toggle('services', s.slug)}
+            >
+              {s.name}
             </button>
           ))}
         </div>

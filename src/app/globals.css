@@ -509,6 +509,26 @@ html[data-density="compact"] .tile-inner {
   min-width: 0;
 }
 
+button.mini-service {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+button.mini-service:hover {
+  border-color: var(--border-strong);
+  background: rgba(255, 255, 255, 0.05);
+}
+button.mini-service:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
 /* ============================================================
    INCIDENT ROWS
    ============================================================ */

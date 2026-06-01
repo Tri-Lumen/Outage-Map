@@ -1,8 +1,14 @@
+'use client';
+
+import { useState } from 'react';
 import TileChrome from './TileChrome';
+import ServiceDetailModal from '../ServiceDetailModal';
+import Sparkline from '../Sparkline';
 import { getStatusColor } from '@/lib/boardColors';
 import type { TileProps } from './types';
 
 export default function ServiceGridTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure, live }: TileProps) {
+  const [openSlug, setOpenSlug] = useState<string | null>(null);
   const filterSlugs = config.services as string[] | undefined;
   const filters = (config.filters ?? {}) as { hideOperational?: boolean };
   let shown = filterSlugs?.length
@@ -36,6 +42,10 @@ export default function ServiceGridTile({ config, editing, onResize, onRemove, o
     </div>
   );
 
+  const openService = openSlug
+    ? shown.find((s) => s.slug === openSlug) ?? live.services.find((s) => s.slug === openSlug)
+    : undefined;
+
   return (
     <TileChrome
       title="Service Grid"
@@ -68,8 +78,10 @@ export default function ServiceGridTile({ config, editing, onResize, onRemove, o
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8, overflowY: 'auto', flex: 1 }}>
         {shown.map((s) => {
           const c = getStatusColor(s.overallStatus);
-          return (
-            <div key={s.slug} className="mini-service">
+          const hist = live.history[s.slug] ?? [];
+          const spark = hist.map((p) => Math.max(0, Math.min(1, (1440 - (p.outageMinutes || 0)) / 1440)));
+          const inner = (
+            <>
               <div
                 style={{
                   width: 28,
@@ -95,11 +107,37 @@ export default function ServiceGridTile({ config, editing, onResize, onRemove, o
                   <span style={{ width: 6, height: 6, borderRadius: 999, background: c.dot, display: 'inline-block' }} />
                   <span style={{ fontSize: 10, color: c.text }}>{c.label}</span>
                 </div>
+                {spark.length >= 2 && (
+                  <div style={{ marginTop: 4, opacity: 0.85 }}>
+                    <Sparkline data={spark} height={16} color={c.dot} />
+                  </div>
+                )}
               </div>
-            </div>
+            </>
+          );
+          return editing ? (
+            <div key={s.slug} className="mini-service">{inner}</div>
+          ) : (
+            <button
+              key={s.slug}
+              type="button"
+              className="mini-service"
+              aria-label={`Open ${s.name} details`}
+              onClick={() => setOpenSlug(s.slug)}
+            >
+              {inner}
+            </button>
           );
         })}
       </div>
+      {openService && (
+        <ServiceDetailModal
+          service={openService}
+          history={live.history[openService.slug] ?? []}
+          incidents={live.incidents}
+          onClose={() => setOpenSlug(null)}
+        />
+      )}
     </TileChrome>
   );
 }
