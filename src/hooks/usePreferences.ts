@@ -8,6 +8,10 @@ export interface Preferences {
   showDowndetector: boolean;
   pinnedServices: string[];
   slaTarget: number;
+  /** Per-service SLA target overrides (slug → uptime %). Falls back to slaTarget. */
+  slaTargets: Record<string, number>;
+  /** Estimated cost of downtime per hour, used by the Analytics cost calculator. */
+  costPerHour: number;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -16,6 +20,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   showDowndetector: true,
   pinnedServices: [],
   slaTarget: 99.9,
+  slaTargets: {},
+  costPerHour: 0,
 };
 
 export const PREFERENCES_STORAGE_KEY = 'outage-map-prefs';

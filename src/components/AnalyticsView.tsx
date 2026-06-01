@@ -34,6 +34,10 @@ function mttrForService(points: HistoryPoint[]): number {
   return affected.reduce((s, p) => s + p.outageMinutes, 0) / affected.length;
 }
 
+function formatUsd(n: number): string {
+  return `$${Math.round(n).toLocaleString()}`;
+}
+
 type SortKey = 'name' | 'uptime' | 'totalDowntime' | 'mttr' | 'incidents';
 type RangePreset = 7 | 30 | 60 | 90;
 
@@ -46,6 +50,9 @@ export default function AnalyticsView() {
   const [exporting, setExporting] = useState(false);
   const prefs = usePreferences();
   const slaTarget = prefs.slaTarget ?? 99.9;
+  const slaTargets = useMemo(() => prefs.slaTargets ?? {}, [prefs.slaTargets]);
+  const costPerHour = prefs.costPerHour ?? 0;
+  const targetFor = useCallback((slug: string) => slaTargets[slug] ?? slaTarget, [slaTargets, slaTarget]);
 
   const { data: statusData } = useServiceStatus();
   const { data: historyData } = useHistory(rangeDays);
@@ -87,22 +94,25 @@ export default function AnalyticsView() {
         mttr: Math.round(mttr),
         outageDays: points.filter((p) => p.outageMinutes > 0).length,
         totalDowntime: points.reduce((sum, p) => sum + p.outageMinutes, 0),
+        costUsd: (points.reduce((sum, p) => sum + p.outageMinutes, 0) / 60) * costPerHour,
+        target: targetFor(s.slug),
         trend: points.map((p) => Math.max(0, Math.min(1, (1440 - (p.outageMinutes || 0)) / 1440))),
         incidents: serviceIncidents.length,
         criticalIncidents: serviceIncidents.filter((i) => i.severity === 'critical').length,
         status: live?.overallStatus || 'unknown',
       };
     });
-  }, [history, priorHistory, incidents, services, rangeDays]);
+  }, [history, priorHistory, incidents, services, rangeDays, targetFor, costPerHour]);
 
   const aggregate = useMemo(() => {
     const avgUptime =
       rows.reduce((s, r) => s + r.uptime, 0) / Math.max(rows.length, 1);
     const totalDowntime = rows.reduce((s, r) => s + r.totalDowntime, 0);
     const totalIncidents = rows.reduce((s, r) => s + r.incidents, 0);
-    const meetingSla = rows.filter((r) => r.uptime >= slaTarget).length;
-    return { avgUptime, totalDowntime, totalIncidents, slaTarget, meetingSla };
-  }, [rows, slaTarget]);
+    const meetingSla = rows.filter((r) => r.uptime >= r.target).length;
+    const estCost = (totalDowntime / 60) * costPerHour;
+    return { avgUptime, totalDowntime, totalIncidents, slaTarget, meetingSla, estCost };
+  }, [rows, slaTarget, costPerHour]);
 
   const incidentChartData = useMemo(() => {
     return rows
@@ -154,7 +164,7 @@ export default function AnalyticsView() {
       const csvRows = visibleRows.map((r) => [
         r.name, r.uptimeLabel, r.totalDowntime, r.mttr,
         r.incidents, r.criticalIncidents,
-        r.uptime >= aggregate.slaTarget ? 'Met' : 'Breached',
+        r.uptime >= r.target ? 'Met' : 'Breached',
       ]);
       const csv = [headers, ...csvRows].map((row) => row.join(',')).join('\n');
       const blob = new Blob([csv], { type: 'text/csv' });
@@ -167,7 +177,7 @@ export default function AnalyticsView() {
     } finally {
       setExporting(false);
     }
-  }, [visibleRows, aggregate.slaTarget, rangeDays, slaTarget]);
+  }, [visibleRows, rangeDays, slaTarget]);
 
   const exportPdf = useCallback(async () => {
     setExporting(true);
@@ -245,6 +255,14 @@ export default function AnalyticsView() {
           accent={aggregate.totalIncidents > 10 ? 'red' : 'indigo'}
           hint="All severities"
         />
+        {costPerHour > 0 && (
+          <StatTile
+            label="Est. downtime cost"
+            value={formatUsd(aggregate.estCost)}
+            accent="red"
+            hint={`@ $${costPerHour.toLocaleString()}/hr · last ${rangeDays}d`}
+          />
+        )}
       </section>
 
       <section>
@@ -418,7 +436,7 @@ export default function AnalyticsView() {
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
                 {visibleRows.map((r) => {
-                  const meets = r.uptime >= aggregate.slaTarget;
+                  const meets = r.uptime >= r.target;
                   const trendUp = r.uptimeDelta !== null && r.uptimeDelta > 0.05;
                   const trendDown = r.uptimeDelta !== null && r.uptimeDelta < -0.05;
                   return (
@@ -436,7 +454,7 @@ export default function AnalyticsView() {
                         <div className="inline-flex items-center gap-1.5">
                           <span
                             className={
-                              r.uptime >= aggregate.slaTarget
+                              r.uptime >= r.target
                                 ? 'text-emerald-400'
                                 : r.uptime >= 99
                                   ? 'text-yellow-400'
@@ -466,6 +484,9 @@ export default function AnalyticsView() {
                         {r.totalDowntime > 60
                           ? `${(r.totalDowntime / 60).toFixed(1)}h`
                           : `${r.totalDowntime}m`}
+                        {costPerHour > 0 && r.costUsd > 0 && (
+                          <div className="text-[10px] text-muted-strong">{formatUsd(r.costUsd)}</div>
+                        )}
                       </td>
                       <td className="px-5 py-3 text-right text-foreground tabular-nums">
                         {r.mttr > 0 ? `${r.mttr}m` : '—'}

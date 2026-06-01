@@ -107,6 +107,13 @@ export default function SettingsView() {
     persist({ ...prefs, pinnedServices: nextPinned });
   };
 
+  const setServiceSla = (slug: string, value: number | null) => {
+    const next = { ...(prefs.slaTargets ?? {}) };
+    if (value === null) delete next[slug];
+    else next[slug] = value;
+    persist({ ...prefs, slaTargets: next });
+  };
+
   const resetAll = () => {
     clearPreferences();
     try {
@@ -259,6 +266,28 @@ export default function SettingsView() {
               <span className="text-xs text-muted">%</span>
             </div>
           </div>
+
+          <div className="flex items-center justify-between py-2 border-t border-subtle">
+            <div>
+              <p className="text-sm text-foreground">Downtime cost</p>
+              <p className="text-[11px] text-muted">Estimated cost per hour of downtime, used by the Analytics cost calculator. Set 0 to hide.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted">$</span>
+              <input
+                type="number"
+                min={0}
+                step={100}
+                value={prefs.costPerHour ?? 0}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  update('costPerHour', isNaN(v) || v < 0 ? 0 : v);
+                }}
+                className="w-28 px-2 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground text-right focus:outline-none focus:border-accent"
+              />
+              <span className="text-xs text-muted">/hr</span>
+            </div>
+          </div>
         </div>
       </Card>
 
@@ -289,6 +318,49 @@ export default function SettingsView() {
                 {s.name}
                 {pinned && <span className="text-accent-cyan">★</span>}
               </button>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Card>
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Per-service SLA targets</h3>
+            <p className="text-[11px] text-muted mt-1">
+              Override the global {prefs.slaTarget ?? 99.9}% target for specific services. Leave blank to use the global target.
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
+          {services.map((s) => {
+            const override = prefs.slaTargets?.[s.slug];
+            return (
+              <div key={s.slug} className="flex items-center justify-between py-1.5 border-b border-subtle/60">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                  <span className="text-sm text-foreground truncate">{s.name}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min={90}
+                    max={100}
+                    step={0.01}
+                    placeholder={String(prefs.slaTarget ?? 99.9)}
+                    value={override ?? ''}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === '') { setServiceSla(s.slug, null); return; }
+                      const v = parseFloat(raw);
+                      if (!isNaN(v) && v >= 90 && v <= 100) setServiceSla(s.slug, v);
+                    }}
+                    className="w-20 px-2 py-1 rounded-md bg-white/5 border border-subtle text-xs text-foreground text-right focus:outline-none focus:border-accent"
+                    aria-label={`SLA target for ${s.name}`}
+                  />
+                  <span className="text-[11px] text-muted">%</span>
+                </div>
+              </div>
             );
           })}
         </div>
