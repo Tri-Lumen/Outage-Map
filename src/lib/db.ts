@@ -177,6 +177,12 @@ function initTables(db: Database.Database) {
 
     CREATE INDEX IF NOT EXISTS idx_postmortems_incident
       ON postmortems(incident_db_id);
+
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at DATETIME NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // FTS5 virtual table for incident full-text search (F4).
@@ -241,6 +247,37 @@ function initTables(db: Database.Database) {
   if (!statusCols.some((c) => c.name === 'anomaly_z_score')) {
     db.exec(`ALTER TABLE service_status ADD COLUMN anomaly_z_score REAL`);
   }
+}
+
+// Generic key/value settings store for server-readable, persisted config
+// (digest schedule, anomaly sensitivity). Client-only preferences stay in
+// localStorage; these are values the poller / cron need to read.
+export function getAppSetting(key: string): string | null {
+  const row = getDb().prepare('SELECT value FROM app_settings WHERE key = ?').get(key) as { value: string } | undefined;
+  return row ? row.value : null;
+}
+
+export function setAppSetting(key: string, value: string): void {
+  getDb()
+    .prepare(
+      `INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`,
+    )
+    .run(key, value);
+}
+
+export function getJsonSetting<T>(key: string, fallback: T): T {
+  const raw = getAppSetting(key);
+  if (raw === null) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+export function setJsonSetting(key: string, value: unknown): void {
+  setAppSetting(key, JSON.stringify(value));
 }
 
 export function upsertServiceStatus(
