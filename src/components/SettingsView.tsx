@@ -117,6 +117,52 @@ export default function SettingsView() {
     }
   };
 
+  const [digestCfg, setDigestCfg] = useState<{ frequency: string; hour: number; webhookUrl: string; channelType: string } | null>(null);
+  const [digestRecipientsRaw, setDigestRecipientsRaw] = useState('');
+  const [digestMsg, setDigestMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/settings/digest')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && typeof d.frequency === 'string') {
+          setDigestCfg({ frequency: d.frequency, hour: d.hour, webhookUrl: d.webhookUrl ?? '', channelType: d.channelType ?? 'generic' });
+          setDigestRecipientsRaw((d.recipients ?? []).join(', '));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveDigest = async (overrides?: Record<string, unknown>) => {
+    if (!digestCfg) return;
+    setDigestMsg(null);
+    const payload = overrides ?? {
+      frequency: digestCfg.frequency,
+      hour: digestCfg.hour,
+      recipients: digestRecipientsRaw.split(',').map((s) => s.trim()).filter(Boolean),
+      webhookUrl: digestCfg.webhookUrl,
+      channelType: digestCfg.channelType,
+    };
+    try {
+      const res = await fetch('/api/settings/digest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDigestMsg(body.error || `Failed (HTTP ${res.status})`);
+      } else if (overrides?.sendNow) {
+        setDigestMsg(body.ok ? `Sent via ${(body.channels || []).join(', ') || 'no channel'}` : 'No channel delivered');
+      } else {
+        setDigestCfg({ frequency: body.frequency, hour: body.hour, webhookUrl: body.webhookUrl ?? '', channelType: body.channelType ?? 'generic' });
+        setDigestMsg('Saved ✓');
+      }
+    } catch {
+      setDigestMsg('Network error');
+    }
+  };
+
   // Reflect external preference changes (e.g. reset from another tab) into
   // local state so controls stay in sync with storage.
   useEffect(() => {
@@ -487,6 +533,82 @@ export default function SettingsView() {
                 Save anomaly settings
               </button>
               {anomalyMsg && <span className="text-[11px] text-muted">{anomalyMsg}</span>}
+            </div>
+          </div>
+        ) : (
+          <p className="text-[11px] text-muted">Loading…</p>
+        )}
+      </Card>
+
+      <Card>
+        <h3 className="text-sm font-semibold text-foreground mb-1">Status digest</h3>
+        <p className="text-[11px] text-muted mb-4">
+          Scheduled summary by email and/or webhook. Requires SMTP (or a webhook) and the settings API enabled. Hour is UTC.
+        </p>
+        {digestCfg ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-foreground">Frequency</p>
+              <select
+                value={digestCfg.frequency}
+                onChange={(e) => setDigestCfg({ ...digestCfg, frequency: e.target.value })}
+                className="px-2 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground focus:outline-none focus:border-accent"
+                aria-label="Digest frequency"
+              >
+                <option value="off">Off</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+              </select>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-foreground">Send hour (UTC)</p>
+                <p className="text-[11px] text-muted">0–23</p>
+              </div>
+              <input
+                type="number"
+                min={0}
+                max={23}
+                value={digestCfg.hour}
+                onChange={(e) => setDigestCfg({ ...digestCfg, hour: Math.max(0, Math.min(23, parseInt(e.target.value) || 0)) })}
+                className="w-20 px-2 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground text-right focus:outline-none focus:border-accent"
+                aria-label="Digest send hour"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted mb-1">Email recipients (comma-separated)</label>
+              <input
+                type="text"
+                value={digestRecipientsRaw}
+                onChange={(e) => setDigestRecipientsRaw(e.target.value)}
+                placeholder="ops@example.com, sre@example.com"
+                className="w-full px-3 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground placeholder-muted focus:outline-none focus:border-accent"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted mb-1">Webhook URL (optional)</label>
+              <input
+                type="url"
+                value={digestCfg.webhookUrl}
+                onChange={(e) => setDigestCfg({ ...digestCfg, webhookUrl: e.target.value })}
+                placeholder="https://hooks.slack.com/services/..."
+                className="w-full px-3 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground placeholder-muted focus:outline-none focus:border-accent"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => saveDigest()}
+                className="px-4 py-2 rounded-md bg-accent-soft text-foreground text-xs font-medium hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                Save digest
+              </button>
+              <button
+                onClick={() => saveDigest({ sendNow: true })}
+                className="px-4 py-2 rounded-md bg-white/5 border border-subtle text-foreground text-xs font-medium hover:bg-white/10 transition-colors"
+              >
+                Send now
+              </button>
+              {digestMsg && <span className="text-[11px] text-muted">{digestMsg}</span>}
             </div>
           </div>
         ) : (

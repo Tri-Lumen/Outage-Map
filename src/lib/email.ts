@@ -57,6 +57,30 @@ function dedupe(emails: string[]): string[] {
   return Array.from(new Set(emails.filter(Boolean)));
 }
 
+/** Generic HTML email send used by the digest. Falls back to ALERT_EMAILS. */
+export async function sendMail(
+  subject: string,
+  html: string,
+  recipientsOverride?: string[],
+): Promise<{ ok: boolean; reason?: string }> {
+  const transporter = getTransporter();
+  if (!transporter) return { ok: false, reason: 'smtp_not_configured' };
+  const recipients = dedupe(recipientsOverride && recipientsOverride.length ? recipientsOverride : getEnvRecipients());
+  if (recipients.length === 0) return { ok: false, reason: 'no_recipients' };
+  try {
+    await transporter.sendMail({
+      from: process.env.ALERT_FROM || process.env.SMTP_USER,
+      to: recipients.join(', '),
+      subject,
+      html,
+    });
+    return { ok: true };
+  } catch (err) {
+    log.error('sendMail failed:', err);
+    return { ok: false, reason: 'send_failed' };
+  }
+}
+
 function statusColor(status: ServiceStatus): string {
   return statusHex(status);
 }
