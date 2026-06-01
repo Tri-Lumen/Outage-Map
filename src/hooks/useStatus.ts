@@ -88,6 +88,8 @@ interface FetcherHealthEntry {
   lastError: string | null;
   lastLatencyMs: number | null;
   consecutiveFailures: number;
+  circuitState?: 'closed' | 'open' | 'half-open';
+  openUntil?: number | null;
   latency24h?: number[];
   errorRate24h?: number;
 }
