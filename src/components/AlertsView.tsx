@@ -492,18 +492,24 @@ export default function AlertsView() {
                 <div className="mt-2">
                   <label className="block text-xs font-medium text-muted mb-1.5">Webhook format</label>
                   <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-surface border border-subtle w-fit">
-                    {(['generic', 'slack', 'teams', 'discord'] as const).map((ct) => (
+                    {(['generic', 'slack', 'teams', 'discord', 'pagerduty', 'opsgenie'] as const).map((ct) => (
                       <button
                         key={ct}
                         type="button"
                         onClick={() => setDraft({ ...draft, channelType: ct })}
-                        className={`px-2.5 py-1 rounded-md text-xs capitalize transition-all ${
+                        className={`px-2.5 py-1 rounded-md text-xs transition-all ${
                           draft.channelType === ct
                             ? 'bg-surface-elevated text-foreground font-semibold shadow-sm'
                             : 'text-muted hover:text-foreground'
                         }`}
                       >
-                        {ct === 'generic' ? 'Generic' : ct.charAt(0).toUpperCase() + ct.slice(1)}
+                        {ct === 'generic'
+                          ? 'Generic'
+                          : ct === 'pagerduty'
+                            ? 'PagerDuty'
+                            : ct === 'opsgenie'
+                              ? 'Opsgenie'
+                              : ct.charAt(0).toUpperCase() + ct.slice(1)}
                       </button>
                     ))}
                   </div>

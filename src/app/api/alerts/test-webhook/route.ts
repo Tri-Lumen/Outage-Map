@@ -36,6 +36,6 @@ export async function POST(request: NextRequest) {
   };
 
   const payload = buildChannelPayload(channelType, sample, 'Outage Map');
-  const ok = await sendWebhookAlert(url, payload);
+  const ok = await sendWebhookAlert(url, payload, channelType);
   return NextResponse.json({ ok }, { status: ok ? 200 : 502 });
 }

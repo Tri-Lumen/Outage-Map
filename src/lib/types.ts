@@ -3,7 +3,7 @@ export type IncidentStatus = 'investigating' | 'identified' | 'monitoring' | 're
 export type IncidentSeverity = 'minor' | 'major' | 'critical';
 export type AlertType = 'new_incident' | 'status_change' | 'resolved';
 export type FetcherType = 'statuspage' | 'microsoft' | 'salesforce' | 'google' | 'workday' | 'aws';
-export type ChannelType = 'slack' | 'teams' | 'discord' | 'generic';
+export type ChannelType = 'slack' | 'teams' | 'discord' | 'generic' | 'pagerduty' | 'opsgenie';
 
 export interface ServiceConfig {
   name: string;

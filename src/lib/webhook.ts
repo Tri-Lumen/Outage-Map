@@ -23,9 +23,15 @@ export function isValidWebhookUrl(url: string): boolean {
   }
 }
 
-export async function sendWebhookAlert(url: string, payload: object): Promise<boolean> {
+export async function sendWebhookAlert(url: string, payload: object, channelType?: string): Promise<boolean> {
   const body = JSON.stringify(payload);
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
+  // Opsgenie's Alert API authenticates with a GenieKey header rather than a
+  // secret embedded in the URL.
+  if (channelType === 'opsgenie' && process.env.OPSGENIE_API_KEY) {
+    headers['Authorization'] = `GenieKey ${process.env.OPSGENIE_API_KEY}`;
+  }
 
   // Optional HMAC signing so receivers can verify authenticity. The signature
   // covers `${timestamp}.${body}` to also bind the timestamp (replay defense).
@@ -65,7 +71,7 @@ export async function sendWebhookAlerts(
   const results = await Promise.allSettled(
     webhooks.map(({ url, channelType }) => {
       const payload = buildChannelPayload(channelType, incident, serviceName);
-      return sendWebhookAlert(url, payload);
+      return sendWebhookAlert(url, payload, channelType);
     }),
   );
 
