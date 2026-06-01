@@ -1,6 +1,7 @@
 'use client';
 
 import { ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
 import MobileTabBar from './MobileTabBar';
@@ -12,6 +13,12 @@ import { usePresentMode } from '@/hooks/usePresentMode';
 function ShellInner({ children }: { children: ReactNode }) {
   const { collapsed } = useSidebar();
   const { present } = usePresentMode();
+  const pathname = usePathname();
+
+  // Public, chrome-less routes render without the app sidebar/nav.
+  if (pathname?.startsWith('/status') || pathname?.startsWith('/embed')) {
+    return <div className="min-h-screen bg-background text-foreground">{children}</div>;
+  }
 
   if (present) {
     return (
