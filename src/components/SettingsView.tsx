@@ -10,6 +10,7 @@ import {
   writePreferences,
 } from '@/hooks/usePreferences';
 import { useTheme, THEMES, type Theme } from './ThemeProvider';
+import { listTimeZones } from '@/lib/format';
 import PageHeader from './ui/PageHeader';
 import Card from './ui/Card';
 
@@ -82,6 +83,7 @@ export default function SettingsView() {
   const [saved, setSaved] = useState(false);
   const { data: statusData } = useServiceStatus();
   const services = statusData?.services ?? [];
+  const timezones = listTimeZones();
 
   // Reflect external preference changes (e.g. reset from another tab) into
   // local state so controls stay in sync with storage.
@@ -265,6 +267,24 @@ export default function SettingsView() {
                 }`}
               />
             </button>
+          </div>
+
+          <div className="flex items-center justify-between py-2 border-t border-subtle">
+            <div>
+              <p className="text-sm text-foreground">Time zone</p>
+              <p className="text-[11px] text-muted">How absolute timestamps are displayed across the app</p>
+            </div>
+            <select
+              value={prefs.timezone}
+              onChange={(e) => update('timezone', e.target.value)}
+              className="px-2 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground focus:outline-none focus:border-accent max-w-[220px]"
+              aria-label="Time zone"
+            >
+              <option value="">Browser default</option>
+              {timezones.map((tz) => (
+                <option key={tz} value={tz}>{tz}</option>
+              ))}
+            </select>
           </div>
 
           <div className="flex items-center justify-between py-2 border-t border-subtle">

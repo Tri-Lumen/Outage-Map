@@ -3,15 +3,13 @@
 import { useState } from 'react';
 import { useMaintenance } from '@/hooks/useMaintenance';
 import { useServiceStatus } from '@/hooks/useStatus';
+import { usePreferences } from '@/hooks/usePreferences';
+import { formatInTimeZone } from '@/lib/format';
 import { mutate } from 'swr';
 import type { MaintenanceWindow } from '@/lib/types';
 
-function formatDateTime(iso: string) {
-  try {
-    return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return iso;
-  }
+function formatDateTime(iso: string, tz?: string) {
+  return formatInTimeZone(iso, tz, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }, iso);
 }
 
 function isActive(w: MaintenanceWindow) {
@@ -23,6 +21,7 @@ export default function MaintenanceView() {
   const { data, isLoading } = useMaintenance();
   const { data: statusData } = useServiceStatus();
   const services = statusData?.services ?? [];
+  const tz = usePreferences().timezone;
 
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({
@@ -190,7 +189,7 @@ export default function MaintenanceView() {
       )}
 
       {view === 'calendar' && !isLoading && (
-        <MaintenanceCalendar windows={windows} />
+        <MaintenanceCalendar windows={windows} tz={tz} />
       )}
 
       {view === 'list' && !isLoading && windows.length === 0 && (
@@ -219,7 +218,7 @@ export default function MaintenanceView() {
                     </span>
                   </div>
                   <p className="text-sm text-foreground font-medium">
-                    {formatDateTime(w.startTime)} → {formatDateTime(w.endTime)}
+                    {formatDateTime(w.startTime, tz)} → {formatDateTime(w.endTime, tz)}
                   </p>
                   {w.note && <p className="text-xs text-muted mt-1">{w.note}</p>}
                 </div>
@@ -248,7 +247,7 @@ function startOfDay(d: Date): Date {
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-function MaintenanceCalendar({ windows }: { windows: MaintenanceWindow[] }) {
+function MaintenanceCalendar({ windows, tz }: { windows: MaintenanceWindow[]; tz?: string }) {
   const [cursor, setCursor] = useState(() => {
     const n = new Date();
     return new Date(n.getFullYear(), n.getMonth(), 1);
@@ -322,7 +321,7 @@ function MaintenanceCalendar({ windows }: { windows: MaintenanceWindow[] }) {
                 {dayWindows.slice(0, 3).map((w) => (
                   <div
                     key={w.id}
-                    title={`${formatDateTime(w.startTime)} → ${formatDateTime(w.endTime)}${w.note ? ' · ' + w.note : ''}`}
+                    title={`${formatDateTime(w.startTime, tz)} → ${formatDateTime(w.endTime, tz)}${w.note ? ' · ' + w.note : ''}`}
                     className="truncate text-[9px] px-1 py-0.5 rounded bg-amber-500/15 text-amber-300"
                   >
                     {w.serviceSlugs.length === 0 ? 'All services' : w.serviceSlugs.join(', ')}

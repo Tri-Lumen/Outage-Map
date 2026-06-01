@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from 'react';
 import { ServiceStatusResponse, HistoryPoint, IncidentResponse } from '@/lib/types';
+import { usePreferences } from '@/hooks/usePreferences';
+import { formatInTimeZone } from '@/lib/format';
 import StatusBadge from './StatusBadge';
 import OutageChart from './OutageChart';
 
@@ -12,9 +14,8 @@ interface ServiceDetailModalProps {
   onClose: () => void;
 }
 
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return 'N/A';
-  return new Date(dateStr).toLocaleDateString('en-US', {
+function formatDate(dateStr: string | null, tz?: string): string {
+  return formatInTimeZone(dateStr, tz, {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -31,6 +32,7 @@ export default function ServiceDetailModal({
   onClose,
 }: ServiceDetailModalProps) {
   const serviceIncidents = incidents.filter((i) => i.service === service.slug);
+  const tz = usePreferences().timezone;
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -185,7 +187,7 @@ export default function ServiceDetailModal({
                         {incident.severity}
                       </span>
                       <span className="text-xs text-muted">
-                        {formatDate(incident.startedAt)}
+                        {formatDate(incident.startedAt, tz)}
                       </span>
                     </div>
                     <p className="text-sm text-foreground">{incident.title}</p>

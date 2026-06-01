@@ -14,6 +14,8 @@ export interface Preferences {
   costPerHour: number;
   /** Use a color-blind-safe status palette across the app. */
   colorBlind: boolean;
+  /** IANA time zone for rendering timestamps. Empty = browser local. */
+  timezone: string;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -25,6 +27,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   slaTargets: {},
   costPerHour: 0,
   colorBlind: false,
+  timezone: '',
 };
 
 export const PREFERENCES_STORAGE_KEY = 'outage-map-prefs';
