@@ -27,6 +27,7 @@ export function GET() {
         consecutiveFailures: entry.consecutiveFailures,
         circuitState: circuit.getState(entry.service, entry.source),
         openUntil: circuit.openUntil(entry.service, entry.source),
+        lastParseError: entry.lastParseError,
         latency24h,
       };
     }),

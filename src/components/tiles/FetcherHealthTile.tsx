@@ -167,6 +167,12 @@ export default function FetcherHealthTile({
                     />
                   </div>
                 )}
+
+                {f.lastParseError && (
+                  <div style={{ paddingLeft: 14, fontSize: 9, color: '#FFB74D' }} title={f.lastParseError}>
+                    schema drift: {f.lastParseError.length > 60 ? `${f.lastParseError.slice(0, 60)}…` : f.lastParseError}
+                  </div>
+                )}
               </div>
             );
           })

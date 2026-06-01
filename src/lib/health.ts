@@ -16,6 +16,8 @@ interface FetcherHealth {
   lastError: string | null;
   lastLatencyMs: number | null;
   consecutiveFailures: number;
+  lastParseError: string | null;
+  lastParseErrorAt: number | null;
 }
 
 function key(service: string, source: Source): string {
@@ -52,6 +54,8 @@ function getOrInit(service: string, source: Source): FetcherHealth {
       lastError: null,
       lastLatencyMs: null,
       consecutiveFailures: 0,
+      lastParseError: null,
+      lastParseErrorAt: null,
     };
     map.set(k, entry);
   }
@@ -73,6 +77,7 @@ export const health = {
     entry.lastSuccessAt = Date.now();
     entry.lastLatencyMs = latencyMs;
     entry.consecutiveFailures = 0;
+    entry.lastParseError = null;
   },
   recordFailure(service: string, source: Source, error: unknown, latencyMs: number | null = null) {
     const entry = getOrInit(service, source);
@@ -80,6 +85,11 @@ export const health = {
     entry.lastError = truncate(error instanceof Error ? error.message : String(error));
     if (latencyMs !== null) entry.lastLatencyMs = latencyMs;
     entry.consecutiveFailures += 1;
+  },
+  recordParseError(service: string, source: Source, message: string) {
+    const entry = getOrInit(service, source);
+    entry.lastParseError = truncate(message);
+    entry.lastParseErrorAt = Date.now();
   },
   snapshot(): FetcherHealth[] {
     // Always include an entry per known service+source so the UI / scraper

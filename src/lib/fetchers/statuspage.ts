@@ -1,34 +1,39 @@
 import { FetchResult, StatusResult, IncidentResult, ServiceStatus, IncidentSeverity, IncidentStatus } from '../types';
 import { httpFetch } from './httpFetch';
 import { createLogger } from '../logger';
+import { z } from 'zod';
+import { health } from '../health';
 
 const log = createLogger('statuspage');
 
-interface StatuspageStatus {
-  status: {
-    indicator: 'none' | 'minor' | 'major' | 'critical';
-    description: string;
-  };
-}
+// Lenient schemas: required fields are validated, everything else passes
+// through. A schema mismatch means the upstream contract drifted — we record
+// it on the fetcher health surface instead of silently returning bad data.
+const StatusJsonSchema = z
+  .object({
+    status: z.object({
+      indicator: z.string(),
+      description: z.string().nullish(),
+    }),
+  })
+  .passthrough();
 
-interface StatuspageIncident {
-  id: string;
-  name: string;
-  status: string;
-  impact: string;
-  created_at: string;
-  resolved_at: string | null;
-  shortlink: string;
-  incident_updates: Array<{
-    body: string;
-    status: string;
-    updated_at: string;
-  }>;
-}
+const IncidentJsonSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    status: z.string(),
+    impact: z.string(),
+    created_at: z.string(),
+    resolved_at: z.string().nullish(),
+    shortlink: z.string().nullish(),
+    incident_updates: z.array(z.object({ body: z.string().nullish() }).passthrough()).optional(),
+  })
+  .passthrough();
 
-interface StatuspageIncidentsResponse {
-  incidents: StatuspageIncident[];
-}
+const IncidentsJsonSchema = z
+  .object({ incidents: z.array(IncidentJsonSchema).default([]) })
+  .passthrough();
 
 function mapIndicatorToStatus(indicator: string): ServiceStatus {
   switch (indicator) {
@@ -88,12 +93,15 @@ export async function fetchStatuspageStatus(baseUrl: string, serviceSlug: string
 
   // Parse status.json
   if (statusRes.status === 'fulfilled' && statusRes.value.ok) {
-    try {
-      const data: StatuspageStatus = await statusRes.value.json();
-      statusResult.status = mapIndicatorToStatus(data.status.indicator);
-      statusResult.details = data.status.description;
-    } catch (err) {
-      log.error(`Failed to parse status.json for ${serviceSlug}:`, err);
+    const json = await statusRes.value.json().catch(() => null);
+    const parsed = StatusJsonSchema.safeParse(json);
+    if (parsed.success) {
+      statusResult.status = mapIndicatorToStatus(parsed.data.status.indicator);
+      statusResult.details = parsed.data.status.description ?? null;
+    } else {
+      const msg = `status.json schema validation failed: ${parsed.error.issues.map((i) => `${i.path.join('.')} ${i.message}`).join('; ')}`;
+      log.error(`${serviceSlug}: ${msg}`);
+      health.recordParseError(serviceSlug, 'official', msg);
     }
   } else if (statusRes.status === 'rejected') {
     log.error(`Network error fetching status.json for ${serviceSlug}:`, statusRes.reason);
@@ -104,14 +112,13 @@ export async function fetchStatuspageStatus(baseUrl: string, serviceSlug: string
   // Apply maintenance-aware correction: if the indicator says degraded but there
   // are no active incidents, the elevation is from maintenance only — drop it.
   if (statusResult.status === 'degraded' && unresolvedRes.status === 'fulfilled' && unresolvedRes.value.ok) {
-    try {
-      const data: StatuspageIncidentsResponse = await unresolvedRes.value.json();
-      const realIncidents = (data.incidents || []).filter((inc) => inc.impact !== 'none');
+    const json = await unresolvedRes.value.json().catch(() => null);
+    const parsed = IncidentsJsonSchema.safeParse(json);
+    if (parsed.success) {
+      const realIncidents = parsed.data.incidents.filter((inc) => inc.impact !== 'none');
       if (realIncidents.length === 0) {
         statusResult.status = 'operational';
       }
-    } catch {
-      // Ignore parse errors — keep the indicator-derived status
     }
   }
 
@@ -123,25 +130,32 @@ export async function fetchStatuspageStatus(baseUrl: string, serviceSlug: string
     });
 
     if (incidentsRes.ok) {
-      const data: StatuspageIncidentsResponse = await incidentsRes.json();
-      // Statuspage's incidents.json returns the most recent first. 25 covers
-      // the active-incident window plus a healthy chunk of recently-resolved
-      // history without exploding the DB on busy services.
-      const recentIncidents = (data.incidents || []).slice(0, 25);
+      const json = await incidentsRes.json().catch(() => null);
+      const parsed = IncidentsJsonSchema.safeParse(json);
+      if (parsed.success) {
+        // Statuspage's incidents.json returns the most recent first. 25 covers
+        // the active-incident window plus a healthy chunk of recently-resolved
+        // history without exploding the DB on busy services.
+        const recentIncidents = parsed.data.incidents.slice(0, 25);
 
-      for (const inc of recentIncidents) {
-        const latestUpdate = inc.incident_updates?.[0];
-        incidents.push({
-          serviceSlug,
-          incidentId: inc.id,
-          title: inc.name,
-          status: mapIncidentStatus(inc.status),
-          severity: mapImpactToSeverity(inc.impact),
-          startedAt: inc.created_at,
-          resolvedAt: inc.resolved_at,
-          description: latestUpdate?.body || null,
-          sourceUrl: inc.shortlink || null,
-        });
+        for (const inc of recentIncidents) {
+          const latestUpdate = inc.incident_updates?.[0];
+          incidents.push({
+            serviceSlug,
+            incidentId: inc.id,
+            title: inc.name,
+            status: mapIncidentStatus(inc.status),
+            severity: mapImpactToSeverity(inc.impact),
+            startedAt: inc.created_at,
+            resolvedAt: inc.resolved_at ?? null,
+            description: latestUpdate?.body ?? null,
+            sourceUrl: inc.shortlink ?? null,
+          });
+        }
+      } else {
+        const msg = `incidents.json schema validation failed: ${parsed.error.issues.map((i) => i.path.join('.')).join('; ')}`;
+        log.error(`${serviceSlug}: ${msg}`);
+        health.recordParseError(serviceSlug, 'official', msg);
       }
     }
   } catch (err) {
