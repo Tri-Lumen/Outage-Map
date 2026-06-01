@@ -81,6 +81,8 @@ export default function AlertsView() {
   });
   const [showForm, setShowForm] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const [webhookTestMsg, setWebhookTestMsg] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<TestFeedback | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -269,6 +271,24 @@ export default function AlertsView() {
     setTimeout(() => {
       setFeedback((current) => (current === entry ? null : current));
     }, 5000);
+  };
+
+  const sendTestWebhook = async () => {
+    setTestingWebhook(true);
+    setWebhookTestMsg(null);
+    try {
+      const res = await fetch('/api/alerts/test-webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: draft.webhookUrl.trim(), channelType: draft.channelType }),
+      });
+      const body = await res.json().catch(() => ({}));
+      setWebhookTestMsg(res.ok && body.ok ? 'Test webhook sent ✓' : `Failed${body.reason ? ': ' + body.reason : ''}`);
+    } catch {
+      setWebhookTestMsg('Network error');
+    } finally {
+      setTestingWebhook(false);
+    }
   };
 
   const sendTest = async (rule: AlertRule) => {
@@ -486,6 +506,17 @@ export default function AlertsView() {
                         {ct === 'generic' ? 'Generic' : ct.charAt(0).toUpperCase() + ct.slice(1)}
                       </button>
                     ))}
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={sendTestWebhook}
+                      disabled={testingWebhook}
+                      className="px-3 py-1.5 rounded-md text-xs bg-white/5 border border-subtle text-foreground hover:bg-white/10 transition-colors disabled:opacity-50"
+                    >
+                      {testingWebhook ? 'Sending…' : 'Send test webhook'}
+                    </button>
+                    {webhookTestMsg && <span className="text-[11px] text-muted">{webhookTestMsg}</span>}
                   </div>
                 </div>
               )}
