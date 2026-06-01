@@ -329,6 +329,22 @@ export async function runPollCycle(): Promise<{ success: boolean; polled: number
     // Broadcast SSE event so connected clients refresh immediately (F1)
     broadcastSSE({ type: 'poll_complete', ts: Date.now(), services_changed: [...changedServices] });
 
+    // Best-effort web push when services changed status this cycle.
+    if (changedServices.length > 0) {
+      try {
+        const { sendPushToAll, isPushConfigured } = await import('./push');
+        if (isPushConfigured()) {
+          await sendPushToAll({
+            title: 'Outage Map',
+            body: `${changedServices.length} service${changedServices.length !== 1 ? 's' : ''} changed status`,
+            url: '/',
+          });
+        }
+      } catch (err) {
+        log.error('Push dispatch failed:', err);
+      }
+    }
+
     cleanupOldHistory(35);
     const prunedIncidents = cleanupOldIncidents(90);
     if (Date.now() - lastVacuumAt > VACUUM_INTERVAL_MS) {

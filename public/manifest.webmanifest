@@ -1,0 +1,18 @@
+{
+  "name": "Outage Map · Enterprise Status",
+  "short_name": "Outage Map",
+  "description": "Real-time outage monitoring for major SaaS and cloud services.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#002b36",
+  "theme_color": "#002b36",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -8,6 +8,7 @@ import MobileTabBar from './MobileTabBar';
 import CommandPalette from './CommandPalette';
 import PaletteSync from './PaletteSync';
 import StatusChangeWatcher from './StatusChangeWatcher';
+import RegisterServiceWorker from './RegisterServiceWorker';
 import { ToastProvider } from './ui/Toast';
 import { SidebarProvider, useSidebar } from './SidebarContext';
 import { usePresentMode } from '@/hooks/usePresentMode';
@@ -54,6 +55,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     <SidebarProvider>
       <ToastProvider>
         <PaletteSync />
+        <RegisterServiceWorker />
         <StatusChangeWatcher />
         <ShellInner>{children}</ShellInner>
       </ToastProvider>

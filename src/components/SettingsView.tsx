@@ -13,6 +13,7 @@ import { useTheme, THEMES, type Theme } from './ThemeProvider';
 import { listTimeZones } from '@/lib/format';
 import PageHeader from './ui/PageHeader';
 import Card from './ui/Card';
+import PushToggle from './PushToggle';
 
 const THEME_PREVIEWS: Record<Theme, {
   wrapper: string;
@@ -160,6 +161,24 @@ export default function SettingsView() {
       }
     } catch {
       setDigestMsg('Network error');
+    }
+  };
+
+  const [pushMsg, setPushMsg] = useState<string | null>(null);
+  const sendTestPush = async () => {
+    setPushMsg(null);
+    try {
+      const res = await fetch('/api/push/test', { method: 'POST' });
+      const body = await res.json().catch(() => ({}));
+      setPushMsg(
+        res.ok
+          ? `Sent to ${body.sent} device(s)`
+          : body.reason === 'vapid_not_configured'
+            ? 'Server VAPID keys not configured'
+            : 'Failed',
+      );
+    } catch {
+      setPushMsg('Network error');
     }
   };
 
@@ -538,6 +557,23 @@ export default function SettingsView() {
         ) : (
           <p className="text-[11px] text-muted">Loading…</p>
         )}
+      </Card>
+
+      <Card>
+        <h3 className="text-sm font-semibold text-foreground mb-1">Browser push (PWA)</h3>
+        <p className="text-[11px] text-muted mb-4">
+          Install the app and get push notifications when services change status. Requires VAPID keys on the server.
+        </p>
+        <div className="flex items-center gap-3 flex-wrap">
+          <PushToggle />
+          <button
+            onClick={sendTestPush}
+            className="px-3 py-2 rounded-md bg-white/5 border border-subtle text-foreground text-xs font-medium hover:bg-white/10 transition-colors"
+          >
+            Send test push
+          </button>
+          {pushMsg && <span className="text-[11px] text-muted">{pushMsg}</span>}
+        </div>
       </Card>
 
       <Card>
