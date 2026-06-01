@@ -5,9 +5,11 @@ import TileChrome from './TileChrome';
 import ServiceDetailModal from '../ServiceDetailModal';
 import Sparkline from '../Sparkline';
 import { getStatusColor } from '@/lib/boardColors';
+import { useStatusPalette } from '@/hooks/useStatusPalette';
 import type { TileProps } from './types';
 
 export default function ServiceGridTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure, live }: TileProps) {
+  useStatusPalette();
   const [openSlug, setOpenSlug] = useState<string | null>(null);
   const filterSlugs = config.services as string[] | undefined;
   const filters = (config.filters ?? {}) as { hideOperational?: boolean };

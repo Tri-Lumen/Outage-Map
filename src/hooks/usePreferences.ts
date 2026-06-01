@@ -12,6 +12,8 @@ export interface Preferences {
   slaTargets: Record<string, number>;
   /** Estimated cost of downtime per hour, used by the Analytics cost calculator. */
   costPerHour: number;
+  /** Use a color-blind-safe status palette across the app. */
+  colorBlind: boolean;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -22,6 +24,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   slaTarget: 99.9,
   slaTargets: {},
   costPerHour: 0,
+  colorBlind: false,
 };
 
 export const PREFERENCES_STORAGE_KEY = 'outage-map-prefs';

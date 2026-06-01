@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useServiceStatus } from '@/hooks/useStatus';
 import { SERVICE_DEPENDENCIES } from '@/lib/serviceDependencies';
 import { getStatusColor } from '@/lib/boardColors';
+import { useStatusPalette } from '@/hooks/useStatusPalette';
 
 interface Node {
   id: string;
@@ -25,6 +26,7 @@ export default function DependencyGraph() {
   const rafRef = useRef<number | null>(null);
   const [width, setWidth] = useState(800);
   const [height] = useState(520);
+  const paletteVersion = useStatusPalette();
 
   const services = data?.services ?? [];
 
@@ -181,7 +183,7 @@ export default function DependencyGraph() {
 
     rafRef.current = requestAnimationFrame(loop);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [services, width, height]);
+  }, [services, width, height, paletteVersion]);
 
   // Tooltip on mouse move
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {

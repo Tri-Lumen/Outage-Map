@@ -247,6 +247,28 @@ export default function SettingsView() {
 
           <div className="flex items-center justify-between py-2 border-t border-subtle">
             <div>
+              <p className="text-sm text-foreground">Color-blind palette</p>
+              <p className="text-[11px] text-muted">Use a color-blind-safe set of status colors across the app</p>
+            </div>
+            <button
+              role="switch"
+              aria-checked={prefs.colorBlind}
+              onClick={() => update('colorBlind', !prefs.colorBlind)}
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                prefs.colorBlind ? 'bg-accent' : 'bg-white/10'
+              }`}
+              aria-label="Toggle color-blind palette"
+            >
+              <span
+                className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                  prefs.colorBlind ? 'translate-x-[22px]' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between py-2 border-t border-subtle">
+            <div>
               <p className="text-sm text-foreground">SLA target</p>
               <p className="text-[11px] text-muted">Uptime % threshold for compliance badges in Analytics</p>
             </div>

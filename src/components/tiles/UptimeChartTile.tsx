@@ -1,11 +1,13 @@
 import TileChrome from './TileChrome';
 import Sparkline from '../Sparkline';
 import { getStatusColor, historyToSparkline } from '@/lib/boardColors';
+import { useStatusPalette } from '@/hooks/useStatusPalette';
 import type { TileProps } from './types';
 
 type RangeDays = 7 | 30 | 90;
 
 export default function UptimeChartTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure, live }: TileProps) {
+  useStatusPalette();
   const slug = (config.service as string) || '';
   const svc = live.services.find((s) => s.slug === slug) ?? live.services[0];
   const filters = (config.filters ?? {}) as { rangeDays?: RangeDays };
