@@ -7,6 +7,8 @@ import MobileNav from './MobileNav';
 import MobileTabBar from './MobileTabBar';
 import CommandPalette from './CommandPalette';
 import PaletteSync from './PaletteSync';
+import StatusChangeWatcher from './StatusChangeWatcher';
+import { ToastProvider } from './ui/Toast';
 import { SidebarProvider, useSidebar } from './SidebarContext';
 import { usePresentMode } from '@/hooks/usePresentMode';
 
@@ -50,8 +52,11 @@ function ShellInner({ children }: { children: ReactNode }) {
 export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <SidebarProvider>
-      <PaletteSync />
-      <ShellInner>{children}</ShellInner>
+      <ToastProvider>
+        <PaletteSync />
+        <StatusChangeWatcher />
+        <ShellInner>{children}</ShellInner>
+      </ToastProvider>
     </SidebarProvider>
   );
 }
