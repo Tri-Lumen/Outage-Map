@@ -13,6 +13,8 @@ export interface ServiceConfig {
   downdetectorSlug: string | null;
   fetcher: FetcherType;
   brandFont: string;
+  /** Optional grouping category surfaced in the service grid (e.g. "Identity"). */
+  category?: string;
   ddThresholdDegraded?: number;
   ddThresholdMajor?: number;
 }
@@ -56,6 +58,7 @@ export interface ServiceStatusResponse {
   statusUrl: string;
   downdetectorUrl: string;
   brandFont: string;
+  category: string | null;
   isAnomaly: boolean;
   anomalyZScore: number | null;
   inMaintenance: boolean;

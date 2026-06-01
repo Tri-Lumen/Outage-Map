@@ -186,6 +186,7 @@ const IncidentFeedForm: ConfigForm = ({ tile, live, onUpdate }) => {
 const ServiceGridForm: ConfigForm = ({ tile, live, onUpdate }) => {
   const filters = (tile.config.filters ?? {}) as { hideOperational?: boolean };
   const selectedServices = (tile.config.services ?? []) as string[];
+  const groupByCategory = !!tile.config.groupByCategory;
   return (
     <>
       {common(tile, onUpdate, { hideRefresh: true })}
@@ -198,6 +199,19 @@ const ServiceGridForm: ConfigForm = ({ tile, live, onUpdate }) => {
           role="switch"
           aria-checked={!!filters.hideOperational}
           onClick={() => update(tile, onUpdate, { filters: { ...filters, hideOperational: !filters.hideOperational } })}
+        >
+          <i />
+        </button>
+      </div>
+      <div className="twk-row twk-row-h">
+        <div className="twk-lbl"><span>Group by category</span></div>
+        <button
+          type="button"
+          className="twk-toggle"
+          data-on={groupByCategory}
+          role="switch"
+          aria-checked={groupByCategory}
+          onClick={() => update(tile, onUpdate, { groupByCategory: !groupByCategory })}
         >
           <i />
         </button>
