@@ -1,5 +1,8 @@
 import { FetchResult, StatusResult, IncidentResult, ServiceStatus, IncidentSeverity } from '../types';
 import { httpFetch } from './httpFetch';
+import { createLogger } from '../logger';
+
+const log = createLogger('salesforce');
 
 interface SalesforceIncident {
   id: string;
@@ -101,7 +104,7 @@ export async function fetchSalesforceStatus(serviceSlug: string): Promise<FetchR
       throw new Error(`HTTP ${statusRes.status}`);
     }
   } catch (err) {
-    console.error('[salesforce] Failed to fetch status:', err);
+    log.error('Failed to fetch status:', err);
 
     // Fallback: try the main incidents endpoint
     try {

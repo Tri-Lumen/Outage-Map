@@ -2,6 +2,9 @@ import * as cheerio from 'cheerio';
 import crypto from 'crypto';
 import { FetchResult, StatusResult, IncidentResult, ServiceStatus } from '../types';
 import { httpFetch } from './httpFetch';
+import { createLogger } from '../logger';
+
+const log = createLogger('google');
 
 const DASHBOARD_URL = 'https://www.google.com/appsstatus/dashboard/';
 const INCIDENTS_URL = 'https://www.google.com/appsstatus/dashboard/incidents.json';
@@ -186,7 +189,7 @@ export async function fetchGoogleStatus(serviceSlug: string): Promise<FetchResul
         ? 'All Google Workspace services operational'
         : `Issues: ${Array.from(new Set(affectedServices)).join(', ') || 'Some services affected'}`;
   } catch (err) {
-    console.error('[google] Failed to fetch status:', err);
+    log.error('Failed to fetch status:', err);
     statusResult.status = 'unknown';
     statusResult.details = 'Unable to fetch Google Workspace status';
   }

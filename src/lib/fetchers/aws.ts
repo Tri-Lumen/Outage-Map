@@ -2,6 +2,9 @@ import * as cheerio from 'cheerio';
 import crypto from 'crypto';
 import { FetchResult, StatusResult, IncidentResult, ServiceStatus } from '../types';
 import { httpFetch } from './httpFetch';
+import { createLogger } from '../logger';
+
+const log = createLogger('aws');
 
 const AWS_RSS_URL = 'https://health.aws.amazon.com/health/status/feed';
 const AWS_SOURCE_URL = 'https://health.aws.amazon.com/health/status';
@@ -90,7 +93,7 @@ export async function fetchAwsStatus(serviceSlug: string): Promise<FetchResult> 
         ? 'All AWS services operating normally'
         : `Recent events: ${recentTitles.slice(0, 3).join('; ')}`;
   } catch (err) {
-    console.error('[aws] Failed to fetch status:', err);
+    log.error('Failed to fetch status:', err);
     statusResult.details = 'Unable to fetch AWS health feed';
   }
 

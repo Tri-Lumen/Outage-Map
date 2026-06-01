@@ -1,5 +1,8 @@
 import { FetchResult, StatusResult, IncidentResult, ServiceStatus, IncidentSeverity, IncidentStatus } from '../types';
 import { httpFetch } from './httpFetch';
+import { createLogger } from '../logger';
+
+const log = createLogger('statuspage');
 
 interface StatuspageStatus {
   status: {
@@ -90,12 +93,12 @@ export async function fetchStatuspageStatus(baseUrl: string, serviceSlug: string
       statusResult.status = mapIndicatorToStatus(data.status.indicator);
       statusResult.details = data.status.description;
     } catch (err) {
-      console.error(`[statuspage] Failed to parse status.json for ${serviceSlug}:`, err);
+      log.error(`Failed to parse status.json for ${serviceSlug}:`, err);
     }
   } else if (statusRes.status === 'rejected') {
-    console.error(`[statuspage] Network error fetching status.json for ${serviceSlug}:`, statusRes.reason);
+    log.error(`Network error fetching status.json for ${serviceSlug}:`, statusRes.reason);
   } else {
-    console.error(`[statuspage] HTTP ${statusRes.value.status} from status.json for ${serviceSlug} — check that ${baseUrl}/api/v2/status.json is reachable and returns valid Statuspage v2 JSON`);
+    log.error(`HTTP ${statusRes.value.status} from status.json for ${serviceSlug} — check that ${baseUrl}/api/v2/status.json is reachable and returns valid Statuspage v2 JSON`);
   }
 
   // Apply maintenance-aware correction: if the indicator says degraded but there
@@ -142,7 +145,7 @@ export async function fetchStatuspageStatus(baseUrl: string, serviceSlug: string
       }
     }
   } catch (err) {
-    console.error(`[statuspage] Failed to fetch incidents for ${serviceSlug}:`, err);
+    log.error(`Failed to fetch incidents for ${serviceSlug}:`, err);
   }
 
   return { status: statusResult, incidents };
