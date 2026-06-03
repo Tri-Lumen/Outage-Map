@@ -10,8 +10,10 @@ import {
   writePreferences,
 } from '@/hooks/usePreferences';
 import { useTheme, THEMES, type Theme } from './ThemeProvider';
+import { listTimeZones } from '@/lib/format';
 import PageHeader from './ui/PageHeader';
 import Card from './ui/Card';
+import PushToggle from './PushToggle';
 
 const THEME_PREVIEWS: Record<Theme, {
   wrapper: string;
@@ -82,6 +84,103 @@ export default function SettingsView() {
   const [saved, setSaved] = useState(false);
   const { data: statusData } = useServiceStatus();
   const services = statusData?.services ?? [];
+  const timezones = listTimeZones();
+  const [anomalyCfg, setAnomalyCfg] = useState<{ threshold: number; minPoints: number } | null>(null);
+  const [anomalyMsg, setAnomalyMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/settings/anomaly')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && typeof d.threshold === 'number') setAnomalyCfg({ threshold: d.threshold, minPoints: d.minPoints });
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveAnomaly = async () => {
+    if (!anomalyCfg) return;
+    setAnomalyMsg(null);
+    try {
+      const res = await fetch('/api/settings/anomaly', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(anomalyCfg),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setAnomalyCfg({ threshold: body.threshold, minPoints: body.minPoints });
+        setAnomalyMsg('Saved ✓');
+      } else {
+        setAnomalyMsg(body.error || `Failed (HTTP ${res.status})`);
+      }
+    } catch {
+      setAnomalyMsg('Network error');
+    }
+  };
+
+  const [digestCfg, setDigestCfg] = useState<{ frequency: string; hour: number; webhookUrl: string; channelType: string } | null>(null);
+  const [digestRecipientsRaw, setDigestRecipientsRaw] = useState('');
+  const [digestMsg, setDigestMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/settings/digest')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && typeof d.frequency === 'string') {
+          setDigestCfg({ frequency: d.frequency, hour: d.hour, webhookUrl: d.webhookUrl ?? '', channelType: d.channelType ?? 'generic' });
+          setDigestRecipientsRaw((d.recipients ?? []).join(', '));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveDigest = async (overrides?: Record<string, unknown>) => {
+    if (!digestCfg) return;
+    setDigestMsg(null);
+    const payload = overrides ?? {
+      frequency: digestCfg.frequency,
+      hour: digestCfg.hour,
+      recipients: digestRecipientsRaw.split(',').map((s) => s.trim()).filter(Boolean),
+      webhookUrl: digestCfg.webhookUrl,
+      channelType: digestCfg.channelType,
+    };
+    try {
+      const res = await fetch('/api/settings/digest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDigestMsg(body.error || `Failed (HTTP ${res.status})`);
+      } else if (overrides?.sendNow) {
+        setDigestMsg(body.ok ? `Sent via ${(body.channels || []).join(', ') || 'no channel'}` : 'No channel delivered');
+      } else {
+        setDigestCfg({ frequency: body.frequency, hour: body.hour, webhookUrl: body.webhookUrl ?? '', channelType: body.channelType ?? 'generic' });
+        setDigestMsg('Saved ✓');
+      }
+    } catch {
+      setDigestMsg('Network error');
+    }
+  };
+
+  const [pushMsg, setPushMsg] = useState<string | null>(null);
+  const sendTestPush = async () => {
+    setPushMsg(null);
+    try {
+      const res = await fetch('/api/push/test', { method: 'POST' });
+      const body = await res.json().catch(() => ({}));
+      setPushMsg(
+        res.ok
+          ? `Sent to ${body.sent} device(s)`
+          : body.reason === 'vapid_not_configured'
+            ? 'Server VAPID keys not configured'
+            : 'Failed',
+      );
+    } catch {
+      setPushMsg('Network error');
+    }
+  };
 
   // Reflect external preference changes (e.g. reset from another tab) into
   // local state so controls stay in sync with storage.
@@ -105,6 +204,13 @@ export default function SettingsView() {
       ? prefs.pinnedServices.filter((s) => s !== slug)
       : [...prefs.pinnedServices, slug];
     persist({ ...prefs, pinnedServices: nextPinned });
+  };
+
+  const setServiceSla = (slug: string, value: number | null) => {
+    const next = { ...(prefs.slaTargets ?? {}) };
+    if (value === null) delete next[slug];
+    else next[slug] = value;
+    persist({ ...prefs, slaTargets: next });
   };
 
   const resetAll = () => {
@@ -240,6 +346,46 @@ export default function SettingsView() {
 
           <div className="flex items-center justify-between py-2 border-t border-subtle">
             <div>
+              <p className="text-sm text-foreground">Color-blind palette</p>
+              <p className="text-[11px] text-muted">Use a color-blind-safe set of status colors across the app</p>
+            </div>
+            <button
+              role="switch"
+              aria-checked={prefs.colorBlind}
+              onClick={() => update('colorBlind', !prefs.colorBlind)}
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                prefs.colorBlind ? 'bg-accent' : 'bg-white/10'
+              }`}
+              aria-label="Toggle color-blind palette"
+            >
+              <span
+                className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                  prefs.colorBlind ? 'translate-x-[22px]' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between py-2 border-t border-subtle">
+            <div>
+              <p className="text-sm text-foreground">Time zone</p>
+              <p className="text-[11px] text-muted">How absolute timestamps are displayed across the app</p>
+            </div>
+            <select
+              value={prefs.timezone}
+              onChange={(e) => update('timezone', e.target.value)}
+              className="px-2 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground focus:outline-none focus:border-accent max-w-[220px]"
+              aria-label="Time zone"
+            >
+              <option value="">Browser default</option>
+              {timezones.map((tz) => (
+                <option key={tz} value={tz}>{tz}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center justify-between py-2 border-t border-subtle">
+            <div>
               <p className="text-sm text-foreground">SLA target</p>
               <p className="text-[11px] text-muted">Uptime % threshold for compliance badges in Analytics</p>
             </div>
@@ -257,6 +403,28 @@ export default function SettingsView() {
                 className="w-20 px-2 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground text-right focus:outline-none focus:border-accent"
               />
               <span className="text-xs text-muted">%</span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between py-2 border-t border-subtle">
+            <div>
+              <p className="text-sm text-foreground">Downtime cost</p>
+              <p className="text-[11px] text-muted">Estimated cost per hour of downtime, used by the Analytics cost calculator. Set 0 to hide.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted">$</span>
+              <input
+                type="number"
+                min={0}
+                step={100}
+                value={prefs.costPerHour ?? 0}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  update('costPerHour', isNaN(v) || v < 0 ? 0 : v);
+                }}
+                className="w-28 px-2 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground text-right focus:outline-none focus:border-accent"
+              />
+              <span className="text-xs text-muted">/hr</span>
             </div>
           </div>
         </div>
@@ -292,6 +460,196 @@ export default function SettingsView() {
             );
           })}
         </div>
+      </Card>
+
+      <Card>
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Per-service SLA targets</h3>
+            <p className="text-[11px] text-muted mt-1">
+              Override the global {prefs.slaTarget ?? 99.9}% target for specific services. Leave blank to use the global target.
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
+          {services.map((s) => {
+            const override = prefs.slaTargets?.[s.slug];
+            return (
+              <div key={s.slug} className="flex items-center justify-between py-1.5 border-b border-subtle/60">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                  <span className="text-sm text-foreground truncate">{s.name}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min={90}
+                    max={100}
+                    step={0.01}
+                    placeholder={String(prefs.slaTarget ?? 99.9)}
+                    value={override ?? ''}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === '') { setServiceSla(s.slug, null); return; }
+                      const v = parseFloat(raw);
+                      if (!isNaN(v) && v >= 90 && v <= 100) setServiceSla(s.slug, v);
+                    }}
+                    className="w-20 px-2 py-1 rounded-md bg-white/5 border border-subtle text-xs text-foreground text-right focus:outline-none focus:border-accent"
+                    aria-label={`SLA target for ${s.name}`}
+                  />
+                  <span className="text-[11px] text-muted">%</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Card>
+        <h3 className="text-sm font-semibold text-foreground mb-1">Anomaly detection</h3>
+        <p className="text-[11px] text-muted mb-4">
+          Tune Downdetector spike sensitivity. Applies server-side on the next poll. Saving requires the settings API to be enabled (ENABLE_RULES_API or CRON_SECRET).
+        </p>
+        {anomalyCfg ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-foreground">Z-score threshold</p>
+                <p className="text-[11px] text-muted">Higher = fewer, stronger anomalies (default 2.5)</p>
+              </div>
+              <input
+                type="number"
+                min={1}
+                max={10}
+                step={0.1}
+                value={anomalyCfg.threshold}
+                onChange={(e) => setAnomalyCfg({ ...anomalyCfg, threshold: parseFloat(e.target.value) || anomalyCfg.threshold })}
+                className="w-24 px-2 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground text-right focus:outline-none focus:border-accent"
+                aria-label="Z-score threshold"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-foreground">Minimum data points</p>
+                <p className="text-[11px] text-muted">History points required before scoring (default 24)</p>
+              </div>
+              <input
+                type="number"
+                min={3}
+                max={200}
+                step={1}
+                value={anomalyCfg.minPoints}
+                onChange={(e) => setAnomalyCfg({ ...anomalyCfg, minPoints: parseInt(e.target.value) || anomalyCfg.minPoints })}
+                className="w-24 px-2 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground text-right focus:outline-none focus:border-accent"
+                aria-label="Minimum data points"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={saveAnomaly}
+                className="px-4 py-2 rounded-md bg-accent-soft text-foreground text-xs font-medium hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                Save anomaly settings
+              </button>
+              {anomalyMsg && <span className="text-[11px] text-muted">{anomalyMsg}</span>}
+            </div>
+          </div>
+        ) : (
+          <p className="text-[11px] text-muted">Loading…</p>
+        )}
+      </Card>
+
+      <Card>
+        <h3 className="text-sm font-semibold text-foreground mb-1">Browser push (PWA)</h3>
+        <p className="text-[11px] text-muted mb-4">
+          Install the app and get push notifications when services change status. Requires VAPID keys on the server.
+        </p>
+        <div className="flex items-center gap-3 flex-wrap">
+          <PushToggle />
+          <button
+            onClick={sendTestPush}
+            className="px-3 py-2 rounded-md bg-white/5 border border-subtle text-foreground text-xs font-medium hover:bg-white/10 transition-colors"
+          >
+            Send test push
+          </button>
+          {pushMsg && <span className="text-[11px] text-muted">{pushMsg}</span>}
+        </div>
+      </Card>
+
+      <Card>
+        <h3 className="text-sm font-semibold text-foreground mb-1">Status digest</h3>
+        <p className="text-[11px] text-muted mb-4">
+          Scheduled summary by email and/or webhook. Requires SMTP (or a webhook) and the settings API enabled. Hour is UTC.
+        </p>
+        {digestCfg ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-foreground">Frequency</p>
+              <select
+                value={digestCfg.frequency}
+                onChange={(e) => setDigestCfg({ ...digestCfg, frequency: e.target.value })}
+                className="px-2 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground focus:outline-none focus:border-accent"
+                aria-label="Digest frequency"
+              >
+                <option value="off">Off</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+              </select>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-foreground">Send hour (UTC)</p>
+                <p className="text-[11px] text-muted">0–23</p>
+              </div>
+              <input
+                type="number"
+                min={0}
+                max={23}
+                value={digestCfg.hour}
+                onChange={(e) => setDigestCfg({ ...digestCfg, hour: Math.max(0, Math.min(23, parseInt(e.target.value) || 0)) })}
+                className="w-20 px-2 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground text-right focus:outline-none focus:border-accent"
+                aria-label="Digest send hour"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted mb-1">Email recipients (comma-separated)</label>
+              <input
+                type="text"
+                value={digestRecipientsRaw}
+                onChange={(e) => setDigestRecipientsRaw(e.target.value)}
+                placeholder="ops@example.com, sre@example.com"
+                className="w-full px-3 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground placeholder-muted focus:outline-none focus:border-accent"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted mb-1">Webhook URL (optional)</label>
+              <input
+                type="url"
+                value={digestCfg.webhookUrl}
+                onChange={(e) => setDigestCfg({ ...digestCfg, webhookUrl: e.target.value })}
+                placeholder="https://hooks.slack.com/services/..."
+                className="w-full px-3 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground placeholder-muted focus:outline-none focus:border-accent"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => saveDigest()}
+                className="px-4 py-2 rounded-md bg-accent-soft text-foreground text-xs font-medium hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                Save digest
+              </button>
+              <button
+                onClick={() => saveDigest({ sendNow: true })}
+                className="px-4 py-2 rounded-md bg-white/5 border border-subtle text-foreground text-xs font-medium hover:bg-white/10 transition-colors"
+              >
+                Send now
+              </button>
+              {digestMsg && <span className="text-[11px] text-muted">{digestMsg}</span>}
+            </div>
+          </div>
+        ) : (
+          <p className="text-[11px] text-muted">Loading…</p>
+        )}
       </Card>
 
       <Card elevated>

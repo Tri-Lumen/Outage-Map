@@ -27,6 +27,9 @@ import { fetchAwsStatus } from './fetchers/aws';
 import { fetchDowndetectorStatus } from './fetchers/downdetector';
 import { broadcastSSE } from './sse';
 import { computeZScore } from './anomaly';
+import { createLogger } from './logger';
+
+const log = createLogger('poller');
 
 // Wrap a fetcher call with latency, success, and failure bookkeeping.
 async function timedFetch<T>(
@@ -140,7 +143,7 @@ const changedServices: string[] = [];
 
 async function pollService(service: ServiceConfig): Promise<{ ddReports: number }> {
   if (process.env.DEBUG === 'true') {
-    console.log(`[poller] Polling ${service.name}...`);
+    log.info(`Polling ${service.name}...`);
   }
 
   const previousStatus = getPreviousStatus(service.slug);
@@ -214,7 +217,7 @@ async function pollService(service: ServiceConfig): Promise<{ ddReports: number 
       await sendStatusChangeAlert(service.slug, previousStatus, officialStatus.status);
     }
   } else {
-    console.debug(`[poller] ${service.name} official fetch rejected:`, officialSettled.reason);
+    log.debug(`${service.name} official fetch rejected:`, officialSettled.reason);
   }
 
   // Process Downdetector
@@ -251,18 +254,14 @@ async function pollService(service: ServiceConfig): Promise<{ ddReports: number 
       }
     }
   } else {
-    console.debug(`[poller] ${service.name} downdetector fetch rejected:`, ddSettled.reason);
+    log.debug(`${service.name} downdetector fetch rejected:`, ddSettled.reason);
   }
 
   const effectiveStatus = officialStatus?.status || ddStatus?.status || 'unknown';
   const reportCount = ddStatus?.reportCount || 0;
   insertStatusHistory(service.slug, effectiveStatus, reportCount, activeIncidentCount);
 
-  if (process.env.DEBUG === 'true') {
-    console.log(
-      `[poller] ${service.name}: ${effectiveStatus} (DD: ${reportCount} reports, active incidents: ${activeIncidentCount})`,
-    );
-  }
+  log.debug(`${service.name}: ${effectiveStatus} (DD: ${reportCount} reports, active incidents: ${activeIncidentCount})`);
 
   return { ddReports: reportCount };
 }
@@ -277,7 +276,7 @@ async function processEscalations() {
       }
     }
   } catch (err) {
-    console.error('[poller] Escalation processing failed:', err);
+    log.error('Escalation processing failed:', err);
   }
 }
 
@@ -287,7 +286,7 @@ const VACUUM_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 export async function runPollCycle(): Promise<{ success: boolean; polled: number; errors: number }> {
   if (isPolling) {
-    console.log('[poller] Poll cycle already in progress, skipping');
+    log.info('Poll cycle already in progress, skipping');
     metrics.recordPollCycle('skipped', 0);
     return { success: false, polled: 0, errors: 0 };
   }
@@ -296,7 +295,7 @@ export async function runPollCycle(): Promise<{ success: boolean; polled: number
   changedServices.length = 0;
   const cycleStart = Date.now();
   if (process.env.DEBUG === 'true') {
-    console.log(`[poller] Starting poll cycle at ${new Date().toISOString()}`);
+    log.info(`Starting poll cycle at ${new Date().toISOString()}`);
   }
 
   let polled = 0;
@@ -316,14 +315,12 @@ export async function runPollCycle(): Promise<{ success: boolean; polled: number
         ddFulfilled++;
       } else {
         errors++;
-        console.error('[poller] Service poll failed:', result.reason);
+        log.error('Service poll failed:', result.reason);
       }
     }
 
     if (ddFulfilled > 0 && totalDdReports === 0) {
-      console.warn(
-        '[poller] DownDetector returned 0 reports for every service this cycle — scraper may be blocked or slugs may have drifted',
-      );
+      log.warn('DownDetector returned 0 reports for every service this cycle — scraper may be blocked or slugs may have drifted');
     }
 
     // Escalation alerts for long-running unresolved incidents
@@ -332,6 +329,22 @@ export async function runPollCycle(): Promise<{ success: boolean; polled: number
     // Broadcast SSE event so connected clients refresh immediately (F1)
     broadcastSSE({ type: 'poll_complete', ts: Date.now(), services_changed: [...changedServices] });
 
+    // Best-effort web push when services changed status this cycle.
+    if (changedServices.length > 0) {
+      try {
+        const { sendPushToAll, isPushConfigured } = await import('./push');
+        if (isPushConfigured()) {
+          await sendPushToAll({
+            title: 'Outage Map',
+            body: `${changedServices.length} service${changedServices.length !== 1 ? 's' : ''} changed status`,
+            url: '/',
+          });
+        }
+      } catch (err) {
+        log.error('Push dispatch failed:', err);
+      }
+    }
+
     cleanupOldHistory(35);
     const prunedIncidents = cleanupOldIncidents(90);
     if (Date.now() - lastVacuumAt > VACUUM_INTERVAL_MS) {
@@ -339,13 +352,11 @@ export async function runPollCycle(): Promise<{ success: boolean; polled: number
         vacuumDb();
         lastVacuumAt = Date.now();
       } catch (err) {
-        console.error('[poller] VACUUM failed:', err);
+        log.error('VACUUM failed:', err);
       }
     }
     if (process.env.DEBUG === 'true' || prunedIncidents > 0) {
-      console.log(
-        `[poller] Poll cycle complete: ${polled} succeeded, ${errors} failed, ${prunedIncidents} incidents pruned`,
-      );
+      log.info(`Poll cycle complete: ${polled} succeeded, ${errors} failed, ${prunedIncidents} incidents pruned`);
     }
   } finally {
     isPolling = false;

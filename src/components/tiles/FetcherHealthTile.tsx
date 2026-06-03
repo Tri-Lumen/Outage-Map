@@ -115,6 +115,17 @@ export default function FetcherHealthTile({
                     </span>
                   )}
 
+                  {f.circuitState === 'open' && (
+                    <span title="Circuit breaker is open — calls are paused until cooldown" style={{ fontSize: 9, color: '#EF5350', flexShrink: 0, background: 'rgba(239,83,80,0.12)', padding: '1px 4px', borderRadius: 4 }}>
+                      open
+                    </span>
+                  )}
+                  {f.circuitState === 'half-open' && (
+                    <span title="Circuit breaker is probing recovery" style={{ fontSize: 9, color: '#FFD54F', flexShrink: 0, background: 'rgba(255,213,79,0.12)', padding: '1px 4px', borderRadius: 4 }}>
+                      probing
+                    </span>
+                  )}
+
                   {f.consecutiveFailures > 0 ? (
                     <>
                       <span title={f.lastError ?? undefined} style={{ fontSize: 10, color: '#EF5350', flexShrink: 0 }}>
@@ -154,6 +165,12 @@ export default function FetcherHealthTile({
                       color={ok ? '#7CB342' : '#EF5350'}
                       height={16}
                     />
+                  </div>
+                )}
+
+                {f.lastParseError && (
+                  <div style={{ paddingLeft: 14, fontSize: 9, color: '#FFB74D' }} title={f.lastParseError}>
+                    schema drift: {f.lastParseError.length > 60 ? `${f.lastParseError.slice(0, 60)}…` : f.lastParseError}
                   </div>
                 )}
               </div>

@@ -120,6 +120,45 @@ export function buildGenericPayload(incident: IncidentResult, serviceName: strin
   };
 }
 
+// PagerDuty Events API v2 (POST to https://events.pagerduty.com/v2/enqueue).
+// The routing key comes from PAGERDUTY_ROUTING_KEY since the webhook URL is fixed.
+const PD_SEVERITY: Record<string, string> = { critical: 'critical', major: 'error', minor: 'warning' };
+export function buildPagerDutyPayload(incident: IncidentResult, serviceName: string) {
+  const routingKey = process.env.PAGERDUTY_ROUTING_KEY;
+  return {
+    ...(routingKey ? { routing_key: routingKey } : {}),
+    event_action: incident.status === 'resolved' ? 'resolve' : 'trigger',
+    dedup_key: `${incident.serviceSlug}:${incident.incidentId}`,
+    payload: {
+      summary: `[${incident.severity.toUpperCase()}] ${serviceName}: ${incident.title}`,
+      source: serviceName,
+      severity: PD_SEVERITY[incident.severity] ?? 'warning',
+      timestamp: incident.startedAt ?? new Date().toISOString(),
+      custom_details: { service: incident.serviceSlug, status: incident.status, sourceUrl: incident.sourceUrl },
+    },
+    links: incident.sourceUrl ? [{ href: incident.sourceUrl, text: 'View incident' }] : [],
+  };
+}
+
+// Opsgenie Alert API (POST to https://api.opsgenie.com/v2/alerts).
+// Requires an `Authorization: GenieKey <OPSGENIE_API_KEY>` header (added in webhook.ts).
+const OG_PRIORITY: Record<string, string> = { critical: 'P1', major: 'P2', minor: 'P3' };
+export function buildOpsgeniePayload(incident: IncidentResult, serviceName: string) {
+  return {
+    message: `[${incident.severity.toUpperCase()}] ${serviceName}: ${incident.title}`,
+    alias: `${incident.serviceSlug}:${incident.incidentId}`,
+    description: incident.title,
+    priority: OG_PRIORITY[incident.severity] ?? 'P3',
+    source: 'Outage Map',
+    details: {
+      service: incident.serviceSlug,
+      status: incident.status,
+      severity: incident.severity,
+      ...(incident.sourceUrl ? { sourceUrl: incident.sourceUrl } : {}),
+    },
+  };
+}
+
 export function buildChannelPayload(
   channelType: string,
   incident: IncidentResult,
@@ -129,6 +168,8 @@ export function buildChannelPayload(
     case 'slack': return buildSlackPayload(incident, serviceName);
     case 'teams': return buildTeamsPayload(incident, serviceName);
     case 'discord': return buildDiscordPayload(incident, serviceName);
+    case 'pagerduty': return buildPagerDutyPayload(incident, serviceName);
+    case 'opsgenie': return buildOpsgeniePayload(incident, serviceName);
     default: return buildGenericPayload(incident, serviceName);
   }
 }

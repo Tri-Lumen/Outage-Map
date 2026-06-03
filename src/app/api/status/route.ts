@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
           ? `https://downdetector.com/status/${service.downdetectorSlug}/`
           : '',
         brandFont: service.brandFont,
+        category: service.category ?? null,
         isAnomaly: dd?.is_anomaly === 1,
         anomalyZScore: dd?.anomaly_z_score ?? null,
         inMaintenance: maintenanceSet.has(service.slug),

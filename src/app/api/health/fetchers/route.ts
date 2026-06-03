@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { health } from '@/lib/health';
+import { circuit } from '@/lib/fetchers/circuit';
 import { getFetcherLatency24h } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -24,6 +25,9 @@ export function GET() {
         lastError: entry.lastError,
         lastLatencyMs: entry.lastLatencyMs,
         consecutiveFailures: entry.consecutiveFailures,
+        circuitState: circuit.getState(entry.service, entry.source),
+        openUntil: circuit.openUntil(entry.service, entry.source),
+        lastParseError: entry.lastParseError,
         latency24h,
       };
     }),

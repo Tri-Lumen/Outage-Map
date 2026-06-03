@@ -1,5 +1,6 @@
 import TileChrome from './TileChrome';
 import { getStatusColor } from '@/lib/boardColors';
+import { useStatusPalette } from '@/hooks/useStatusPalette';
 import type { TileProps } from './types';
 
 interface Component {
@@ -15,6 +16,7 @@ const DEFAULT_COMPONENTS: Component[] = [
 ];
 
 export default function StatusPageTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure }: TileProps) {
+  useStatusPalette();
   const components = (config.components as Component[]) ?? DEFAULT_COMPONENTS;
   const name = (config.name as string) || 'Imported Status Page';
   const color = (config.color as string) || '#635BFF';

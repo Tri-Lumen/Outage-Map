@@ -2,6 +2,9 @@ import * as cheerio from 'cheerio';
 import crypto from 'crypto';
 import { FetchResult, StatusResult, IncidentResult, ServiceStatus } from '../types';
 import { httpFetch } from './httpFetch';
+import { createLogger } from '../logger';
+
+const log = createLogger('microsoft');
 
 function parseStatusFromText(text: string): ServiceStatus {
   const lower = text.toLowerCase();
@@ -134,7 +137,7 @@ async function fetchSource(source: MsSource, serviceSlug: string): Promise<Sourc
       }
     });
   } catch (err) {
-    console.error(`[microsoft] Failed to fetch ${source.name}:`, err);
+    log.error(`Failed to fetch ${source.name}:`, err);
   }
 
   return result;

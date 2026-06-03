@@ -30,5 +30,11 @@ export async function register() {
       }
       runPollCycle().catch((err) => console.error('[cron] Scheduled poll failed:', err));
     });
+
+    // Hourly check for the scheduled status digest (no-op unless enabled).
+    const { maybeSendDigest } = await import('./lib/digest');
+    cron.default.schedule('0 * * * *', () => {
+      maybeSendDigest().catch((err) => console.error('[cron] Digest check failed:', err));
+    });
   }
 }

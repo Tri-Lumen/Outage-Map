@@ -2,6 +2,9 @@ import * as cheerio from 'cheerio';
 import crypto from 'crypto';
 import { FetchResult, StatusResult, IncidentResult, ServiceStatus } from '../types';
 import { httpFetch } from './httpFetch';
+import { createLogger } from '../logger';
+
+const log = createLogger('workday');
 
 export async function fetchWorkdayStatus(serviceSlug: string): Promise<FetchResult> {
   const statusResult: StatusResult = {
@@ -98,7 +101,7 @@ export async function fetchWorkdayStatus(serviceSlug: string): Promise<FetchResu
       }
     });
   } catch (err) {
-    console.error('[workday] Failed to fetch status:', err);
+    log.error('Failed to fetch status:', err);
     statusResult.details = 'Unable to fetch Workday status';
   }
 

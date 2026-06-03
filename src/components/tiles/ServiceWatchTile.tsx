@@ -1,6 +1,7 @@
 import TileChrome from './TileChrome';
 import Sparkline from '../Sparkline';
 import { getStatusColor, historyToSparkline } from '@/lib/boardColors';
+import { useStatusPalette } from '@/hooks/useStatusPalette';
 import { useServiceStatus } from '@/hooks/useStatus';
 import type { LiveData } from './types';
 
@@ -81,6 +82,7 @@ export default function ServiceWatchTile({
   live,
 }: Props) {
   void onConfigChange;
+  useStatusPalette();
   const refreshMs = config.refreshMs;
   const override = useServiceStatus(refreshMs);
   const services = refreshMs && override.data ? override.data.services : live.services;

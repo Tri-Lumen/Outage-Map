@@ -357,8 +357,13 @@ function GlobalMap({ data, maxReports, hoverRegion, setHoverRegion }: MapProps) 
         return (
           <g
             key={r.id}
+            tabIndex={0}
+            role="img"
+            aria-label={`${heat.name}: ${heat.total} reports across ${heat.reportsByService.length} services`}
             onMouseEnter={() => setHoverRegion(r.id)}
             onMouseLeave={() => setHoverRegion(null)}
+            onFocus={() => setHoverRegion(r.id)}
+            onBlur={() => setHoverRegion(null)}
             style={{ cursor: 'pointer' }}
           >
             {heat.total > 0 && (
@@ -415,8 +420,13 @@ function NorthAmericaMap({ data, maxReports, hoverRegion, setHoverRegion }: MapP
         return (
           <g
             key={shape.id}
+            tabIndex={0}
+            role="img"
+            aria-label={`${heat ? heat.name : shape.short}: ${heat?.total ?? 0} reports`}
             onMouseEnter={() => setHoverRegion(shape.id)}
             onMouseLeave={() => setHoverRegion(null)}
+            onFocus={() => setHoverRegion(shape.id)}
+            onBlur={() => setHoverRegion(null)}
             style={{ cursor: 'pointer' }}
           >
             <path

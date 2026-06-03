@@ -3,7 +3,7 @@ export type IncidentStatus = 'investigating' | 'identified' | 'monitoring' | 're
 export type IncidentSeverity = 'minor' | 'major' | 'critical';
 export type AlertType = 'new_incident' | 'status_change' | 'resolved';
 export type FetcherType = 'statuspage' | 'microsoft' | 'salesforce' | 'google' | 'workday' | 'aws';
-export type ChannelType = 'slack' | 'teams' | 'discord' | 'generic';
+export type ChannelType = 'slack' | 'teams' | 'discord' | 'generic' | 'pagerduty' | 'opsgenie';
 
 export interface ServiceConfig {
   name: string;
@@ -13,6 +13,8 @@ export interface ServiceConfig {
   downdetectorSlug: string | null;
   fetcher: FetcherType;
   brandFont: string;
+  /** Optional grouping category surfaced in the service grid (e.g. "Identity"). */
+  category?: string;
   ddThresholdDegraded?: number;
   ddThresholdMajor?: number;
 }
@@ -56,6 +58,7 @@ export interface ServiceStatusResponse {
   statusUrl: string;
   downdetectorUrl: string;
   brandFont: string;
+  category: string | null;
   isAnomaly: boolean;
   anomalyZScore: number | null;
   inMaintenance: boolean;

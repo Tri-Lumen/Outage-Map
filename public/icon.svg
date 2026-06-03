@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Outage Map">
+  <rect width="512" height="512" rx="96" fill="#002b36"/>
+  <g fill="none" stroke="#268bd2" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M96 300 L200 300 L248 168 L312 360 L360 256 L416 256"/>
+  </g>
+  <circle cx="416" cy="256" r="34" fill="#2aa198"/>
+</svg>

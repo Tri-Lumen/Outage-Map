@@ -4,6 +4,9 @@ import { getServiceBySlug } from './services';
 import { IncidentResult, ServiceStatus } from './types';
 import { statusHex, statusLabel } from './statusColors';
 import { metrics } from './metrics';
+import { createLogger } from './logger';
+
+const log = createLogger('email');
 
 function escapeHtml(value: unknown): string {
   return String(value ?? '')
@@ -54,6 +57,30 @@ function dedupe(emails: string[]): string[] {
   return Array.from(new Set(emails.filter(Boolean)));
 }
 
+/** Generic HTML email send used by the digest. Falls back to ALERT_EMAILS. */
+export async function sendMail(
+  subject: string,
+  html: string,
+  recipientsOverride?: string[],
+): Promise<{ ok: boolean; reason?: string }> {
+  const transporter = getTransporter();
+  if (!transporter) return { ok: false, reason: 'smtp_not_configured' };
+  const recipients = dedupe(recipientsOverride && recipientsOverride.length ? recipientsOverride : getEnvRecipients());
+  if (recipients.length === 0) return { ok: false, reason: 'no_recipients' };
+  try {
+    await transporter.sendMail({
+      from: process.env.ALERT_FROM || process.env.SMTP_USER,
+      to: recipients.join(', '),
+      subject,
+      html,
+    });
+    return { ok: true };
+  } catch (err) {
+    log.error('sendMail failed:', err);
+    return { ok: false, reason: 'send_failed' };
+  }
+}
+
 function statusColor(status: ServiceStatus): string {
   return statusHex(status);
 }
@@ -72,7 +99,7 @@ export async function sendIncidentAlert(
     : getEnvRecipients());
   if (!transporter || recipients.length === 0) {
     if (process.env.DEBUG === 'true') {
-      console.log('[email] SMTP not configured or no recipients - skipping alert');
+      log.info('SMTP not configured or no recipients - skipping alert');
     }
     return false;
   }
@@ -117,10 +144,10 @@ export async function sendIncidentAlert(
 
     logAlert(incident.serviceSlug, incident.incidentId, 'new_incident');
     metrics.recordAlertSent('email', incident.severity);
-    console.log(`[email] Alert sent for ${serviceName}: ${incident.title}`);
+    log.info(`Alert sent for ${serviceName}: ${incident.title}`);
     return true;
   } catch (err) {
-    console.error('[email] Failed to send alert:', err);
+    log.error('Failed to send alert:', err);
     return false;
   }
 }
@@ -172,7 +199,7 @@ export async function sendTestAlert(email: string): Promise<TestAlertResult> {
     });
     return { ok: true };
   } catch (err) {
-    console.error('[email] Test alert send failed:', err);
+    log.error('Test alert send failed:', err);
     return {
       ok: false,
       reason: 'send_failed',
@@ -227,7 +254,7 @@ export async function sendEscalationAlert(
     metrics.recordAlertSent('email_escalation', `level_${level}`);
     return true;
   } catch (err) {
-    console.error('[email] Escalation alert failed:', err);
+    log.error('Escalation alert failed:', err);
     return false;
   }
 }
@@ -285,7 +312,7 @@ export async function sendStatusChangeAlert(
     metrics.recordAlertSent('email', `status_change:${newStatus}`);
     return true;
   } catch (err) {
-    console.error('[email] Failed to send status change alert:', err);
+    log.error('Failed to send status change alert:', err);
     return false;
   }
 }

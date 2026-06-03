@@ -1,16 +1,27 @@
 'use client';
 
 import { ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
 import MobileTabBar from './MobileTabBar';
 import CommandPalette from './CommandPalette';
+import PaletteSync from './PaletteSync';
+import StatusChangeWatcher from './StatusChangeWatcher';
+import RegisterServiceWorker from './RegisterServiceWorker';
+import { ToastProvider } from './ui/Toast';
 import { SidebarProvider, useSidebar } from './SidebarContext';
 import { usePresentMode } from '@/hooks/usePresentMode';
 
 function ShellInner({ children }: { children: ReactNode }) {
   const { collapsed } = useSidebar();
   const { present } = usePresentMode();
+  const pathname = usePathname();
+
+  // Public, chrome-less routes render without the app sidebar/nav.
+  if (pathname?.startsWith('/status') || pathname?.startsWith('/embed')) {
+    return <div className="min-h-screen bg-background text-foreground">{children}</div>;
+  }
 
   if (present) {
     return (
@@ -42,7 +53,12 @@ function ShellInner({ children }: { children: ReactNode }) {
 export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <SidebarProvider>
-      <ShellInner>{children}</ShellInner>
+      <ToastProvider>
+        <PaletteSync />
+        <RegisterServiceWorker />
+        <StatusChangeWatcher />
+        <ShellInner>{children}</ShellInner>
+      </ToastProvider>
     </SidebarProvider>
   );
 }

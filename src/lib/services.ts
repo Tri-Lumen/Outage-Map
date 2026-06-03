@@ -20,6 +20,7 @@ const HARDCODED: ServiceConfig[] = [
   {
     name: 'Microsoft 365',
     slug: 'microsoft-365',
+    category: 'Productivity',
     color: '#0078D4',
     statusUrl: 'https://status.office365.com',
     downdetectorSlug: 'office-365',
@@ -29,6 +30,7 @@ const HARDCODED: ServiceConfig[] = [
   {
     name: 'Adobe Creative Cloud',
     slug: 'adobe-cc',
+    category: 'Productivity',
     color: '#FF0000',
     statusUrl: 'https://status.adobe.com',
     downdetectorSlug: 'adobe-creative-cloud',
@@ -38,6 +40,7 @@ const HARDCODED: ServiceConfig[] = [
   {
     name: 'ServiceNow',
     slug: 'servicenow',
+    category: 'Business',
     color: '#81B532',
     statusUrl: 'https://status.servicenow.com',
     downdetectorSlug: 'service-now',
@@ -47,6 +50,7 @@ const HARDCODED: ServiceConfig[] = [
   {
     name: 'Salesforce',
     slug: 'salesforce',
+    category: 'Business',
     color: '#00A1E0',
     // The user-facing Trust dashboard. api.status.salesforce.com returns
     // JSON-only and renders as a blank page when opened in a browser.
@@ -58,6 +62,7 @@ const HARDCODED: ServiceConfig[] = [
   {
     name: 'Workday',
     slug: 'workday',
+    category: 'Business',
     color: '#F68D2E',
     statusUrl: 'https://status.workday.com',
     downdetectorSlug: 'workday',
@@ -67,6 +72,7 @@ const HARDCODED: ServiceConfig[] = [
   {
     name: 'Zoom',
     slug: 'zoom',
+    category: 'Communication',
     color: '#2D8CFF',
     statusUrl: 'https://status.zoom.us',
     downdetectorSlug: 'zoom',
@@ -76,6 +82,7 @@ const HARDCODED: ServiceConfig[] = [
   {
     name: 'Google Workspace',
     slug: 'google-workspace',
+    category: 'Productivity',
     color: '#4285F4',
     statusUrl: 'https://www.google.com/appsstatus/dashboard/',
     downdetectorSlug: 'google',
@@ -85,6 +92,7 @@ const HARDCODED: ServiceConfig[] = [
   {
     name: 'Slack',
     slug: 'slack',
+    category: 'Communication',
     color: '#4A154B',
     statusUrl: 'https://status.slack.com',
     downdetectorSlug: 'slack',
@@ -94,6 +102,7 @@ const HARDCODED: ServiceConfig[] = [
   {
     name: 'GitHub',
     slug: 'github',
+    category: 'Developer',
     color: '#181717',
     statusUrl: 'https://www.githubstatus.com',
     downdetectorSlug: 'github',
@@ -103,6 +112,7 @@ const HARDCODED: ServiceConfig[] = [
   {
     name: 'Atlassian',
     slug: 'atlassian',
+    category: 'Developer',
     color: '#0052CC',
     statusUrl: 'https://status.atlassian.com',
     downdetectorSlug: 'atlassian',
@@ -112,6 +122,7 @@ const HARDCODED: ServiceConfig[] = [
   {
     name: 'Okta',
     slug: 'okta',
+    category: 'Identity',
     color: '#007DC1',
     statusUrl: 'https://status.okta.com',
     downdetectorSlug: 'okta',
@@ -121,6 +132,7 @@ const HARDCODED: ServiceConfig[] = [
   {
     name: 'Cloudflare',
     slug: 'cloudflare',
+    category: 'Infrastructure',
     color: '#F38020',
     statusUrl: 'https://www.cloudflarestatus.com',
     downdetectorSlug: 'cloudflare',
@@ -130,6 +142,7 @@ const HARDCODED: ServiceConfig[] = [
   {
     name: 'Dropbox',
     slug: 'dropbox',
+    category: 'Storage',
     color: '#0061FF',
     statusUrl: 'https://status.dropbox.com',
     downdetectorSlug: 'dropbox',
@@ -139,6 +152,7 @@ const HARDCODED: ServiceConfig[] = [
   {
     name: 'Amazon Web Services',
     slug: 'aws',
+    category: 'Infrastructure',
     color: '#FF9900',
     statusUrl: 'https://health.aws.amazon.com/health/status',
     downdetectorSlug: 'amazon-web-services',

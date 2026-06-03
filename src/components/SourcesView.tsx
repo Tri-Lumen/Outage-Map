@@ -85,7 +85,7 @@ export default function SourcesView() {
   });
   const sourceRows = data?.sources ?? [];
   const sources = sourceRows.map(rowToView);
-  const { data: healthData } = useFetcherHealth();
+  const { data: healthData, mutate: mutateHealth } = useFetcherHealth();
   const healthBySlug: Record<string, FetcherHealthEntry> = Object.fromEntries(
     (healthData?.fetchers ?? []).map((f) => [f.service, f])
   );
@@ -218,6 +218,25 @@ export default function SourcesView() {
     }
   };
 
+  const circuitStateFor = (slug: string): 'closed' | 'open' | 'half-open' => {
+    const entries = (healthData?.fetchers ?? []).filter((f) => f.service === slug);
+    if (entries.some((e) => e.circuitState === 'open')) return 'open';
+    if (entries.some((e) => e.circuitState === 'half-open')) return 'half-open';
+    return 'closed';
+  };
+
+  const handleResetCircuit = async (slug: string) => {
+    setError(null);
+    try {
+      await Promise.all((['official', 'downdetector'] as const).map((src) =>
+        fetch(`/api/health/fetchers/${encodeURIComponent(slug)}/${src}/reset`, { method: 'POST' }),
+      ));
+      mutateHealth?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Network error');
+    }
+  };
+
   const filtered = sources.filter(
     (s) => !search || s.name.toLowerCase().includes(search.toLowerCase()) || s.url.toLowerCase().includes(search.toLowerCase())
   );
@@ -322,6 +341,7 @@ export default function SourcesView() {
           {filtered.map((src) => {
             const row = sourceRows.find((r) => r.id === src.id);
             const h = row ? healthBySlug[row.slug] : undefined;
+            const circuitState = row ? circuitStateFor(row.slug) : 'closed';
             const latencyColor = !h || h.lastLatencyMs === null ? 'var(--muted-strong)'
               : h.lastLatencyMs < 500 ? '#2aa198'
               : h.lastLatencyMs < 2000 ? '#b58900'
@@ -401,8 +421,34 @@ export default function SourcesView() {
                     ) : null}
                   </div>
                 )}
+                {circuitState !== 'closed' && (
+                  <span
+                    title={circuitState === 'open' ? 'Circuit breaker open — calls paused until cooldown' : 'Circuit breaker probing recovery'}
+                    style={{ padding: '1px 6px', borderRadius: 999, background: circuitState === 'open' ? 'rgba(220,50,47,0.15)' : 'rgba(181,137,0,0.15)', color: circuitState === 'open' ? '#dc322f' : '#b58900' }}
+                  >
+                    circuit {circuitState}
+                  </span>
+                )}
               </div>
 
+              {/* Reset circuit */}
+              {row && (circuitState !== 'closed' || (h && h.consecutiveFailures > 0)) && (
+                <button
+                  onClick={() => handleResetCircuit(row.slug)}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: 30, height: 30, background: 'transparent', border: 0,
+                    color: 'var(--muted-strong)', borderRadius: 8, cursor: 'pointer', flexShrink: 0,
+                  }}
+                  title="Reset circuit breaker"
+                  aria-label={`Reset circuit breaker for ${src.name}`}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M23 4v6h-6M1 20v-6h6" />
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                  </svg>
+                </button>
+              )}
               {/* Edit */}
               <button
                 onClick={() => editingId === src.id ? (setEditingId(null), setEditDraft(null)) : startEdit(src)}

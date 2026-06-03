@@ -15,8 +15,49 @@ export const STATUS_COLORS: Record<string, StatusColor> = {
   unknown:      { dot: '#586E75', text: '#93A1A1', bg: 'rgba(88,110,117,0.18)', label: 'Unknown'      },
 };
 
+// Okabe–Ito–inspired palette that stays distinguishable under the common forms
+// of color-vision deficiency (operational reads blue rather than green, which
+// is otherwise confusable with the red "down" state for deuteranopes).
+export const STATUS_COLORS_COLORBLIND: Record<string, StatusColor> = {
+  operational:  { dot: '#0072B2', text: '#5AA8DD', bg: 'rgba(0,114,178,0.16)',  label: 'Operational'  },
+  degraded:     { dot: '#E69F00', text: '#F0B43C', bg: 'rgba(230,159,0,0.16)',  label: 'Degraded'     },
+  major_outage: { dot: '#D55E00', text: '#F0823C', bg: 'rgba(213,94,0,0.18)',   label: 'Major Outage' },
+  down:         { dot: '#D7263D', text: '#F2566A', bg: 'rgba(215,38,61,0.18)',  label: 'Down'         },
+  unknown:      { dot: '#586E75', text: '#93A1A1', bg: 'rgba(88,110,117,0.18)', label: 'Unknown'      },
+};
+
+// Status colors are consumed both in inline styles and in places that cannot
+// resolve CSS variables (a <canvas> in the dependency graph, SVG stroke
+// attributes in sparklines), so the palette must stay as real hex values and
+// switch in JS. A tiny external store lets components re-render when the mode
+// changes without threading a prop through every call site.
+let activeColorBlind = false;
+let paletteVersion = 0;
+const paletteListeners = new Set<() => void>();
+
+export function setStatusColorBlind(v: boolean): void {
+  if (v === activeColorBlind) return;
+  activeColorBlind = v;
+  paletteVersion += 1;
+  paletteListeners.forEach((l) => l());
+}
+
+export function isStatusColorBlind(): boolean {
+  return activeColorBlind;
+}
+
+export function getStatusPaletteVersion(): number {
+  return paletteVersion;
+}
+
+export function subscribeStatusPalette(cb: () => void): () => void {
+  paletteListeners.add(cb);
+  return () => { paletteListeners.delete(cb); };
+}
+
 export function getStatusColor(status: ServiceStatus | string): StatusColor {
-  return STATUS_COLORS[status] ?? STATUS_COLORS.unknown;
+  const palette = activeColorBlind ? STATUS_COLORS_COLORBLIND : STATUS_COLORS;
+  return palette[status] ?? palette.unknown;
 }
 
 export function relTime(iso: string | null | undefined): string {

@@ -1,6 +1,9 @@
 import * as cheerio from 'cheerio';
 import { StatusResult, ServiceStatus } from '../types';
 import { httpFetch } from './httpFetch';
+import { createLogger } from '../logger';
+
+const log = createLogger('downdetector');
 
 const USER_AGENTS = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -124,7 +127,7 @@ export async function fetchDowndetectorStatus(
     result.status = reportCountToStatus(reportCount, thresholds);
     result.details = `${reportCount} reports on Downdetector`;
   } catch (err) {
-    console.error(`[downdetector] Failed to fetch ${slug}:`, err);
+    log.error(`Failed to fetch ${slug}:`, err);
     // On failure, return unknown - don't affect overall status
     result.status = 'unknown';
     result.details = 'Unable to reach Downdetector';

@@ -21,6 +21,7 @@ import TweaksPanel from './TweaksPanel';
 import ShortcutsOverlay from './ShortcutsOverlay';
 import PresentControls from './PresentControls';
 import TileConfigDrawer from './TileConfigDrawer';
+import RefreshControl from './RefreshControl';
 
 export default function Dashboard() {
   const { theme, setTheme, customTheme, setCustomTheme } = useTheme();
@@ -187,10 +188,7 @@ export default function Dashboard() {
 
         {/* Right: actions + live pill */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="live-pill">
-            <span className="live-dot" />
-            <span>Auto-refresh · {prefs.refreshInterval < 60 ? `${prefs.refreshInterval}s` : `${prefs.refreshInterval / 60}m`}</span>
-          </div>
+          <RefreshControl lastUpdated={statusData?.lastUpdated} refreshSec={prefs.refreshInterval} />
 
           <button
             className="board-btn board-btn-icon"
