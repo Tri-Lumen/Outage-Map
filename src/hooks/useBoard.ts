@@ -16,8 +16,7 @@ export type TileType =
   | 'statuspage'
   | 'incident-metrics'
   | 'fetcher-health'
-  | 'alert-audit'
-  | 'anomaly-alert';
+  | 'alert-audit';
 
 export interface TileConfig {
   id: string;
@@ -38,9 +37,9 @@ export const DEFAULT_BOARD: TileConfig[] = [
   { id: 't1', type: 'stat',          x: 0, y: 0, w: 1, h: 2, config: { metric: 'uptime' },     dataPoints: [] },
   { id: 't2', type: 'stat',          x: 1, y: 0, w: 1, h: 2, config: { metric: 'incidents' },   dataPoints: [] },
   { id: 't3', type: 'stat',          x: 2, y: 0, w: 1, h: 2, config: { metric: 'mttr' },        dataPoints: [] },
-  { id: 't4', type: 'stat',          x: 3, y: 0, w: 1, h: 2, config: { metric: 'dd' },          dataPoints: [] },
-  { id: 't5', type: 'service-watch', x: 0, y: 1, w: 2, h: 2, config: { service: 'slack' },      dataPoints: ['sparkline', 'uptime', 'official', 'downdetector'] },
-  { id: 't6', type: 'service-watch', x: 2, y: 1, w: 2, h: 2, config: { service: 'github' },     dataPoints: ['sparkline', 'uptime', 'official', 'downdetector'] },
+  { id: 't4', type: 'stat',          x: 3, y: 0, w: 1, h: 2, config: { metric: 'sla' },         dataPoints: [] },
+  { id: 't5', type: 'service-watch', x: 0, y: 1, w: 2, h: 2, config: { service: 'slack' },      dataPoints: ['sparkline', 'uptime', 'official'] },
+  { id: 't6', type: 'service-watch', x: 2, y: 1, w: 2, h: 2, config: { service: 'github' },     dataPoints: ['sparkline', 'uptime', 'official'] },
   { id: 't7', type: 'incident-feed', x: 4, y: 0, w: 2, h: 3, config: {},                        dataPoints: [] },
   { id: 't8', type: 'service-grid',  x: 0, y: 3, w: 4, h: 2, config: {},                        dataPoints: [] },
   { id: 't9', type: 'status-map',    x: 4, y: 3, w: 2, h: 2, config: {},                        dataPoints: [] },
@@ -291,7 +290,6 @@ export function useBoard({ bp = 'desktop', boardId, tiles, onCommit }: UseBoardP
       'incident-metrics':  { days: 30 },
       'fetcher-health':    {},
       'alert-audit':       {},
-      'anomaly-alert':     {},
     };
     const defaultSizes: Record<TileType, { w: number; h: number }> = {
       'stat':              { w: 1, h: 2 },
@@ -305,11 +303,10 @@ export function useBoard({ bp = 'desktop', boardId, tiles, onCommit }: UseBoardP
       'incident-metrics':  { w: 2, h: 2 },
       'fetcher-health':    { w: 2, h: 2 },
       'alert-audit':       { w: 2, h: 2 },
-      'anomaly-alert':     { w: 2, h: 2 },
     };
     const defaultDataPoints: Record<TileType, string[]> = {
       'stat':              [],
-      'service-watch':     ['sparkline', 'uptime', 'official', 'downdetector'],
+      'service-watch':     ['sparkline', 'uptime', 'official'],
       'service-grid':      [],
       'incident-feed':     [],
       'rss':               [],
@@ -319,7 +316,6 @@ export function useBoard({ bp = 'desktop', boardId, tiles, onCommit }: UseBoardP
       'incident-metrics':  [],
       'fetcher-health':    [],
       'alert-audit':       [],
-      'anomaly-alert':     [],
     };
     const id = 't' + Date.now();
     const size = defaultSizes[type];

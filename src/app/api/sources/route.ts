@@ -6,7 +6,7 @@ import {
   listCustomServices,
 } from '@/lib/db';
 import { SERVICES } from '@/lib/services';
-import { FetcherType } from '@/lib/types';
+import { ConnectorKind } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,11 +39,11 @@ function randomId(): string {
   return `cs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// Maps the ImportSlideOver "type" to a concrete fetcher. v1 only supports
-// statuspage.io-compatible sources; rss/http/aws are recognised but rejected
-// pending dedicated fetcher implementations.
-function mapKindToFetcher(kind: string): FetcherType | null {
-  switch (kind) {
+// Maps the ImportSlideOver "type" to a concrete connector kind. v1 only
+// supports statuspage.io-compatible sources; rss/http/aws are recognised but
+// rejected pending dedicated connector implementations.
+function mapTypeToKind(type: string): ConnectorKind | null {
+  switch (type) {
     case 'statuspage':
     case 'github':
       return 'statuspage';
@@ -59,8 +59,6 @@ function rowToApi(row: CustomServiceRow) {
     name: row.name,
     color: row.color,
     statusUrl: row.status_url,
-    downdetectorSlug: row.downdetector_slug,
-    fetcher: row.fetcher,
     kind: row.kind,
     refreshSeconds: row.refresh_seconds,
     enabled: row.enabled === 1,
@@ -103,7 +101,6 @@ export async function POST(request: NextRequest) {
     url: string;
     refresh: number;
     color: string;
-    downdetectorSlug: string | null;
   }>;
 
   const name = typeof input.name === 'string' ? input.name.trim() : '';
@@ -126,11 +123,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Refresh must be 30–3600 seconds' }, { status: 400 });
   }
 
-  const kind = typeof input.type === 'string' ? input.type : 'statuspage';
-  const fetcher = mapKindToFetcher(kind);
-  if (!fetcher) {
+  const sourceType = typeof input.type === 'string' ? input.type : 'statuspage';
+  const connectorKind = mapTypeToKind(sourceType);
+  if (!connectorKind) {
     return NextResponse.json(
-      { error: `Source type "${kind}" is not yet supported. Try statuspage or github.` },
+      { error: `Source type "${sourceType}" is not yet supported. Try statuspage or github.` },
       { status: 400 },
     );
   }
@@ -147,10 +144,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const downdetectorSlug = typeof input.downdetectorSlug === 'string' && input.downdetectorSlug.trim()
-    ? input.downdetectorSlug.trim()
-    : null;
-
   const id = randomId();
   try {
     insertCustomService({
@@ -159,11 +152,11 @@ export async function POST(request: NextRequest) {
       name,
       color,
       statusUrl: url,
-      downdetectorSlug,
-      fetcher,
+      downdetectorSlug: null,
+      fetcher: connectorKind,
       brandFont: DEFAULT_BRAND_FONT,
       refreshSeconds: Math.floor(refresh),
-      kind,
+      kind: connectorKind,
       enabled: true,
     });
   } catch (err) {

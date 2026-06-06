@@ -1,13 +1,40 @@
-import { ServiceConfig, FetcherType } from './types';
+import { ServiceConfig, ConnectorKind } from './types';
 import { CustomServiceRow, listEnabledCustomServices } from './db';
+import { isConnectorKind } from './connectors/types';
 import contributedFile from './services.contributed.json';
 
 interface ContributedFile {
   schemaVersion: number;
-  services: ServiceConfig[];
+  services: Array<Partial<ServiceConfig> & { fetcher?: string; kind?: string }>;
 }
 
-const CONTRIBUTED: ServiceConfig[] = (contributedFile as ContributedFile).services ?? [];
+// Map any stored selector to a known ConnectorKind. Older rows used `fetcher`;
+// `workday` was folded into `statuspage`. Unknown values fall back to
+// `statuspage` (the safest generic JSON connector).
+export function resolveKind(value: string | null | undefined): ConnectorKind {
+  if (value === 'workday') return 'statuspage';
+  if (value && isConnectorKind(value)) return value;
+  return 'statuspage';
+}
+
+function normalizeContributed(
+  entry: Partial<ServiceConfig> & { fetcher?: string; kind?: string },
+): ServiceConfig | null {
+  if (!entry.name || !entry.slug || !entry.statusUrl) return null;
+  return {
+    name: entry.name,
+    slug: entry.slug,
+    color: entry.color ?? '#268bd2',
+    statusUrl: entry.statusUrl,
+    kind: resolveKind(entry.kind ?? entry.fetcher),
+    brandFont: entry.brandFont ?? 'var(--font-brand-inter), Inter, system-ui, sans-serif',
+    category: entry.category,
+  };
+}
+
+const CONTRIBUTED: ServiceConfig[] = ((contributedFile as ContributedFile).services ?? [])
+  .map(normalizeContributed)
+  .filter((s): s is ServiceConfig => s !== null);
 
 /**
  * Static catalog of monitored services. Edits to this file are hand-written;
@@ -23,8 +50,7 @@ const HARDCODED: ServiceConfig[] = [
     category: 'Productivity',
     color: '#0078D4',
     statusUrl: 'https://status.office365.com',
-    downdetectorSlug: 'office-365',
-    fetcher: 'microsoft',
+    kind: 'microsoft',
     brandFont: 'var(--font-brand-inter), Inter, system-ui, sans-serif',
   },
   {
@@ -33,8 +59,7 @@ const HARDCODED: ServiceConfig[] = [
     category: 'Productivity',
     color: '#FF0000',
     statusUrl: 'https://status.adobe.com',
-    downdetectorSlug: 'adobe-creative-cloud',
-    fetcher: 'statuspage',
+    kind: 'statuspage',
     brandFont: 'var(--font-brand-source-sans), "Source Sans 3", system-ui, sans-serif',
   },
   {
@@ -43,8 +68,7 @@ const HARDCODED: ServiceConfig[] = [
     category: 'Business',
     color: '#81B532',
     statusUrl: 'https://status.servicenow.com',
-    downdetectorSlug: 'service-now',
-    fetcher: 'statuspage',
+    kind: 'statuspage',
     brandFont: 'var(--font-brand-inter), Inter, system-ui, sans-serif',
   },
   {
@@ -55,8 +79,7 @@ const HARDCODED: ServiceConfig[] = [
     // The user-facing Trust dashboard. api.status.salesforce.com returns
     // JSON-only and renders as a blank page when opened in a browser.
     statusUrl: 'https://status.salesforce.com',
-    downdetectorSlug: 'salesforce',
-    fetcher: 'salesforce',
+    kind: 'salesforce',
     brandFont: 'var(--font-brand-inter), Inter, system-ui, sans-serif',
   },
   {
@@ -64,9 +87,9 @@ const HARDCODED: ServiceConfig[] = [
     slug: 'workday',
     category: 'Business',
     color: '#F68D2E',
+    // status.workday.com is a Statuspage.io instance — use the generic connector.
     statusUrl: 'https://status.workday.com',
-    downdetectorSlug: 'workday',
-    fetcher: 'workday',
+    kind: 'statuspage',
     brandFont: 'var(--font-brand-lato), Lato, system-ui, sans-serif',
   },
   {
@@ -75,8 +98,7 @@ const HARDCODED: ServiceConfig[] = [
     category: 'Communication',
     color: '#2D8CFF',
     statusUrl: 'https://status.zoom.us',
-    downdetectorSlug: 'zoom',
-    fetcher: 'statuspage',
+    kind: 'statuspage',
     brandFont: 'var(--font-brand-inter), Inter, system-ui, sans-serif',
   },
   {
@@ -85,8 +107,7 @@ const HARDCODED: ServiceConfig[] = [
     category: 'Productivity',
     color: '#4285F4',
     statusUrl: 'https://www.google.com/appsstatus/dashboard/',
-    downdetectorSlug: 'google',
-    fetcher: 'google',
+    kind: 'google',
     brandFont: 'var(--font-brand-roboto), Roboto, system-ui, sans-serif',
   },
   {
@@ -95,8 +116,7 @@ const HARDCODED: ServiceConfig[] = [
     category: 'Communication',
     color: '#4A154B',
     statusUrl: 'https://status.slack.com',
-    downdetectorSlug: 'slack',
-    fetcher: 'statuspage',
+    kind: 'statuspage',
     brandFont: 'var(--font-brand-inter), Inter, system-ui, sans-serif',
   },
   {
@@ -105,8 +125,7 @@ const HARDCODED: ServiceConfig[] = [
     category: 'Developer',
     color: '#181717',
     statusUrl: 'https://www.githubstatus.com',
-    downdetectorSlug: 'github',
-    fetcher: 'statuspage',
+    kind: 'statuspage',
     brandFont: 'var(--font-brand-inter), Inter, system-ui, sans-serif',
   },
   {
@@ -115,8 +134,7 @@ const HARDCODED: ServiceConfig[] = [
     category: 'Developer',
     color: '#0052CC',
     statusUrl: 'https://status.atlassian.com',
-    downdetectorSlug: 'atlassian',
-    fetcher: 'statuspage',
+    kind: 'statuspage',
     brandFont: 'var(--font-brand-inter), Inter, system-ui, sans-serif',
   },
   {
@@ -125,8 +143,7 @@ const HARDCODED: ServiceConfig[] = [
     category: 'Identity',
     color: '#007DC1',
     statusUrl: 'https://status.okta.com',
-    downdetectorSlug: 'okta',
-    fetcher: 'statuspage',
+    kind: 'statuspage',
     brandFont: 'var(--font-brand-inter), Inter, system-ui, sans-serif',
   },
   {
@@ -135,8 +152,7 @@ const HARDCODED: ServiceConfig[] = [
     category: 'Infrastructure',
     color: '#F38020',
     statusUrl: 'https://www.cloudflarestatus.com',
-    downdetectorSlug: 'cloudflare',
-    fetcher: 'statuspage',
+    kind: 'statuspage',
     brandFont: 'var(--font-brand-inter), Inter, system-ui, sans-serif',
   },
   {
@@ -145,8 +161,7 @@ const HARDCODED: ServiceConfig[] = [
     category: 'Storage',
     color: '#0061FF',
     statusUrl: 'https://status.dropbox.com',
-    downdetectorSlug: 'dropbox',
-    fetcher: 'statuspage',
+    kind: 'statuspage',
     brandFont: 'var(--font-brand-inter), Inter, system-ui, sans-serif',
   },
   {
@@ -155,8 +170,7 @@ const HARDCODED: ServiceConfig[] = [
     category: 'Infrastructure',
     color: '#FF9900',
     statusUrl: 'https://health.aws.amazon.com/health/status',
-    downdetectorSlug: 'amazon-web-services',
-    fetcher: 'aws',
+    kind: 'aws',
     brandFont: 'var(--font-brand-inter), Inter, system-ui, sans-serif',
   },
 ];
@@ -183,8 +197,7 @@ function rowToServiceConfig(row: CustomServiceRow): ServiceConfig {
     slug: row.slug,
     color: row.color,
     statusUrl: row.status_url,
-    downdetectorSlug: row.downdetector_slug,
-    fetcher: row.fetcher as FetcherType,
+    kind: resolveKind(row.kind ?? row.fetcher),
     brandFont: row.brand_font,
   };
 }

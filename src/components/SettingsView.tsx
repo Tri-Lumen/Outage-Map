@@ -85,38 +85,6 @@ export default function SettingsView() {
   const { data: statusData } = useServiceStatus();
   const services = statusData?.services ?? [];
   const timezones = listTimeZones();
-  const [anomalyCfg, setAnomalyCfg] = useState<{ threshold: number; minPoints: number } | null>(null);
-  const [anomalyMsg, setAnomalyMsg] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch('/api/settings/anomaly')
-      .then((r) => r.json())
-      .then((d) => {
-        if (d && typeof d.threshold === 'number') setAnomalyCfg({ threshold: d.threshold, minPoints: d.minPoints });
-      })
-      .catch(() => {});
-  }, []);
-
-  const saveAnomaly = async () => {
-    if (!anomalyCfg) return;
-    setAnomalyMsg(null);
-    try {
-      const res = await fetch('/api/settings/anomaly', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(anomalyCfg),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setAnomalyCfg({ threshold: body.threshold, minPoints: body.minPoints });
-        setAnomalyMsg('Saved ✓');
-      } else {
-        setAnomalyMsg(body.error || `Failed (HTTP ${res.status})`);
-      }
-    } catch {
-      setAnomalyMsg('Network error');
-    }
-  };
 
   const [digestCfg, setDigestCfg] = useState<{ frequency: string; hour: number; webhookUrl: string; channelType: string } | null>(null);
   const [digestRecipientsRaw, setDigestRecipientsRaw] = useState('');
@@ -302,28 +270,6 @@ export default function SettingsView() {
 
           <div className="flex items-center justify-between py-2 border-t border-subtle">
             <div>
-              <p className="text-sm text-foreground">Show Downdetector reports</p>
-              <p className="text-[11px] text-muted-strong">Include crowd-sourced data alongside official statuses. Thresholds are configured server-side via <code className="text-foreground">DD_REPORT_THRESHOLD_DEGRADED</code> and <code className="text-foreground">DD_REPORT_THRESHOLD_MAJOR</code>.</p>
-            </div>
-            <button
-              role="switch"
-              aria-checked={prefs.showDowndetector}
-              onClick={() => update('showDowndetector', !prefs.showDowndetector)}
-              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-                prefs.showDowndetector ? 'bg-accent' : 'bg-white/10'
-              }`}
-              aria-label="Toggle Downdetector"
-            >
-              <span
-                className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
-                  prefs.showDowndetector ? 'translate-x-[22px]' : 'translate-x-0.5'
-                }`}
-              />
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between py-2 border-t border-subtle">
-            <div>
               <p className="text-sm text-foreground">Compact service cards</p>
               <p className="text-[11px] text-muted">Denser layout on the overview page</p>
             </div>
@@ -503,60 +449,6 @@ export default function SettingsView() {
             );
           })}
         </div>
-      </Card>
-
-      <Card>
-        <h3 className="text-sm font-semibold text-foreground mb-1">Anomaly detection</h3>
-        <p className="text-[11px] text-muted mb-4">
-          Tune Downdetector spike sensitivity. Applies server-side on the next poll. Saving requires the settings API to be enabled (ENABLE_RULES_API or CRON_SECRET).
-        </p>
-        {anomalyCfg ? (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-foreground">Z-score threshold</p>
-                <p className="text-[11px] text-muted">Higher = fewer, stronger anomalies (default 2.5)</p>
-              </div>
-              <input
-                type="number"
-                min={1}
-                max={10}
-                step={0.1}
-                value={anomalyCfg.threshold}
-                onChange={(e) => setAnomalyCfg({ ...anomalyCfg, threshold: parseFloat(e.target.value) || anomalyCfg.threshold })}
-                className="w-24 px-2 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground text-right focus:outline-none focus:border-accent"
-                aria-label="Z-score threshold"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-foreground">Minimum data points</p>
-                <p className="text-[11px] text-muted">History points required before scoring (default 24)</p>
-              </div>
-              <input
-                type="number"
-                min={3}
-                max={200}
-                step={1}
-                value={anomalyCfg.minPoints}
-                onChange={(e) => setAnomalyCfg({ ...anomalyCfg, minPoints: parseInt(e.target.value) || anomalyCfg.minPoints })}
-                className="w-24 px-2 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground text-right focus:outline-none focus:border-accent"
-                aria-label="Minimum data points"
-              />
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={saveAnomaly}
-                className="px-4 py-2 rounded-md bg-accent-soft text-foreground text-xs font-medium hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-              >
-                Save anomaly settings
-              </button>
-              {anomalyMsg && <span className="text-[11px] text-muted">{anomalyMsg}</span>}
-            </div>
-          </div>
-        ) : (
-          <p className="text-[11px] text-muted">Loading…</p>
-        )}
       </Card>
 
       <Card>

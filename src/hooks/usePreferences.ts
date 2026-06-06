@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react';
 export interface Preferences {
   refreshInterval: 15 | 30 | 60 | 300;
   compactCards: boolean;
-  showDowndetector: boolean;
   pinnedServices: string[];
   slaTarget: number;
   /** Per-service SLA target overrides (slug → uptime %). Falls back to slaTarget. */
@@ -21,7 +20,6 @@ export interface Preferences {
 export const DEFAULT_PREFERENCES: Preferences = {
   refreshInterval: 30,
   compactCards: false,
-  showDowndetector: true,
   pinnedServices: [],
   slaTarget: 99.9,
   slaTargets: {},

@@ -15,13 +15,13 @@ export async function POST(
   if (!validSlugs.has(slug)) {
     return NextResponse.json({ error: 'Unknown service slug' }, { status: 404 });
   }
-  if (source !== 'official' && source !== 'downdetector') {
-    return NextResponse.json({ error: 'source must be official or downdetector' }, { status: 400 });
+  if (source !== 'official') {
+    return NextResponse.json({ error: 'source must be official' }, { status: 400 });
   }
 
   try {
-    circuit.reset(slug, source as 'official' | 'downdetector');
-    health.reset(slug, source as 'official' | 'downdetector');
+    circuit.reset(slug, source);
+    health.reset(slug, source);
     return NextResponse.json({ ok: true, slug, source });
   } catch (err) {
     console.error('[api/health/fetchers/reset] failed:', err);

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getServices } from '@/lib/services';
-import { getServiceStatuses, getActiveIncidentCounts } from '@/lib/db';
+import { getServiceStatuses } from '@/lib/db';
 import { deriveOverallStatus } from '@/lib/statusUtils';
 import { getStatusColor } from '@/lib/boardColors';
 import type { ServiceStatus } from '@/lib/types';
@@ -20,14 +20,11 @@ export function GET(req: NextRequest) {
   const theme = url.searchParams.get('theme') === 'light' ? 'light' : 'dark';
 
   const statuses = getServiceStatuses();
-  const incidentCounts = getActiveIncidentCounts();
 
   let services = getServices().map((svc) => {
     const official = statuses.find((s) => s.service_slug === svc.slug && s.source === 'official');
-    const dd = statuses.find((s) => s.service_slug === svc.slug && s.source === 'downdetector');
     const officialStatus = (official?.status as ServiceStatus) || 'unknown';
-    const ddStatus = (dd?.status as ServiceStatus) || 'unknown';
-    const overall = deriveOverallStatus(officialStatus, ddStatus, incidentCounts[svc.slug] || 0);
+    const overall = deriveOverallStatus(officialStatus);
     return { slug: svc.slug, name: svc.name, overall };
   });
   if (filter) services = services.filter((s) => s.slug === filter);

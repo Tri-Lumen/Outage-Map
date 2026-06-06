@@ -66,7 +66,6 @@ export default function AlertsView() {
     webhookEnabled: boolean;
     channelType: string;
     escalationEnabled: boolean;
-    notifyOnAnomaly: boolean;
   }>({
     email: '',
     services: [],
@@ -77,7 +76,6 @@ export default function AlertsView() {
     webhookEnabled: false,
     channelType: 'generic',
     escalationEnabled: false,
-    notifyOnAnomaly: false,
   });
   const [showForm, setShowForm] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
@@ -151,7 +149,6 @@ export default function AlertsView() {
           webhookEnabled: draft.webhookEnabled && !!webhookUrlTrimmed,
           channelType: draft.channelType,
           escalationEnabled: draft.escalationEnabled,
-          notifyOnAnomaly: draft.notifyOnAnomaly,
           enabled: true,
         }),
       });
@@ -178,7 +175,6 @@ export default function AlertsView() {
         webhookEnabled: false,
         channelType: 'generic',
         escalationEnabled: false,
-        notifyOnAnomaly: false,
       });
       setShowForm(false);
       mutate();
@@ -228,7 +224,6 @@ export default function AlertsView() {
       webhookEnabled: rule.webhookEnabled ?? false,
       channelType: rule.channelType ?? 'generic',
       escalationEnabled: rule.escalationEnabled ?? false,
-      notifyOnAnomaly: rule.notifyOnAnomaly ?? false,
     });
   };
 
@@ -247,7 +242,6 @@ export default function AlertsView() {
           webhookEnabled: editDraft.webhookEnabled && !!webhookUrlTrimmed,
           channelType: editDraft.channelType,
           escalationEnabled: editDraft.escalationEnabled,
-          notifyOnAnomaly: editDraft.notifyOnAnomaly,
         }),
       });
       if (res.ok) {
@@ -539,15 +533,6 @@ export default function AlertsView() {
                     className="accent-accent"
                   />
                   <span className="text-xs text-foreground">Level escalation (re-alert at 4h, 24h)</span>
-                </label>
-                <label className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-subtle cursor-pointer hover:border-strong">
-                  <input
-                    type="checkbox"
-                    checked={draft.notifyOnAnomaly}
-                    onChange={(e) => setDraft({ ...draft, notifyOnAnomaly: e.target.checked })}
-                    className="accent-accent"
-                  />
-                  <span className="text-xs text-foreground">Notify on DD anomaly spike</span>
                 </label>
               </div>
             </div>

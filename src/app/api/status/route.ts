@@ -25,37 +25,37 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // A service is "stale" if its last successful check is older than a few
+    // poll cycles — i.e. the poller stopped updating it. checked_at is stored as
+    // SQLite UTC ("YYYY-MM-DD HH:MM:SS"); normalize to an ISO instant to compare.
+    const pollMinutes = Number(process.env.POLL_INTERVAL_MINUTES) || 3;
+    const staleMs = pollMinutes * 3 * 60 * 1000;
+    const now = Date.now();
+    const parseChecked = (s: string): number => Date.parse(s.replace(' ', 'T') + 'Z');
+
     const services: ServiceStatusResponse[] = getServices().map((service) => {
       const official = statuses.find(
         (s) => s.service_slug === service.slug && s.source === 'official'
       );
-      const dd = statuses.find(
-        (s) => s.service_slug === service.slug && s.source === 'downdetector'
-      );
 
       const officialStatus: ServiceStatus = (official?.status as ServiceStatus) || 'unknown';
-      const ddStatus: ServiceStatus = (dd?.status as ServiceStatus) || 'unknown';
       const incidentCount = activeIncidentCounts[service.slug] || 0;
+      const lastChecked = official?.checked_at || null;
+      const stale = lastChecked ? now - parseChecked(lastChecked) > staleMs : true;
 
       return {
         slug: service.slug,
         name: service.name,
         color: service.color,
         officialStatus,
-        downdetectorStatus: ddStatus,
-        downdetectorReports: dd?.report_count || 0,
         incidentCount,
-        overallStatus: deriveOverallStatus(officialStatus, ddStatus, incidentCount),
+        overallStatus: deriveOverallStatus(officialStatus),
         details: official?.details || null,
-        lastChecked: official?.checked_at || dd?.checked_at || null,
+        lastChecked,
+        stale,
         statusUrl: service.statusUrl,
-        downdetectorUrl: service.downdetectorSlug
-          ? `https://downdetector.com/status/${service.downdetectorSlug}/`
-          : '',
         brandFont: service.brandFont,
         category: service.category ?? null,
-        isAnomaly: dd?.is_anomaly === 1,
-        anomalyZScore: dd?.anomaly_z_score ?? null,
         inMaintenance: maintenanceSet.has(service.slug),
       };
     });

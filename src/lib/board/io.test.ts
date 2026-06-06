@@ -14,13 +14,26 @@ describe('board io', () => {
       tile('2', 'incident-metrics'),
       tile('3', 'fetcher-health'),
       tile('4', 'alert-audit'),
-      tile('5', 'anomaly-alert'),
       tile('6', 'service-grid'),
     ];
     const parsed = parseBoardFile(serializeBoard({ board }));
     expect(parsed).not.toBeNull();
     expect(parsed!.board).toHaveLength(board.length);
     expect(parsed!.board.map((t) => t.type)).toEqual(board.map((t) => t.type));
+  });
+
+  it('strips tiles whose type is no longer known, keeping valid ones', () => {
+    // A saved board containing the retired 'anomaly-alert' tile must still load,
+    // with the unknown tile dropped rather than the whole board rejected.
+    const raw = JSON.stringify({
+      board: [
+        { id: '1', type: 'stat', x: 0, y: 0, w: 2, h: 2, config: {}, dataPoints: [] },
+        { id: '2', type: 'anomaly-alert', x: 0, y: 2, w: 2, h: 2, config: {}, dataPoints: [] },
+      ],
+    });
+    const parsed = parseBoardFile(raw);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.board.map((t) => t.type)).toEqual(['stat']);
   });
 
   it('tolerates a bare array of tiles', () => {

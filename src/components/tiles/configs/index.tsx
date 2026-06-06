@@ -51,7 +51,6 @@ const StatForm: ConfigForm = ({ tile, onUpdate }) => {
         >
           <option value="uptime">Fleet uptime</option>
           <option value="incidents">Active incidents</option>
-          <option value="dd">DD reports</option>
           <option value="mttr">MTTR (30d)</option>
           <option value="sla">SLA compliance</option>
         </select>
@@ -64,7 +63,6 @@ const DATA_POINTS: { key: string; label: string }[] = [
   { key: 'sparkline',    label: '30d chart' },
   { key: 'uptime',       label: 'Uptime %' },
   { key: 'official',     label: 'Official' },
-  { key: 'downdetector', label: 'DD reports' },
 ];
 
 const ServiceWatchForm: ConfigForm = ({ tile, live, onUpdate }) => {
@@ -337,7 +335,6 @@ const IncidentMetricsForm: ConfigForm = ({ tile, onUpdate }) => {
 
 const FetcherHealthForm: ConfigForm = ({ tile, onUpdate }) => common(tile, onUpdate, { hideRefresh: true });
 const AlertAuditForm: ConfigForm = ({ tile, onUpdate }) => common(tile, onUpdate, { hideRefresh: true });
-const AnomalyAlertForm: ConfigForm = ({ tile, onUpdate }) => common(tile, onUpdate, { hideRefresh: true });
 
 export const TILE_CONFIG_FORMS: Record<TileType, ConfigForm> = {
   'stat':              StatForm,
@@ -351,5 +348,4 @@ export const TILE_CONFIG_FORMS: Record<TileType, ConfigForm> = {
   'incident-metrics':  IncidentMetricsForm,
   'fetcher-health':    FetcherHealthForm,
   'alert-audit':       AlertAuditForm,
-  'anomaly-alert':     AnomalyAlertForm,
 };

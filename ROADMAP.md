@@ -11,7 +11,7 @@ quickly without another round of discovery.
 - Email is the only alert channel — no Slack, Teams, or webhook support.
 - No tests, no CI, no auth.
 - No exportable reports (PDF/CSV).
-- Heat-map regional data is simulated, not real per-region Downdetector data.
+- Heat-map regional distribution is simulated from official status severity + incident counts, not real per-region telemetry.
 - No dependency graph, SLA tracking, or postmortem artifacts.
 
 ---

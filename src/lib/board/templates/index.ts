@@ -8,7 +8,7 @@ export interface Template {
   tiles: TileConfig[];
 }
 
-const WATCH_POINTS = ['sparkline', 'uptime', 'official', 'downdetector'];
+const WATCH_POINTS = ['sparkline', 'uptime', 'official'];
 
 const M365_TILES: TileConfig[] = [
   { id: 'tpl-m365-1', type: 'stat',          x: 0, y: 0, w: 2, h: 2, config: { metric: 'uptime' },               dataPoints: [] },
@@ -25,7 +25,7 @@ const IDENTITY_TILES: TileConfig[] = [
   { id: 'tpl-id-2', type: 'service-watch', x: 3, y: 0, w: 3, h: 3, config: { service: 'microsoft-365' }, dataPoints: WATCH_POINTS },
   { id: 'tpl-id-3', type: 'incident-feed', x: 0, y: 3, w: 4, h: 3, config: {},                           dataPoints: [] },
   { id: 'tpl-id-4', type: 'stat',          x: 4, y: 3, w: 2, h: 2, config: { metric: 'mttr' },           dataPoints: [] },
-  { id: 'tpl-id-5', type: 'stat',          x: 4, y: 5, w: 2, h: 1, config: { metric: 'dd' },             dataPoints: [] },
+  { id: 'tpl-id-5', type: 'stat',          x: 4, y: 5, w: 2, h: 1, config: { metric: 'sla' },            dataPoints: [] },
 ];
 
 const CLOUD_TILES: TileConfig[] = [
@@ -51,8 +51,8 @@ const NOC_TILES: TileConfig[] = [
   { id: 'tpl-noc-1', type: 'stat',          x: 0, y: 0, w: 1, h: 2, config: { metric: 'uptime' },    dataPoints: [] },
   { id: 'tpl-noc-2', type: 'stat',          x: 1, y: 0, w: 1, h: 2, config: { metric: 'incidents' }, dataPoints: [] },
   { id: 'tpl-noc-3', type: 'stat',          x: 2, y: 0, w: 1, h: 2, config: { metric: 'mttr' },      dataPoints: [] },
-  { id: 'tpl-noc-4', type: 'stat',          x: 3, y: 0, w: 1, h: 2, config: { metric: 'dd' },        dataPoints: [] },
-  { id: 'tpl-noc-5', type: 'anomaly-alert', x: 4, y: 0, w: 2, h: 2, config: {},                      dataPoints: [] },
+  { id: 'tpl-noc-4', type: 'stat',           x: 3, y: 0, w: 1, h: 2, config: { metric: 'sla' },       dataPoints: [] },
+  { id: 'tpl-noc-5', type: 'incident-metrics', x: 4, y: 0, w: 2, h: 2, config: { days: 7 },          dataPoints: [] },
   { id: 'tpl-noc-6', type: 'service-grid',  x: 0, y: 2, w: 4, h: 3, config: {},                      dataPoints: [] },
   { id: 'tpl-noc-7', type: 'incident-feed', x: 4, y: 2, w: 2, h: 3, config: {},                      dataPoints: [] },
   { id: 'tpl-noc-8', type: 'status-map',    x: 0, y: 5, w: 4, h: 2, config: {},                      dataPoints: [] },
@@ -74,7 +74,7 @@ const EXEC_TILES: TileConfig[] = [
 const WARROOM_TILES: TileConfig[] = [
   { id: 'tpl-war-1', type: 'incident-feed',    x: 0, y: 0, w: 3, h: 4, config: { filters: { severity: ['major', 'critical'] } }, dataPoints: [] },
   { id: 'tpl-war-2', type: 'incident-metrics', x: 3, y: 0, w: 3, h: 2, config: { days: 7 },                                      dataPoints: [] },
-  { id: 'tpl-war-3', type: 'anomaly-alert',    x: 3, y: 2, w: 3, h: 2, config: {},                                               dataPoints: [] },
+  { id: 'tpl-war-3', type: 'fetcher-health',   x: 3, y: 2, w: 3, h: 2, config: {},                                               dataPoints: [] },
   { id: 'tpl-war-4', type: 'service-grid',     x: 0, y: 4, w: 4, h: 2, config: { filters: { hideOperational: true } },          dataPoints: [] },
   { id: 'tpl-war-5', type: 'alert-audit',      x: 4, y: 4, w: 2, h: 2, config: {},                                               dataPoints: [] },
 ];
@@ -119,7 +119,7 @@ export const BUILTIN_TEMPLATES: Template[] = [
   {
     id: 'noc',
     name: 'NOC video wall',
-    description: 'Dense, glanceable wall: fleet stats, anomaly watch, full service grid, incidents, heat map, and fetcher health.',
+    description: 'Dense, glanceable wall: fleet stats, incident metrics, full service grid, incidents, heat map, and fetcher health.',
     tiles: NOC_TILES,
   },
   {
@@ -131,7 +131,7 @@ export const BUILTIN_TEMPLATES: Template[] = [
   {
     id: 'warroom',
     name: 'Incident war room',
-    description: 'Active-incident focus: major/critical feed, metrics, anomalies, problem services, and alert audit.',
+    description: 'Active-incident focus: major/critical feed, metrics, fetcher health, problem services, and alert audit.',
     tiles: WARROOM_TILES,
   },
   {
