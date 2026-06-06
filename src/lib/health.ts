@@ -6,7 +6,8 @@
 // loudly when a fetcher has been broken for too long.
 import { getServices } from './services';
 
-type Source = 'official' | 'downdetector';
+// Downdetector was removed; every service now has a single 'official' source.
+type Source = 'official';
 
 interface FetcherHealth {
   service: string;
@@ -96,9 +97,7 @@ export const health = {
     // can show "never run yet" instead of a missing row on a fresh boot.
     const out: FetcherHealth[] = [];
     for (const service of getServices()) {
-      for (const source of ['official', 'downdetector'] as Source[]) {
-        out.push(getOrInit(service.slug, source));
-      }
+      out.push(getOrInit(service.slug, 'official'));
     }
     return out;
   },

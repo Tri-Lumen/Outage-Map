@@ -74,7 +74,6 @@ const incidentTemplates = {
 db.transaction(() => {
   for (const s of services) {
     upsertStatus.run(s.slug, 'official', s.official, `Synthetic demo data (${s.official})`, null);
-    upsertStatus.run(s.slug, 'downdetector', s.dd, `Synthetic demo data (${s.dd})`, s.reports);
 
     const tpl = incidentTemplates[s.slug] || [];
     for (let i = 0; i < s.incidents; i++) {

@@ -37,10 +37,10 @@ function deterministicShare(reports: number, regionId: string, serviceSlug: stri
   return Math.round(reports * (0.4 + jitter * 0.6));
 }
 
-// Fallback signal so the map still shows hotspots when DownDetector returns 0
-// reports but the official status indicates active issues. Each active
-// incident contributes INCIDENT_WEIGHT synthetic reports, and any degraded /
-// outage status contributes a baseline floor.
+// The heatmap is driven by official status severity + active incident counts
+// (Downdetector community reports were removed). Each active incident
+// contributes INCIDENT_WEIGHT to the signal, and any degraded / outage status
+// contributes a baseline floor.
 const INCIDENT_WEIGHT = 40;
 const STATUS_FLOOR: Record<string, number> = {
   operational: 0,
@@ -51,7 +51,6 @@ const STATUS_FLOOR: Record<string, number> = {
 };
 
 function mapSignal(
-  reports: number,
   incidentCount: number,
   officialStatus: string,
   overallStatus: string,
@@ -60,7 +59,7 @@ function mapSignal(
     STATUS_FLOOR[officialStatus] || 0,
     STATUS_FLOOR[overallStatus] || 0,
   );
-  return reports + incidentCount * INCIDENT_WEIGHT + floor;
+  return incidentCount * INCIDENT_WEIGHT + floor;
 }
 
 function heatColor(pct: number): string {
@@ -91,7 +90,6 @@ export default function OutageMapView() {
     return WORLD_REGIONS.map((r) => {
       const reportsByService = filteredServices.map((s) => {
         const signal = mapSignal(
-          s.downdetectorReports || 0,
           s.incidentCount || 0,
           s.officialStatus,
           s.overallStatus,
@@ -109,7 +107,6 @@ export default function OutageMapView() {
     return US_REGION_SHAPES.map((r) => {
       const reportsByService = filteredServices.map((s) => {
         const signal = mapSignal(
-          s.downdetectorReports || 0,
           s.incidentCount || 0,
           s.officialStatus,
           s.overallStatus,
@@ -138,7 +135,7 @@ export default function OutageMapView() {
       <PageHeader
         eyebrow="Geographic View"
         title="Outage heatmap"
-        description="Estimated regional distribution of Downdetector reports across monitored services."
+        description="Estimated regional distribution of active outage signal (official status severity + incidents) across monitored services."
       />
 
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">

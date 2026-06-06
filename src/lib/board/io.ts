@@ -24,7 +24,6 @@ const TILE_TYPE_SET: Record<TileType, true> = {
   'incident-metrics': true,
   'fetcher-health': true,
   'alert-audit': true,
-  'anomaly-alert': true,
 };
 const TILE_TYPES = Object.keys(TILE_TYPE_SET) as TileType[];
 
@@ -38,13 +37,15 @@ export function serializeBoard(input: { board: TileConfig[]; tweaks?: Tweaks }):
   return JSON.stringify(payload, null, 2);
 }
 
-function isTile(value: unknown): value is TileConfig {
+// Structural check only — does NOT validate the tile `type` against the known
+// set. That lets us tell a malformed entry (reject the whole import) apart from
+// a structurally-valid tile whose type was retired (drop just that tile).
+function isStructurallyTile(value: unknown): value is TileConfig {
   if (!value || typeof value !== 'object') return false;
   const t = value as Record<string, unknown>;
   return (
     typeof t.id === 'string' &&
     typeof t.type === 'string' &&
-    TILE_TYPES.includes(t.type as TileType) &&
     typeof t.x === 'number' &&
     typeof t.y === 'number' &&
     typeof t.w === 'number' &&
@@ -72,7 +73,11 @@ export function parseBoardFile(raw: string): { board: TileConfig[]; tweaks?: Twe
   const p = parsed as Record<string, unknown>;
   const boardCandidate = p.board ?? parsed; // tolerate bare array too
   if (!Array.isArray(boardCandidate)) return null;
-  if (!boardCandidate.every(isTile)) return null;
+  // Reject structurally malformed input, but silently strip tiles whose `type`
+  // is no longer known (e.g. the removed 'anomaly-alert') so an otherwise-valid
+  // saved board still loads instead of being discarded wholesale.
+  if (!boardCandidate.every(isStructurallyTile)) return null;
+  const board = boardCandidate.filter((t) => TILE_TYPES.includes(t.type as TileType));
   const tweaks = isTweaks(p.tweaks) ? p.tweaks : undefined;
-  return { board: boardCandidate, tweaks };
+  return { board, tweaks };
 }

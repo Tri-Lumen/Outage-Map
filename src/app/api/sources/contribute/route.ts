@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listCustomServices, CustomServiceRow } from '@/lib/db';
-import { SERVICES } from '@/lib/services';
+import { SERVICES, resolveKind } from '@/lib/services';
 import { ServiceConfig } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -30,8 +30,7 @@ function rowToServiceConfig(row: CustomServiceRow): ServiceConfig {
     slug: row.slug,
     color: row.color,
     statusUrl: row.status_url,
-    downdetectorSlug: row.downdetector_slug,
-    fetcher: row.fetcher as ServiceConfig['fetcher'],
+    kind: resolveKind(row.kind ?? row.fetcher),
     brandFont: row.brand_font,
   };
 }

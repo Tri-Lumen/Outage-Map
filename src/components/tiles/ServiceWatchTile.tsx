@@ -117,7 +117,6 @@ export default function ServiceWatchTile({
   const sparkData = historyToSparkline(hist as Parameters<typeof historyToSparkline>[0]);
 
   const showSpark = dataPoints.includes('sparkline');
-  const showDD = dataPoints.includes('downdetector');
   const showUptime = dataPoints.includes('uptime');
   const showOfficial = dataPoints.includes('official');
 
@@ -211,7 +210,7 @@ export default function ServiceWatchTile({
           </div>
         )}
 
-        {(showDD || showOfficial) && (
+        {showOfficial && (
           <div
             style={{
               display: 'flex',
@@ -227,24 +226,6 @@ export default function ServiceWatchTile({
                 <span style={{ color: 'var(--muted-strong)' }}>Official </span>
                 <span style={{ color: getStatusColor(svc.officialStatus).text }}>
                   {getStatusColor(svc.officialStatus).label}
-                </span>
-              </div>
-            )}
-            {showDD && (
-              <div>
-                <span style={{ color: 'var(--muted-strong)' }}>DD </span>
-                <span
-                  style={{
-                    color:
-                      svc.downdetectorReports > 500
-                        ? '#EF5350'
-                        : svc.downdetectorReports > 100
-                        ? '#FFD54F'
-                        : 'var(--foreground)',
-                    fontWeight: 600,
-                  }}
-                >
-                  {svc.downdetectorReports.toLocaleString()}
                 </span>
               </div>
             )}

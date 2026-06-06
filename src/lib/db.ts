@@ -247,6 +247,17 @@ function initTables(db: Database.Database) {
   if (!statusCols.some((c) => c.name === 'anomaly_z_score')) {
     db.exec(`ALTER TABLE service_status ADD COLUMN anomaly_z_score REAL`);
   }
+
+  // One-time cleanup: Downdetector was removed as a data source. The unused
+  // columns (report_count, is_anomaly, anomaly_z_score, downdetector_slug,
+  // notify_on_anomaly) are left in place — SQLite DROP COLUMN is risky with the
+  // FTS triggers/WAL — but we purge the stale 'downdetector' status rows so the
+  // dashboard doesn't surface ghost entries. Sentinel-guarded to run once.
+  const ddPurged = db.prepare(`SELECT value FROM app_settings WHERE key = 'downdetector_rows_purged'`).get();
+  if (!ddPurged) {
+    db.exec(`DELETE FROM service_status WHERE source = 'downdetector'`);
+    db.prepare(`INSERT INTO app_settings (key, value) VALUES ('downdetector_rows_purged', '1')`).run();
+  }
 }
 
 // Generic key/value settings store for server-readable, persisted config
@@ -282,38 +293,36 @@ export function setJsonSetting(key: string, value: unknown): void {
 
 export function upsertServiceStatus(
   serviceSlug: string,
-  source: 'official' | 'downdetector',
+  source: 'official',
   status: string,
   details: string | null,
-  reportCount: number | null,
-  isAnomaly: boolean = false,
-  anomalyZScore: number | null = null,
+  reportCount: number | null = null,
 ) {
+  // The is_anomaly / report_count columns remain on the table for backward
+  // compatibility but are no longer maintained (Downdetector/anomaly removed);
+  // they fall back to their column defaults.
   const db = getDb();
   db.prepare(`
-    INSERT INTO service_status (service_slug, source, status, details, report_count, is_anomaly, anomaly_z_score, checked_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    INSERT INTO service_status (service_slug, source, status, details, report_count, checked_at)
+    VALUES (?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT(service_slug, source) DO UPDATE SET
       status = excluded.status,
       details = excluded.details,
       report_count = excluded.report_count,
-      is_anomaly = excluded.is_anomaly,
-      anomaly_z_score = excluded.anomaly_z_score,
       checked_at = excluded.checked_at
-  `).run(serviceSlug, source, status, details, reportCount, isAnomaly ? 1 : 0, anomalyZScore);
+  `).run(serviceSlug, source, status, details, reportCount);
 }
 
 export function insertStatusHistory(
   serviceSlug: string,
   status: string,
-  reportCount: number,
-  incidentCount: number = 0
+  incidentCount: number = 0,
 ) {
   const db = getDb();
   db.prepare(`
-    INSERT INTO status_history (service_slug, status, report_count, incident_count, recorded_at)
-    VALUES (?, ?, ?, ?, datetime('now'))
-  `).run(serviceSlug, status, reportCount, incidentCount);
+    INSERT INTO status_history (service_slug, status, incident_count, recorded_at)
+    VALUES (?, ?, ?, datetime('now'))
+  `).run(serviceSlug, status, incidentCount);
 }
 
 export function upsertIncident(
@@ -360,8 +369,6 @@ export function getServiceStatuses() {
     details: string | null;
     report_count: number | null;
     checked_at: string;
-    is_anomaly: number;
-    anomaly_z_score: number | null;
   }>;
 }
 
@@ -625,7 +632,6 @@ export interface AlertRuleRow {
   channel_type: string;
   escalation_enabled: number;
   escalation_intervals: string;
-  notify_on_anomaly: number;
   enabled: number;
   created_at: string;
   updated_at: string;
@@ -634,7 +640,7 @@ export interface AlertRuleRow {
 const RULE_COLS = [
   'id', 'email', 'services', 'min_severity', 'email_enabled',
   'webhook_url', 'webhook_enabled', 'channel_type',
-  'escalation_enabled', 'escalation_intervals', 'notify_on_anomaly',
+  'escalation_enabled', 'escalation_intervals',
   'enabled', 'created_at', 'updated_at',
 ].join(', ');
 
@@ -663,7 +669,6 @@ export function insertAlertRule(row: {
   channelType?: string;
   escalationEnabled?: boolean;
   escalationIntervals?: number[];
-  notifyOnAnomaly?: boolean;
   enabled: boolean;
 }) {
   const db = getDb();
@@ -671,9 +676,9 @@ export function insertAlertRule(row: {
     INSERT INTO alert_rules (
       id, email, services, min_severity, email_enabled,
       webhook_url, webhook_enabled, channel_type,
-      escalation_enabled, escalation_intervals, notify_on_anomaly, enabled
+      escalation_enabled, escalation_intervals, enabled
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     row.id,
     row.email,
@@ -685,7 +690,6 @@ export function insertAlertRule(row: {
     row.channelType ?? 'generic',
     row.escalationEnabled ? 1 : 0,
     JSON.stringify(row.escalationIntervals ?? [240, 1440]),
-    row.notifyOnAnomaly ? 1 : 0,
     row.enabled ? 1 : 0,
   );
 }
@@ -702,7 +706,6 @@ export function updateAlertRule(
     channelType: string;
     escalationEnabled: boolean;
     escalationIntervals: number[];
-    notifyOnAnomaly: boolean;
     enabled: boolean;
   }>,
 ): boolean {
@@ -718,7 +721,6 @@ export function updateAlertRule(
   if (patch.channelType !== undefined) { fields.push('channel_type = ?'); values.push(patch.channelType); }
   if (patch.escalationEnabled !== undefined) { fields.push('escalation_enabled = ?'); values.push(patch.escalationEnabled ? 1 : 0); }
   if (patch.escalationIntervals !== undefined) { fields.push('escalation_intervals = ?'); values.push(JSON.stringify(patch.escalationIntervals)); }
-  if (patch.notifyOnAnomaly !== undefined) { fields.push('notify_on_anomaly = ?'); values.push(patch.notifyOnAnomaly ? 1 : 0); }
   if (patch.enabled !== undefined) { fields.push('enabled = ?'); values.push(patch.enabled ? 1 : 0); }
   if (fields.length === 0) return false;
   fields.push(`updated_at = datetime('now')`);
@@ -1090,27 +1092,6 @@ export function updatePostmortem(id: string, content: string): boolean {
 export function markPostmortemExported(id: string): void {
   const db = getDb();
   db.prepare(`UPDATE postmortems SET exported_at = datetime('now') WHERE id = ?`).run(id);
-}
-
-// --- Anomaly detection helpers (F9) ---
-
-export function getAnomalousServices(): Array<{ service_slug: string; anomaly_z_score: number | null }> {
-  const db = getDb();
-  return db.prepare(`
-    SELECT service_slug, anomaly_z_score FROM service_status
-    WHERE source = 'downdetector' AND is_anomaly = 1
-    ORDER BY anomaly_z_score DESC
-  `).all() as Array<{ service_slug: string; anomaly_z_score: number | null }>;
-}
-
-export function getHistoricalDDReports(serviceSlug: string, days: number = 7): number[] {
-  const db = getDb();
-  const rows = db.prepare(`
-    SELECT report_count FROM status_history
-    WHERE service_slug = ? AND recorded_at >= datetime('now', '-' || ? || ' days')
-    ORDER BY recorded_at ASC
-  `).all(serviceSlug, days) as Array<{ report_count: number }>;
-  return rows.map((r) => r.report_count);
 }
 
 export function getIncidentById(id: number): IncidentRow | null {

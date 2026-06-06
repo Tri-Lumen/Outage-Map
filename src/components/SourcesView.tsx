@@ -22,8 +22,6 @@ interface SourceRow {
   name: string;
   color: string;
   statusUrl: string;
-  downdetectorSlug: string | null;
-  fetcher: string;
   kind: string;
   refreshSeconds: number;
   enabled: boolean;
@@ -228,9 +226,7 @@ export default function SourcesView() {
   const handleResetCircuit = async (slug: string) => {
     setError(null);
     try {
-      await Promise.all((['official', 'downdetector'] as const).map((src) =>
-        fetch(`/api/health/fetchers/${encodeURIComponent(slug)}/${src}/reset`, { method: 'POST' }),
-      ));
+      await fetch(`/api/health/fetchers/${encodeURIComponent(slug)}/official/reset`, { method: 'POST' });
       mutateHealth?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error');

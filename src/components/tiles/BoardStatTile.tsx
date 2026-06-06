@@ -4,7 +4,7 @@ import type { TileProps } from './types';
 import type { HistoryPoint } from '@/lib/types';
 import { usePreferences } from '@/hooks/usePreferences';
 
-type MetricKey = 'uptime' | 'incidents' | 'dd' | 'mttr' | 'sla';
+type MetricKey = 'uptime' | 'incidents' | 'mttr' | 'sla';
 
 function mttrForService(points: HistoryPoint[]): number {
   const affected = points.filter((p) => p.outageMinutes > 0);
@@ -21,7 +21,6 @@ export default function BoardStatTile({ config, editing, onResize, onRemove, onD
   const operational = services.filter((s) => s.overallStatus === 'operational').length;
   const total = services.length;
   const activeIncidents = incidents.filter((i) => i.status !== 'resolved').length;
-  const totalDD = services.reduce((sum, s) => sum + (s.downdetectorReports || 0), 0);
   const uptimePct = total > 0 ? ((operational / total) * 100).toFixed(1) : '0.0';
 
   const mttrDisplay = useMemo(() => {
@@ -50,7 +49,6 @@ export default function BoardStatTile({ config, editing, onResize, onRemove, onD
   const metrics: Record<MetricKey, { label: string; value: string | number; sub: string; accent: string }> = {
     uptime:    { label: 'Fleet Uptime',     value: `${uptimePct}%`,                sub: `${operational}/${total} services healthy`,          accent: '#7CB342' },
     incidents: { label: 'Active Incidents', value: activeIncidents,                sub: `${incidents.length} total in view`,                  accent: '#FFD54F' },
-    dd:        { label: 'DD Reports',       value: totalDD.toLocaleString(),       sub: 'Aggregated across services',                         accent: '#2aa198' },
     mttr:      { label: 'MTTR (30d)',       value: mttrDisplay,                   sub: mttrDisplay === '—' ? 'No outage data' : 'Mean time to recovery', accent: '#268bd2' },
     sla:       { label: 'SLA Compliance',   value: `${slaCompliance.meeting}/${slaCompliance.total}`, sub: `≥${slaTarget}% uptime target`, accent: slaCompliance.meeting === slaCompliance.total ? '#7CB342' : '#FFD54F' },
   };

@@ -23,7 +23,7 @@ function regionColor(hot: number): string {
 export default function StatusMapTile({ config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure, live }: TileProps) {
   const totalSignal = live.services.reduce((sum, s) => {
     const floor = Math.max(STATUS_FLOOR[s.officialStatus] || 0, STATUS_FLOOR[s.overallStatus] || 0);
-    return sum + (s.downdetectorReports || 0) + (s.incidentCount || 0) * INCIDENT_WEIGHT + floor;
+    return sum + (s.incidentCount || 0) * INCIDENT_WEIGHT + floor;
   }, 0);
 
   const regions = REGION_SPECS.map((r) => ({

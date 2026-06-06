@@ -25,14 +25,12 @@ export async function GET(request: NextRequest) {
 
     for (const service of services) {
       const official = statusMap.get(`${service.slug}:official`);
-      const dd = statusMap.get(`${service.slug}:downdetector`);
 
       const officialStatus: ServiceStatus = (official?.status as ServiceStatus) || 'unknown';
-      const ddStatus: ServiceStatus = (dd?.status as ServiceStatus) || 'unknown';
       const incidentCount = activeIncidentCounts[service.slug] || 0;
       activeIncidents += incidentCount;
 
-      const overall = deriveOverallStatus(officialStatus, ddStatus, incidentCount);
+      const overall = deriveOverallStatus(officialStatus);
       switch (overall) {
         case 'operational': operational++; break;
         case 'degraded': degraded++; break;
@@ -41,7 +39,7 @@ export async function GET(request: NextRequest) {
         default: unknown++;
       }
 
-      const checkedAt = official?.checked_at || dd?.checked_at;
+      const checkedAt = official?.checked_at;
       if (checkedAt && (!latestCheck || checkedAt > latestCheck)) latestCheck = checkedAt;
     }
 

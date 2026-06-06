@@ -48,7 +48,6 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
     name: string;
     color: string;
     statusUrl: string;
-    downdetectorSlug: string | null;
     refreshSeconds: number;
     enabled: boolean;
   }>;
@@ -71,11 +70,6 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
       return NextResponse.json({ error: 'Invalid statusUrl' }, { status: 400 });
     }
     patch.statusUrl = input.statusUrl;
-  }
-  if (input.downdetectorSlug !== undefined) {
-    patch.downdetectorSlug = typeof input.downdetectorSlug === 'string' && input.downdetectorSlug.trim()
-      ? input.downdetectorSlug.trim()
-      : null;
   }
   if (input.refreshSeconds !== undefined) {
     const r = Number(input.refreshSeconds);

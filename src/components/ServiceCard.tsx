@@ -10,7 +10,6 @@ interface ServiceCardProps {
   onClick?: () => void;
   href?: string;
   compact?: boolean;
-  showDowndetector?: boolean;
 }
 
 const SERVICE_ICONS: Record<string, string> = {
@@ -50,7 +49,6 @@ export default function ServiceCard({
   onClick,
   href,
   compact = false,
-  showDowndetector = true,
 }: ServiceCardProps) {
   const icon = SERVICE_ICONS[service.slug] || service.name.charAt(0);
   const accent = getStatusAccent(service.overallStatus);
@@ -95,9 +93,12 @@ export default function ServiceCard({
             Maint.
           </span>
         )}
-        {service.isAnomaly && (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-500/15 text-orange-400 border border-orange-500/20">
-            ⚠ Spike
+        {service.stale && service.officialStatus !== 'unknown' && (
+          <span
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-white/10 text-muted-strong border border-subtle"
+            title="Last successful check is overdue — this data may be stale"
+          >
+            Stale
           </span>
         )}
       </div>
@@ -118,22 +119,8 @@ export default function ServiceCard({
                service.officialStatus.replace('_', ' ')}
             </span>
           </div>
-          {showDowndetector && (
-            <div className="text-muted">
-              <span className="text-muted-strong">DD:</span>{' '}
-              <span className={
-                service.downdetectorReports >= 500 ? 'text-red-400 font-semibold' :
-                service.downdetectorReports >= 100 ? 'text-yellow-400' :
-                service.downdetectorStatus === 'unknown' ? 'text-muted-strong italic' :
-                service.downdetectorReports > 0 ? 'text-foreground' : 'text-muted'
-              }>
-                {service.downdetectorStatus === 'unknown'
-                  ? 'no data'
-                  : service.downdetectorReports > 0
-                    ? service.downdetectorReports.toLocaleString()
-                    : '--'}
-              </span>
-            </div>
+          {service.stale && (
+            <div className="text-muted-strong italic">stale</div>
           )}
         </div>
       )}
@@ -157,19 +144,6 @@ export default function ServiceCard({
           >
             Official ↗
           </a>
-          {showDowndetector && (
-            <>
-              <span className="text-muted-strong">·</span>
-              <a
-                href={service.downdetectorUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-accent-cyan hover:underline"
-              >
-                {service.downdetectorStatus === 'unknown' ? 'Open Downdetector ↗' : 'Downdetector ↗'}
-              </a>
-            </>
-          )}
         </div>
       )}
     </div>

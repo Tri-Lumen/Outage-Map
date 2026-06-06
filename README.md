@@ -22,7 +22,7 @@ A live US enterprise application outage monitoring dashboard that tracks 14 majo
 ## Features
 
 - **Real-time status dashboard** with color-coded service cards
-- **Dual data sources**: Official status page APIs + Downdetector scraping
+- **Official status sources**: typed, Zod-validated connectors (Statuspage, Google, Microsoft/Azure, Salesforce, AWS) dispatched through a registry — authoritative-only status with no community-report false positives
 - **30-day outage history charts** per service (Recharts)
 - **Incident feed** with severity filtering and expandable details
 - **Email alerts** for new major incidents and status changes
@@ -234,9 +234,6 @@ To force a refresh to the latest published build, either tick
 | `POLL_INTERVAL_MINUTES` | `3` | Poll cadence. Must divide 60 (`1,2,3,4,5,6,10,12,15,20,30,60`); other values are clamped to 3. |
 | `CRON_SECRET` | _required_ | Bearer token guarding `POST /api/cron` and — unless `ENABLE_RULES_API=true` — writes on `/api/alerts/rules`. Endpoint returns `503` if unset. |
 | `ENABLE_RULES_API` | `false` | When `true`, allows the dashboard UI to write to `/api/alerts/rules` without a token. Use only on trusted networks. |
-| `DOWNDETECTOR_ENABLED` | `true` | Set to `false` to skip Downdetector scraping entirely. |
-| `DD_REPORT_THRESHOLD_DEGRADED` | `100` | DD reports at or above this number flip the service to `degraded`. |
-| `DD_REPORT_THRESHOLD_MAJOR` | `500` | DD reports at or above this number flip the service to `major_outage` (only when an official incident is also active). |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | _unset_ | SMTP transport. Email alerts are skipped if any of these are missing. |
 | `SMTP_REJECT_UNAUTHORIZED` | `true` | Enforce TLS certificate validation. Set to `false` only for self-signed dev servers. |
 | `ALERT_FROM` | `SMTP_USER` | `From:` address on outgoing alert emails. |
@@ -289,7 +286,7 @@ src/
 ## How It Works
 
 1. **Polling**: Every 3 minutes, `node-cron` triggers a poll cycle that fetches status from all services in parallel
-2. **Data Sources**: Each service is checked via its official status page API and Downdetector
+2. **Connectors**: Each service is checked by a typed connector (dispatched via a registry on `kind`) against its official, machine-readable status feed; feeds are Zod-validated and degrade to `unknown` rather than guessing
 3. **Storage**: Results are stored in SQLite with upsert semantics; history is kept for 35 days
 4. **Alerting**: New major/critical incidents trigger HTML email alerts via SMTP
 5. **Frontend**: SWR fetches `/api/status` every 30 seconds, rendering status cards, charts, and incident feed

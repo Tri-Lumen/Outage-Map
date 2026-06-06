@@ -1,7 +1,6 @@
 import { getServices } from './services';
 import {
   getServiceStatuses,
-  getActiveIncidentCounts,
   getRecentIncidents,
   getJsonSetting,
   setJsonSetting,
@@ -56,15 +55,9 @@ interface DigestData {
 
 function gather(days: number): DigestData {
   const statuses = getServiceStatuses();
-  const incidentCounts = getActiveIncidentCounts();
   const services = getServices().map((svc) => {
     const official = statuses.find((s) => s.service_slug === svc.slug && s.source === 'official');
-    const dd = statuses.find((s) => s.service_slug === svc.slug && s.source === 'downdetector');
-    const overall = deriveOverallStatus(
-      (official?.status as ServiceStatus) || 'unknown',
-      (dd?.status as ServiceStatus) || 'unknown',
-      incidentCounts[svc.slug] || 0,
-    );
+    const overall = deriveOverallStatus((official?.status as ServiceStatus) || 'unknown');
     return { name: svc.name, overall };
   });
   const down = services.filter((s) => s.overall === 'down' || s.overall === 'major_outage').length;

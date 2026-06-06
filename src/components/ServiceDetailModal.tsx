@@ -115,7 +115,7 @@ export default function ServiceDetailModal({
 
         <div className="p-6 space-y-6">
           {/* Status Details */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <div className="bg-surface-elevated rounded-lg p-4 border border-subtle">
               <p className="text-xs text-muted mb-1">Official Status</p>
               <StatusBadge status={service.officialStatus} size="sm" />
@@ -130,25 +130,11 @@ export default function ServiceDetailModal({
               >
                 View official source ↗
               </a>
-            </div>
-            <div className="bg-surface-elevated rounded-lg p-4 border border-subtle">
-              <p className="text-xs text-muted mb-1">Downdetector</p>
-              <StatusBadge status={service.downdetectorStatus} size="sm" />
-              <p className="text-xs text-muted mt-2">
-                {service.downdetectorStatus === 'unknown'
-                  ? 'No data — open Downdetector directly'
-                  : service.downdetectorReports > 0
-                    ? `${service.downdetectorReports.toLocaleString()} reports`
-                    : 'No reports'}
-              </p>
-              <a
-                href={service.downdetectorUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-accent-cyan hover:underline mt-2 inline-block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
-              >
-                {service.downdetectorStatus === 'unknown' ? 'Open Downdetector' : 'View on Downdetector'} ↗
-              </a>
+              {service.stale && (
+                <p className="text-xs text-amber-400 mt-2">
+                  ⚠ Last successful check is overdue — this data may be stale.
+                </p>
+              )}
             </div>
           </div>
 

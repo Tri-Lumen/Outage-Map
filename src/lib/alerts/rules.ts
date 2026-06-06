@@ -38,7 +38,6 @@ export function rowToRule(row: AlertRuleRow): AlertRule {
     channelType: asChannelType(row.channel_type),
     escalationEnabled: row.escalation_enabled === 1,
     escalationIntervals: parseIntervals(row.escalation_intervals),
-    notifyOnAnomaly: row.notify_on_anomaly === 1,
     enabled: row.enabled === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -108,18 +107,4 @@ export function evaluateRulesForEscalation(
     }
   }
   return out;
-}
-
-/**
- * Returns email recipients to notify when a Downdetector anomaly is detected.
- */
-export function evaluateRulesForAnomaly(serviceSlug: string): string[] {
-  const rules = listEnabledAlertRules().map(rowToRule);
-  const matched = new Set<string>();
-  for (const rule of rules) {
-    if (!rule.emailEnabled || !rule.notifyOnAnomaly) continue;
-    if (rule.services.length > 0 && !rule.services.includes(serviceSlug)) continue;
-    if (rule.email) matched.add(rule.email);
-  }
-  return Array.from(matched);
 }
