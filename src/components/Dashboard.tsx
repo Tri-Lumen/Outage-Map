@@ -153,6 +153,16 @@ export default function Dashboard() {
   }, [live]);
 
   const handleAddImported = (svc: { type: string; name: string; url: string; refresh: number; color: string }) => {
+    if (svc.type === 'rss') {
+      // RSS-detected imports get a live feed-reading tile instead of the
+      // static statuspage demo card (which never fetches svc.url at all).
+      actions.addTile('rss', {
+        feed: 'custom',
+        customFeedUrl: svc.url,
+        label: svc.name,
+      });
+      return;
+    }
     actions.addTile('statuspage', {
       name:  svc.name,
       color: svc.color,

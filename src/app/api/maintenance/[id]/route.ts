@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { updateMaintenanceWindow, deleteMaintenanceWindow } from '@/lib/db';
+import { isWriteEnabled, isAuthorized } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+  if (!isWriteEnabled()) {
+    return NextResponse.json(
+      { error: 'Maintenance API is not enabled. Set ENABLE_RULES_API=true or configure CRON_SECRET.' },
+      { status: 503 },
+    );
+  }
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   let body: unknown;
   try { body = await request.json(); } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
@@ -38,7 +49,17 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  if (!isWriteEnabled()) {
+    return NextResponse.json(
+      { error: 'Maintenance API is not enabled. Set ENABLE_RULES_API=true or configure CRON_SECRET.' },
+      { status: 503 },
+    );
+  }
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const ok = deleteMaintenanceWindow(params.id);
     if (!ok) return NextResponse.json({ error: 'Not found' }, { status: 404 });

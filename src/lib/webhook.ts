@@ -9,8 +9,22 @@ import { createLogger } from './logger';
 
 const log = createLogger('webhook');
 
-// Block SSRF attempts: reject URLs that resolve to RFC-1918 / loopback ranges.
-const PRIVATE_IP_RE = /^(https?:\/\/)(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i;
+// Block SSRF attempts: reject URLs that literally name loopback, RFC-1918,
+// or link-local/cloud-metadata (169.254.x.x, incl. AWS/GCP/Azure IMDS)
+// hosts. This is a string check on the URL itself, not a resolved-IP check,
+// so a hostname that merely *resolves* to one of these ranges (DNS
+// rebinding) is not caught — there is no protection below the fetch layer.
+const PRIVATE_IP_RE =
+  /^(https?:\/\/)(localhost|127\.|0\.|10\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[?::1\]?|\[?fc00:|\[?fe80:)/i;
+
+function redactUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.protocol}//${u.host}${u.pathname.replace(/[^/]+/g, '***')}`;
+  } catch {
+    return '[invalid url]';
+  }
+}
 
 export function isValidWebhookUrl(url: string): boolean {
   if (!/^https?:\/\//i.test(url)) return false;
@@ -51,9 +65,14 @@ export async function sendWebhookAlert(url: string, payload: object, channelType
       timeoutMs: 10000,
       maxRetries: 1,
     });
-    return res.ok || res.status < 500;
+    if (!res.ok) {
+      // Don't log the full URL — Slack/Discord/Teams/PagerDuty webhook URLs
+      // embed a bearer-token-equivalent secret in the path.
+      log.error(`Webhook delivery to ${redactUrl(url)} failed with HTTP ${res.status}`);
+    }
+    return res.ok;
   } catch (err) {
-    log.error(`POST to ${url} failed:`, err);
+    log.error(`Webhook delivery to ${redactUrl(url)} failed:`, err);
     return false;
   }
 }

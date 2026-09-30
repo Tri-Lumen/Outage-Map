@@ -2,13 +2,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { health } from '@/lib/health';
 import { circuit } from '@/lib/fetchers/circuit';
 import { getServices } from '@/lib/services';
+import { isWriteEnabled, isAuthorized } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(
-  _req: NextRequest,
+  request: NextRequest,
   { params }: { params: { slug: string; source: string } },
 ) {
+  if (!isWriteEnabled()) {
+    return NextResponse.json(
+      { error: 'Fetcher reset is not enabled. Set ENABLE_RULES_API=true or configure CRON_SECRET.' },
+      { status: 503 },
+    );
+  }
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { slug, source } = params;
 
   const validSlugs = new Set(getServices().map((s) => s.slug));

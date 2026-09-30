@@ -438,16 +438,16 @@ export function getPaginatedIncidents(opts: {
   const conditions: string[] = [];
   const params: Array<string | number> = [];
 
-  // Date range: cursor overrides offset-based pagination
-  if (cursor) {
-    conditions.push('i.updated_at < ?');
-    params.push(cursor);
-  } else if (dateFrom || dateTo) {
-    if (dateFrom) { conditions.push('i.created_at >= ?'); params.push(dateFrom); }
-    if (dateTo) { conditions.push('i.created_at <= ?'); params.push(dateTo); }
-  } else {
-    conditions.push(`i.created_at >= datetime('now', '-' || ? || ' days')`);
-    params.push(days);
+  // Date range: cursor-based scroll skips the days/date-range window entirely
+  // (it walks the full matching set page by page instead).
+  if (!cursor) {
+    if (dateFrom || dateTo) {
+      if (dateFrom) { conditions.push('i.created_at >= ?'); params.push(dateFrom); }
+      if (dateTo) { conditions.push('i.created_at <= ?'); params.push(dateTo); }
+    } else {
+      conditions.push(`i.created_at >= datetime('now', '-' || ? || ' days')`);
+      params.push(days);
+    }
   }
 
   if (service) {
@@ -471,15 +471,31 @@ export function getPaginatedIncidents(opts: {
     params.push(q.trim() + '*');
   }
 
+  // `total` reflects only the filters above (service/severities/q/date range),
+  // not the cursor position, so it stays stable across pages of the same scroll.
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
   const total = (db.prepare(`SELECT COUNT(*) as n ${fromClause} ${where}`).get(...params) as { n: number }).n;
-  const incidents = db.prepare(
-    `SELECT i.* ${fromClause} ${where} ORDER BY i.started_at DESC, i.created_at DESC LIMIT ? OFFSET ?`
-  ).all(...params, limit, offset) as IncidentRow[];
 
-  const nextCursor = incidents.length === limit && incidents.length > 0
-    ? incidents[incidents.length - 1].updated_at
+  // The page query additionally filters by cursor, encoded as
+  // "<started_at>|<created_at>|<id>" — the same tuple the ORDER BY sorts on —
+  // so paging can't skip or duplicate rows the way a single updated_at cursor
+  // could when updated_at doesn't track the sort key.
+  const pageConditions = [...conditions];
+  const pageParams = [...params];
+  if (cursor) {
+    const [cStarted, cCreated, cId] = cursor.split('|');
+    pageConditions.push(`(COALESCE(i.started_at, ''), i.created_at, i.id) < (?, ?, ?)`);
+    pageParams.push(cStarted ?? '', cCreated ?? '', Number(cId) || 0);
+  }
+  const pageWhere = pageConditions.length > 0 ? `WHERE ${pageConditions.join(' AND ')}` : '';
+
+  const incidents = db.prepare(
+    `SELECT i.* ${fromClause} ${pageWhere} ORDER BY i.started_at DESC, i.created_at DESC, i.id DESC LIMIT ? OFFSET ?`
+  ).all(...pageParams, limit, offset) as IncidentRow[];
+
+  const last = incidents[incidents.length - 1];
+  const nextCursor = incidents.length === limit && last
+    ? `${last.started_at ?? ''}|${last.created_at}|${last.id}`
     : null;
 
   return { incidents, total, nextCursor };

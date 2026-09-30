@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runPollCycle } from '@/lib/poller';
+import { bearerMatches } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -24,7 +25,6 @@ export async function POST(request: NextRequest) {
   // Verify authorization. A missing or empty CRON_SECRET must NOT open
   // the endpoint — reject so an unconfigured deployment isn't a free
   // poll-trigger for the public internet.
-  const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
 
   if (!cronSecret) {
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Not configured' }, { status: 503 });
   }
 
-  if (authHeader !== `Bearer ${cronSecret}`) {
+  if (!bearerMatches(request, cronSecret)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

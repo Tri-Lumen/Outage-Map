@@ -107,6 +107,11 @@ export const health = {
     entry.lastErrorAt = null;
     entry.lastError = null;
   },
+  // Drops all tracked state for a service. Call when a custom service is
+  // deleted so a future slug re-use doesn't inherit stale health data.
+  deleteService(service: string) {
+    state().delete(key(service, 'official'));
+  },
   isReady(): { ready: boolean; reason: string | null } {
     const threshold = readyThreshold();
     let failing: FetcherHealth | null = null;

@@ -3,13 +3,9 @@ export async function register() {
     const cron = await import('node-cron');
     const { runPollCycle } = await import('./lib/poller');
 
+    const { getPollIntervalMinutes } = await import('./lib/pollInterval');
     const raw = parseInt(process.env.POLL_INTERVAL_MINUTES || '3', 10);
-    // Only minute values that divide 60 produce an even `*/n` cron cadence
-    // — anything else introduces a catch-up gap each hour (e.g. */7 fires at
-    // :00,:07,…,:56 then :00, leaving a 4-minute hole). Clamp to the valid
-    // divisors and fall back to 3 for out-of-range input.
-    const VALID = [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60];
-    const intervalMinutes = VALID.includes(raw) ? raw : 3;
+    const intervalMinutes = getPollIntervalMinutes();
     if (raw !== intervalMinutes) {
       console.warn(
         `[cron] POLL_INTERVAL_MINUTES=${process.env.POLL_INTERVAL_MINUTES} is not a divisor of 60; using ${intervalMinutes} instead`,

@@ -133,9 +133,12 @@ export function asIncidentSeverity(value: unknown): IncidentSeverity {
   return isIncidentSeverity(value) ? value : 'minor';
 }
 
+const CHANNEL_TYPES: ReadonlyArray<ChannelType> = ['slack', 'teams', 'discord', 'generic', 'pagerduty', 'opsgenie'];
+
+export function isChannelType(value: unknown): value is ChannelType {
+  return typeof value === 'string' && (CHANNEL_TYPES as ReadonlyArray<string>).includes(value);
+}
+
 export function asChannelType(value: unknown): ChannelType {
-  const valid: ChannelType[] = ['slack', 'teams', 'discord', 'generic'];
-  return typeof value === 'string' && (valid as string[]).includes(value)
-    ? (value as ChannelType)
-    : 'generic';
+  return isChannelType(value) ? value : 'generic';
 }

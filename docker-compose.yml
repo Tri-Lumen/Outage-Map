@@ -35,10 +35,13 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       ALERT_FROM: ${ALERT_FROM:-}
       ALERT_EMAILS: ${ALERT_EMAILS:-}
-      DOWNDETECTOR_ENABLED: ${DOWNDETECTOR_ENABLED:-true}
-      DD_REPORT_THRESHOLD_DEGRADED: ${DD_REPORT_THRESHOLD_DEGRADED:-100}
-      DD_REPORT_THRESHOLD_MAJOR: ${DD_REPORT_THRESHOLD_MAJOR:-500}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3100}
+      # Web push (optional — leave unset to disable the push-notification feature).
+      # Generate a pair with `npx web-push generate-vapid-keys`.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
     volumes:
       - outage-map-data:/app/data
 

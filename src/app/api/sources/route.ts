@@ -7,23 +7,13 @@ import {
 } from '@/lib/db';
 import { SERVICES } from '@/lib/services';
 import { ConnectorKind } from '@/lib/types';
+import { isWriteEnabled, isAuthorized } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 
 const URL_RE = /^https?:\/\/[^\s]+$/i;
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 const DEFAULT_BRAND_FONT = 'var(--font-brand-inter), Inter, system-ui, sans-serif';
-
-function isWriteEnabled(): boolean {
-  return process.env.ENABLE_RULES_API === 'true' || !!process.env.CRON_SECRET;
-}
-
-function isAuthorized(request: NextRequest): boolean {
-  if (process.env.ENABLE_RULES_API === 'true') return true;
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  return request.headers.get('authorization') === `Bearer ${secret}`;
-}
 
 function slugify(name: string): string {
   const cleaned = name.toLowerCase()

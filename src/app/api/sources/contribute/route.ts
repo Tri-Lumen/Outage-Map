@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { listCustomServices, CustomServiceRow } from '@/lib/db';
 import { SERVICES, resolveKind } from '@/lib/services';
 import { ServiceConfig } from '@/lib/types';
+import { isWriteEnabled, isAuthorized } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -11,17 +12,6 @@ const CONTRIBUTED_PATH = 'src/lib/services.contributed.json';
 interface ContributedFile {
   schemaVersion: number;
   services: ServiceConfig[];
-}
-
-function isWriteEnabled(): boolean {
-  return process.env.ENABLE_RULES_API === 'true' || !!process.env.CRON_SECRET;
-}
-
-function isAuthorized(request: NextRequest): boolean {
-  if (process.env.ENABLE_RULES_API === 'true') return true;
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  return request.headers.get('authorization') === `Bearer ${secret}`;
 }
 
 function rowToServiceConfig(row: CustomServiceRow): ServiceConfig {
@@ -44,7 +34,7 @@ interface GitHubCtx {
 
 async function gh<T>(
   ctx: GitHubCtx,
-  method: 'GET' | 'POST' | 'PUT',
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   path: string,
   body?: unknown,
 ): Promise<{ status: number; data: T | null; error: string | null }> {
@@ -218,7 +208,10 @@ export async function POST(request: NextRequest) {
     `/repos/${owner}/${repoName}/contents/${CONTRIBUTED_PATH}`,
     putBody,
   );
-  if (put.error) return githubError(put);
+  if (put.error) {
+    await deleteBranch(ctx, branch);
+    return githubError(put);
+  }
 
   // 5. Open the PR.
   type PrRes = { number: number; html_url: string };
@@ -237,7 +230,10 @@ export async function POST(request: NextRequest) {
     `/repos/${owner}/${repoName}/pulls`,
     { title, head: branch, base, body: prBody },
   );
-  if (pr.error || !pr.data) return githubError(pr);
+  if (pr.error || !pr.data) {
+    await deleteBranch(ctx, branch);
+    return githubError(pr);
+  }
 
   return NextResponse.json(
     {
@@ -248,6 +244,17 @@ export async function POST(request: NextRequest) {
     },
     { status: 201 },
   );
+}
+
+// Best-effort cleanup so a failed contribution doesn't leave an orphaned
+// branch behind on GitHub. Failure here is logged, not surfaced — the
+// caller already has a real error to report.
+async function deleteBranch(ctx: GitHubCtx, branch: string): Promise<void> {
+  try {
+    await gh<unknown>(ctx, 'DELETE', `/repos/${ctx.owner}/${ctx.repo}/git/refs/heads/${encodeURIComponent(branch)}`);
+  } catch (err) {
+    console.error('[contribute] Failed to clean up orphaned branch:', err);
+  }
 }
 
 function githubError(res: { status: number; error: string | null }) {

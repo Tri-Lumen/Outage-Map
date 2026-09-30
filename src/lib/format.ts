@@ -1,3 +1,13 @@
+/** Escapes text for safe interpolation into an HTML string (client-safe, no DOM dependency). */
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /**
  * Convert a timestamp to a short relative string ("12m ago", "3h ago", or
  * a fallback locale date). Used everywhere we render a "last checked" /

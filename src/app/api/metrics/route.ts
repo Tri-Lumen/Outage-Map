@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { metrics } from '@/lib/metrics';
+import { bearerMatches } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -10,11 +11,8 @@ export const revalidate = 0;
 // if Outage-Map is exposed to the public internet.
 export function GET(request: NextRequest) {
   const token = process.env.METRICS_TOKEN;
-  if (token) {
-    const auth = request.headers.get('authorization');
-    if (auth !== `Bearer ${token}`) {
-      return new Response('Unauthorized', { status: 401 });
-    }
+  if (token && !bearerMatches(request, token)) {
+    return new Response('Unauthorized', { status: 401 });
   }
 
   return new Response(metrics.expose(), {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import TileChrome from './TileChrome';
 import type { TileProps } from './types';
 import { useIncidentMetrics } from '@/hooks/useStatus';
@@ -16,6 +16,10 @@ export default function IncidentMetricsTile({
   const { data, isLoading } = useIncidentMetrics(days);
 
   const [rangeDays, setRangeDays] = useState(days);
+  // Re-sync when the tile's configured default range changes (e.g. via the
+  // config drawer) — otherwise an already-mounted tile keeps showing the
+  // range it happened to mount with.
+  useEffect(() => setRangeDays(days), [days]);
   const { data: rangeData } = useIncidentMetrics(rangeDays);
   const metrics = rangeData ?? data;
 

@@ -144,8 +144,8 @@ async function processEscalations() {
     const unresolved = getActiveUnresolvedIncidents(4);
     for (const incident of unresolved) {
       const recipients = evaluateRulesForEscalation(incident);
-      for (const { email, level } of recipients) {
-        await sendEscalationAlert(incident.service_slug, incident.incident_id, incident.title, level, [email]);
+      for (const { email, level, escalationIntervals } of recipients) {
+        await sendEscalationAlert(incident.service_slug, incident.incident_id, incident.title, level, [email], escalationIntervals);
       }
     }
   } catch (err) {

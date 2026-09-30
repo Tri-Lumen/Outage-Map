@@ -12,6 +12,7 @@ interface SearchOpts {
   days?: number;
   service?: string;
   limit?: number;
+  cursor?: string | null;
 }
 
 const fetcher = async (url: string) => {
@@ -29,6 +30,7 @@ function buildKey(opts: SearchOpts): string {
   if (opts.days) params.set('days', String(opts.days));
   if (opts.service) params.set('service', opts.service);
   if (opts.limit) params.set('limit', String(opts.limit));
+  if (opts.cursor) params.set('cursor', opts.cursor);
   const qs = params.toString();
   return `/api/incidents${qs ? `?${qs}` : ''}`;
 }
@@ -61,20 +63,7 @@ export function useInfiniteIncidents(baseOpts: SearchOpts) {
     if (loading || !hasMore) return;
     setLoading(true);
     try {
-      const key = buildKey({ ...baseOpts, ...(cursor ? {} : {}) });
-      const params = new URLSearchParams();
-      if (baseOpts.q) params.set('q', baseOpts.q);
-      if (baseOpts.severity?.length) baseOpts.severity.forEach((s) => params.append('severity', s));
-      if (baseOpts.dateFrom) params.set('dateFrom', baseOpts.dateFrom);
-      if (baseOpts.dateTo) params.set('dateTo', baseOpts.dateTo);
-      if (baseOpts.days) params.set('days', String(baseOpts.days));
-      if (baseOpts.service) params.set('service', baseOpts.service);
-      if (baseOpts.limit) params.set('limit', String(baseOpts.limit));
-      if (cursor) params.set('cursor', cursor);
-      const qs = params.toString();
-      const url = `/api/incidents${qs ? `?${qs}` : ''}`;
-      void key;
-
+      const url = buildKey({ ...baseOpts, cursor });
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: { incidents: IncidentResponse[]; nextCursor: string | null } = await res.json();

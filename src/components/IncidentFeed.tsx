@@ -97,6 +97,12 @@ export default function IncidentFeed() {
     debounceRef.current = setTimeout(() => setQuery(val), 300);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   const toggleSeverity = useCallback((s: string) => {
     setSeverities((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
   }, []);

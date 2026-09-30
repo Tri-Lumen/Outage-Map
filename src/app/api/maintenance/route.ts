@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listMaintenanceWindows, insertMaintenanceWindow } from '@/lib/db';
 import type { MaintenanceWindow } from '@/lib/types';
+import { isWriteEnabled, isAuthorized } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +33,16 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!isWriteEnabled()) {
+    return NextResponse.json(
+      { error: 'Maintenance API is not enabled. Set ENABLE_RULES_API=true or configure CRON_SECRET.' },
+      { status: 503 },
+    );
+  }
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   let body: unknown;
   try { body = await request.json(); } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });

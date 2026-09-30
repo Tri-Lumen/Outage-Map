@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { escapeHtml } from '@/lib/format';
 
 interface Props {
   incidentId: number;
@@ -22,6 +23,12 @@ export default function PostmortemView({ incidentId, initialContent }: Props) {
         .catch(() => {});
     }
   }, [incidentId, initialContent]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   const save = useCallback(async (text: string) => {
     setStatus('saving');
@@ -57,12 +64,12 @@ export default function PostmortemView({ incidentId, initialContent }: Props) {
     const lines = content.split('\n');
     let html = '<html><head><style>body{font-family:system-ui,sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;line-height:1.6}h1,h2,h3{border-bottom:1px solid #eee;padding-bottom:.3em}pre{background:#f6f8fa;padding:1em;border-radius:6px;overflow:auto}code{font-family:monospace}</style></head><body>';
     for (const line of lines) {
-      if (line.startsWith('# ')) html += `<h1>${line.slice(2)}</h1>`;
-      else if (line.startsWith('## ')) html += `<h2>${line.slice(3)}</h2>`;
-      else if (line.startsWith('### ')) html += `<h3>${line.slice(4)}</h3>`;
-      else if (line.startsWith('- ')) html += `<li>${line.slice(2)}</li>`;
+      if (line.startsWith('# ')) html += `<h1>${escapeHtml(line.slice(2))}</h1>`;
+      else if (line.startsWith('## ')) html += `<h2>${escapeHtml(line.slice(3))}</h2>`;
+      else if (line.startsWith('### ')) html += `<h3>${escapeHtml(line.slice(4))}</h3>`;
+      else if (line.startsWith('- ')) html += `<li>${escapeHtml(line.slice(2))}</li>`;
       else if (line.trim() === '') html += '<br>';
-      else html += `<p>${line}</p>`;
+      else html += `<p>${escapeHtml(line)}</p>`;
     }
     html += '</body></html>';
     const blob = new Blob([html], { type: 'text/html' });

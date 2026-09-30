@@ -143,7 +143,9 @@ export default function SettingsView() {
           ? `Sent to ${body.sent} device(s)`
           : body.reason === 'vapid_not_configured'
             ? 'Server VAPID keys not configured'
-            : 'Failed',
+            : res.status === 401 || res.status === 503
+              ? (body.error || 'Unauthorized. Set ENABLE_RULES_API=true, or send Bearer CRON_SECRET.')
+              : 'Failed',
       );
     } catch {
       setPushMsg('Network error');

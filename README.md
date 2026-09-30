@@ -246,6 +246,8 @@ To force a refresh to the latest published build, either tick
 | `FETCH_TIMEOUT_MS` | `12000` | Per-attempt timeout used by every fetcher. Clamped to 1000–60000. |
 | `FETCH_MAX_RETRIES` | `2` | Retries on transient failures (network errors, 5xx, 429) with full-jitter exponential backoff. Honors `Retry-After` on 429. Clamped to 0–5. |
 | `CIRCUIT_FAILURE_THRESHOLD` | `5` | Consecutive failed cycles before a (service, source) circuit opens. Once open, calls short-circuit with status `unknown` until the cooldown elapses (5 → 80 min, doubling on each re-open). |
+| `VAPID_PUBLIC_KEY` / `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | _unset_ | Web push keypair (generate with `npx web-push generate-vapid-keys`). The push-notification feature is disabled until all of these are set; the public key must be duplicated under the `NEXT_PUBLIC_` prefix so the browser client can read it. |
+| `VAPID_SUBJECT` | `mailto:admin@example.com` | Contact URI sent with push requests, per the Web Push protocol. |
 
 ## API Endpoints
 

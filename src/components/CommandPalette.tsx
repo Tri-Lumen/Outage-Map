@@ -174,7 +174,7 @@ export default function CommandPalette() {
         keywords: 'refresh reload fetch poll update status now',
         run: () => {
           mutate('/api/status');
-          mutate((key: string) => key.startsWith('/api/incidents'));
+          mutate((key: unknown) => typeof key === 'string' && key.startsWith('/api/incidents'));
           close();
         },
       },

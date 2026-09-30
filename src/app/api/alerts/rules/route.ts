@@ -5,24 +5,12 @@ import {
 } from '@/lib/db';
 import { rowToRule } from '@/lib/alerts/rules';
 import { getServices } from '@/lib/services';
-import { isIncidentSeverity } from '@/lib/types';
+import { isIncidentSeverity, isChannelType } from '@/lib/types';
+import { isWriteEnabled, isAuthorized } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function isWriteEnabled(): boolean {
-  return process.env.ENABLE_RULES_API === 'true' || !!process.env.CRON_SECRET;
-}
-
-function isAuthorized(request: NextRequest): boolean {
-  // If ENABLE_RULES_API=true, the endpoint is open (intended for trusted/internal
-  // deployments). Otherwise CRON_SECRET Bearer is required.
-  if (process.env.ENABLE_RULES_API === 'true') return true;
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  return request.headers.get('authorization') === `Bearer ${secret}`;
-}
 
 export async function GET() {
   // Reads are always allowed — rules are not sensitive data on their own
@@ -61,6 +49,9 @@ export async function POST(request: NextRequest) {
     emailEnabled: unknown;
     webhookUrl: unknown;
     webhookEnabled: unknown;
+    channelType: unknown;
+    escalationEnabled: unknown;
+    escalationIntervals: unknown;
     enabled: unknown;
   }>;
 
@@ -88,6 +79,20 @@ export async function POST(request: NextRequest) {
   }
   const webhookEnabled = !!input.webhookEnabled && webhookUrl !== null;
 
+  if (input.channelType !== undefined && !isChannelType(input.channelType)) {
+    return NextResponse.json({ error: 'Invalid channelType' }, { status: 400 });
+  }
+  const channelType = isChannelType(input.channelType) ? input.channelType : 'generic';
+
+  const escalationEnabled = !!input.escalationEnabled;
+  let escalationIntervals: number[] | undefined;
+  if (Array.isArray(input.escalationIntervals)) {
+    const cleaned = input.escalationIntervals.filter(
+      (n): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0,
+    );
+    if (cleaned.length > 0) escalationIntervals = cleaned;
+  }
+
   const id = `rule_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
   try {
@@ -99,10 +104,16 @@ export async function POST(request: NextRequest) {
       emailEnabled,
       webhookUrl,
       webhookEnabled,
+      channelType,
+      escalationEnabled,
+      escalationIntervals,
       enabled,
     });
     return NextResponse.json({
-      rule: { id, email, services, minSeverity, emailEnabled, webhookUrl, webhookEnabled, enabled },
+      rule: {
+        id, email, services, minSeverity, emailEnabled, webhookUrl, webhookEnabled,
+        channelType, escalationEnabled, escalationIntervals: escalationIntervals ?? [240, 1440], enabled,
+      },
     }, { status: 201 });
   } catch (err) {
     console.error('[api/alerts/rules] Insert failed:', err);

@@ -87,9 +87,9 @@ export function evaluateRulesForWebhook(incident: IncidentResult): { url: string
  */
 export function evaluateRulesForEscalation(
   incident: IncidentRow,
-): { email: string; level: number }[] {
+): { email: string; level: number; escalationIntervals: number[] }[] {
   const rules = listEnabledAlertRules().map(rowToRule);
-  const out: { email: string; level: number }[] = [];
+  const out: { email: string; level: number; escalationIntervals: number[] }[] = [];
 
   for (const rule of rules) {
     if (!rule.emailEnabled || !rule.escalationEnabled) continue;
@@ -103,7 +103,7 @@ export function evaluateRulesForEscalation(
       rule.escalationIntervals,
     );
     if (state.shouldAlert && rule.email) {
-      out.push({ email: rule.email, level: state.nextLevel });
+      out.push({ email: rule.email, level: state.nextLevel, escalationIntervals: rule.escalationIntervals });
     }
   }
   return out;

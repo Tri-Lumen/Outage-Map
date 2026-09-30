@@ -10,7 +10,7 @@ const ALLOWED_FEEDS: Record<string, string> = {
 };
 
 const PRIVATE_IP_RE =
-  /^(localhost|127\.|0\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|::1|fc00:|fe80:)/i;
+  /^(localhost|127\.|0\.|10\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|::1|fc00:|fe80:)/i;
 
 interface RssItem {
   title: string;

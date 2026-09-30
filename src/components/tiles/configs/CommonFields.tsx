@@ -3,7 +3,6 @@
 import RefreshSelect from '../RefreshSelect';
 
 interface Props {
-  tileType: string;
   label: string | undefined;
   refreshMs: number | undefined;
   accent: string | undefined;

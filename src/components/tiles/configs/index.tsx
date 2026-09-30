@@ -21,7 +21,6 @@ function common(tile: TileConfig, onUpdate: ConfigFormProps['onUpdate'], opts: {
   const cfg = tile.config as Record<string, unknown>;
   return (
     <CommonFields
-      tileType={tile.type}
       label={typeof cfg.label === 'string' ? cfg.label : undefined}
       refreshMs={typeof cfg.refreshMs === 'number' ? cfg.refreshMs : undefined}
       accent={typeof cfg.accent === 'string' ? cfg.accent : undefined}

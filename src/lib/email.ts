@@ -214,8 +214,14 @@ export async function sendEscalationAlert(
   incidentTitle: string,
   level: number,
   recipients: string[],
+  escalationIntervals: number[],
 ): Promise<boolean> {
-  const state = getAlertEscalationState(serviceSlug, incidentId, 'new_incident');
+  // Re-check against the rule's own intervals right before sending (a second
+  // rule/recipient processed later in the same cycle may have already
+  // bumped the escalation_level via logAlert below). Using the default
+  // [60]-minute interval here — instead of the rule's actual intervals —
+  // would wrongly gate or fire this send on a mismatched schedule.
+  const state = getAlertEscalationState(serviceSlug, incidentId, 'new_incident', escalationIntervals);
   if (!state.shouldAlert) return false;
 
   const transporter = getTransporter();
