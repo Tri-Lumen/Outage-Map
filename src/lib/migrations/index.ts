@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 import type { Migration } from './types';
 import { migration0001Baseline } from './0001_baseline';
 import { migration0002MaintenanceRecurrence } from './0002_maintenance_recurrence';
+import { migration0003StatusTransitions } from './0003_status_transitions';
 
 // Ordered oldest-first. Append new migrations here — never edit or
 // renumber a shipped one; add the next id instead, even to fix a mistake
@@ -10,6 +11,7 @@ import { migration0002MaintenanceRecurrence } from './0002_maintenance_recurrenc
 export const MIGRATIONS: Migration[] = [
   migration0001Baseline,
   migration0002MaintenanceRecurrence,
+  migration0003StatusTransitions,
 ];
 
 /**

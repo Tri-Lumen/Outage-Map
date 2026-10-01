@@ -82,6 +82,45 @@ export function upsertServiceStatus(
   `).run(serviceSlug, source, status, details, reportCount);
 }
 
+export interface StatusTransitionRow {
+  id: number;
+  service_slug: string;
+  old_status: string;
+  new_status: string;
+  during_maintenance: number;
+  occurred_at: string;
+}
+
+// Records every observed status change, regardless of severity, maintenance
+// window, or whether email is configured — unlike alert_log, which only
+// records a row when an alert was actually dispatched.
+export function insertStatusTransition(
+  serviceSlug: string,
+  oldStatus: string,
+  newStatus: string,
+  duringMaintenance: boolean,
+): void {
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO status_transitions (service_slug, old_status, new_status, during_maintenance)
+    VALUES (?, ?, ?, ?)
+  `).run(serviceSlug, oldStatus, newStatus, duringMaintenance ? 1 : 0);
+}
+
+export function listStatusTransitions(serviceSlug?: string, limit: number = 50): StatusTransitionRow[] {
+  const db = getDb();
+  if (serviceSlug) {
+    return db.prepare(`
+      SELECT id, service_slug, old_status, new_status, during_maintenance, occurred_at
+      FROM status_transitions WHERE service_slug = ? ORDER BY occurred_at DESC LIMIT ?
+    `).all(serviceSlug, limit) as StatusTransitionRow[];
+  }
+  return db.prepare(`
+    SELECT id, service_slug, old_status, new_status, during_maintenance, occurred_at
+    FROM status_transitions ORDER BY occurred_at DESC LIMIT ?
+  `).all(limit) as StatusTransitionRow[];
+}
+
 export function insertStatusHistory(
   serviceSlug: string,
   status: string,
@@ -381,6 +420,9 @@ export function cleanupOldHistory(days: number = 35) {
   const db = getDb();
   db.prepare(`
     DELETE FROM status_history WHERE recorded_at < datetime('now', '-' || ? || ' days')
+  `).run(days);
+  db.prepare(`
+    DELETE FROM status_transitions WHERE occurred_at < datetime('now', '-' || ? || ' days')
   `).run(days);
   db.prepare(`
     DELETE FROM fetcher_latency WHERE recorded_at < datetime('now', '-2 days')

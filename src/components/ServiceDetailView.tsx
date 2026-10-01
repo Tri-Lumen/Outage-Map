@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useCallback, useMemo, useState } from 'react';
-import { useServiceStatus, useIncidents, useHistory } from '@/hooks/useStatus';
-import { HistoryPoint } from '@/lib/types';
+import { useServiceStatus, useIncidents, useHistory, useTransitions } from '@/hooks/useStatus';
+import { HistoryPoint, ServiceStatus } from '@/lib/types';
 import StatTile from './ui/StatTile';
 import Card from './ui/Card';
 import StatusBadge from './StatusBadge';
@@ -42,6 +42,7 @@ export default function ServiceDetailView({ slug }: Props) {
   const { data: statusData } = useServiceStatus();
   const { data: incidentData } = useIncidents(rangeDays);
   const { data: historyData } = useHistory(rangeDays);
+  const { data: transitionsData } = useTransitions(slug, 20);
 
   const service = statusData?.services?.find((s) => s.slug === slug);
   const history = useMemo(
@@ -234,6 +235,27 @@ export default function ServiceDetailView({ slug }: Props) {
           data={history}
         />
       </section>
+
+      {transitionsData && transitionsData.transitions.length > 0 && (
+        <section>
+          <h2 className="text-base font-semibold text-foreground mb-3">Status change history</h2>
+          <Card>
+            <div className="space-y-2">
+              {transitionsData.transitions.map((t) => (
+                <div key={t.id} className="flex items-center gap-2 text-xs py-1">
+                  <span className="text-muted-strong tabular-nums w-32 flex-shrink-0">{formatDateTime(t.occurredAt)}</span>
+                  <StatusBadge status={t.oldStatus as ServiceStatus} size="sm" />
+                  <span className="text-muted">&rarr;</span>
+                  <StatusBadge status={t.newStatus as ServiceStatus} size="sm" />
+                  {t.duringMaintenance && (
+                    <span className="text-muted ml-1" title="Occurred during a maintenance window">🔧</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
+        </section>
+      )}
 
       {incidents.length > 0 && (
         <section>

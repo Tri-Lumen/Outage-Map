@@ -4,6 +4,7 @@ import { ServiceConfig, ServiceStatus } from './types';
 import {
   upsertServiceStatus,
   insertStatusHistory,
+  insertStatusTransition,
   upsertIncident,
   getServiceStatuses,
   cleanupOldHistory,
@@ -100,6 +101,7 @@ async function pollService(service: ServiceConfig, cycleId: string): Promise<voi
 
   if (previousStatus && previousStatus !== officialStatus.status) {
     changedServices.push(service.slug);
+    insertStatusTransition(service.slug, previousStatus, officialStatus.status, inMaintenance);
   }
 
   let activeIncidentCount = 0;

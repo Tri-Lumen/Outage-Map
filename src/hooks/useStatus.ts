@@ -124,6 +124,26 @@ export function useAlertLog(enabled: boolean, limit: number = 50, refreshInterva
 
 export type { FetcherHealthEntry, AlertLogEntry };
 
+export interface StatusTransition {
+  id: number;
+  serviceSlug: string;
+  oldStatus: string;
+  newStatus: string;
+  duringMaintenance: boolean;
+  occurredAt: string;
+}
+
+export function useTransitions(serviceSlug?: string, limit: number = 20, refreshIntervalMs?: number) {
+  const params = new URLSearchParams();
+  if (serviceSlug) params.set('service', serviceSlug);
+  params.set('limit', String(limit));
+  return useSWR<{ transitions: StatusTransition[] }>(
+    `/api/transitions?${params.toString()}`,
+    fetcher,
+    { refreshInterval: refreshIntervalMs ?? 60000, revalidateOnFocus: false },
+  );
+}
+
 export interface IncidentMetrics {
   days: number;
   mttrBySeverity: { critical?: number; major?: number; minor?: number };
