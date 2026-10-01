@@ -5,6 +5,7 @@ import { migration0002MaintenanceRecurrence } from './0002_maintenance_recurrenc
 import { migration0003StatusTransitions } from './0003_status_transitions';
 import { migration0004AlertRuleSecret } from './0004_alert_rule_secret';
 import { migration0005FailedAlerts } from './0005_failed_alerts';
+import { migration0006Users } from './0006_users';
 
 // Ordered oldest-first. Append new migrations here — never edit or
 // renumber a shipped one; add the next id instead, even to fix a mistake
@@ -16,6 +17,7 @@ export const MIGRATIONS: Migration[] = [
   migration0003StatusTransitions,
   migration0004AlertRuleSecret,
   migration0005FailedAlerts,
+  migration0006Users,
 ];
 
 /**

@@ -11,9 +11,11 @@ import {
 } from '@/hooks/usePreferences';
 import { useTheme, THEMES, type Theme } from './ThemeProvider';
 import { useTranslation, LOCALES } from '@/lib/i18n';
+import { useSession } from '@/hooks/useSession';
 import { listTimeZones } from '@/lib/format';
 import PageHeader from './ui/PageHeader';
 import Card from './ui/Card';
+import UserManagement from './UserManagement';
 import PushToggle from './PushToggle';
 
 const THEME_PREVIEWS: Record<Theme, {
@@ -81,6 +83,7 @@ const THEME_PREVIEWS: Record<Theme, {
 export default function SettingsView() {
   const { theme, setTheme } = useTheme();
   const { locale, setLocale, t } = useTranslation();
+  const { user: session } = useSession();
   const synced = usePreferences();
   const [prefs, setPrefs] = useState<Preferences>(synced);
   const [saved, setSaved] = useState(false);
@@ -564,6 +567,8 @@ export default function SettingsView() {
           <p className="text-[11px] text-muted">Loading…</p>
         )}
       </Card>
+
+      {session?.role === 'admin' && <UserManagement />}
 
       <Card elevated>
         <h3 className="text-sm font-semibold text-foreground mb-1">Reset preferences</h3>

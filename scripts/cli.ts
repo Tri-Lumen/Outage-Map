@@ -10,8 +10,12 @@
  * Usage: npm run cli -- <command> [args]
  */
 import { runPollCycle } from '../src/lib/poller';
-import { listAlertRules, insertAlertRule, updateAlertRule, deleteAlertRule } from '../src/lib/db';
+import {
+  listAlertRules, insertAlertRule, updateAlertRule, deleteAlertRule,
+  listUsers, insertUser, getUserByEmail, deleteUser, updateUserRole, countAdmins,
+} from '../src/lib/db';
 import { sendTestAlert } from '../src/lib/email';
+import { hashPassword } from '../src/lib/auth';
 import { isIncidentSeverity, type IncidentSeverity } from '../src/lib/types';
 
 function usage(): never {
@@ -35,6 +39,17 @@ Usage:
 
   npm run cli -- test-alert <email>
       Send a test email through the configured SMTP transport.
+
+  npm run cli -- users list
+      List all login accounts.
+
+  npm run cli -- users add --email <email> --password <password> [--role admin|viewer]
+      Create a login account (role defaults to viewer). This is how the
+      first admin gets created — there is no public self-signup.
+
+  npm run cli -- users set-role <id> admin|viewer
+  npm run cli -- users rm <id>
+      Change an account's role, or delete it. Refuses to leave zero admins.
 `);
   process.exit(1);
 }
@@ -136,6 +151,74 @@ async function cmdTestAlert(email: string | undefined) {
   if (!result.ok) process.exitCode = 1;
 }
 
+function cmdUsersList() {
+  const rows = listUsers();
+  if (rows.length === 0) {
+    console.log('No login accounts yet. Create the first admin with: npm run cli -- users add --email you@example.com --password ... --role admin');
+    return;
+  }
+  for (const u of rows) {
+    console.log(`${u.id}  ${u.role.padEnd(6)}  ${u.email}`);
+  }
+}
+
+function cmdUsersAdd(args: string[]) {
+  const flags = parseFlags(args);
+  const email = flags.email;
+  const password = flags.password;
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    console.error('Error: --email <valid-email> is required');
+    process.exit(1);
+  }
+  if (!password || password.length < 8) {
+    console.error('Error: --password <at least 8 characters> is required');
+    process.exit(1);
+  }
+  const role = flags.role === 'admin' ? 'admin' : 'viewer';
+  if (getUserByEmail(email)) {
+    console.error(`Error: a user with email ${email} already exists`);
+    process.exit(1);
+  }
+  const id = `user_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  insertUser({ id, email, passwordHash: hashPassword(password), role });
+  console.log(`Created ${role} account ${id} for ${email}.`);
+  if (!process.env.SESSION_SECRET) {
+    console.log('Note: SESSION_SECRET is not set in this environment — logins will fail until it is configured.');
+  }
+}
+
+function cmdUsersSetRole(id: string | undefined, role: string | undefined) {
+  if (!id || (role !== 'admin' && role !== 'viewer')) {
+    console.error('Usage: npm run cli -- users set-role <id> admin|viewer');
+    process.exit(1);
+  }
+  const ok = updateUserRole(id, role);
+  if (!ok) {
+    console.error(`No user found with id ${id}`);
+    process.exit(1);
+  }
+  console.log(`User ${id} is now ${role}.`);
+}
+
+function cmdUsersRemove(id: string | undefined) {
+  if (!id) {
+    console.error('Error: user id is required');
+    process.exit(1);
+  }
+  const rows = listUsers();
+  const user = rows.find((u) => u.id === id);
+  if (!user) {
+    console.error(`No user found with id ${id}`);
+    process.exit(1);
+  }
+  if (user.role === 'admin' && countAdmins() <= 1) {
+    console.error('Error: cannot delete the last remaining admin');
+    process.exit(1);
+  }
+  deleteUser(id);
+  console.log(`User ${id} deleted.`);
+}
+
 async function main() {
   const [command, ...rest] = process.argv.slice(2);
 
@@ -155,6 +238,16 @@ async function main() {
     }
     case 'test-alert':
       return cmdTestAlert(rest[0]);
+    case 'users': {
+      const [sub, ...subArgs] = rest;
+      switch (sub) {
+        case 'list': return cmdUsersList();
+        case 'add': return cmdUsersAdd(subArgs);
+        case 'set-role': return cmdUsersSetRole(subArgs[0], subArgs[1]);
+        case 'rm': case 'remove': case 'delete': return cmdUsersRemove(subArgs[0]);
+        default: return usage();
+      }
+    }
     default:
       return usage();
   }

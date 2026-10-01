@@ -417,6 +417,62 @@ export function getRecentAlertLog(limit = 100) {
   }>;
 }
 
+// --- Users ---
+
+export interface UserRow {
+  id: string;
+  email: string;
+  password_hash: string;
+  role: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export function insertUser(row: { id: string; email: string; passwordHash: string; role: 'admin' | 'viewer' }): void {
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO users (id, email, password_hash, role) VALUES (?, ?, ?, ?)
+  `).run(row.id, row.email, row.passwordHash, row.role);
+}
+
+export function getUserByEmail(email: string): UserRow | null {
+  const db = getDb();
+  const row = db.prepare(`SELECT * FROM users WHERE email = ? COLLATE NOCASE`).get(email) as UserRow | undefined;
+  return row ?? null;
+}
+
+export function getUserById(id: string): UserRow | null {
+  const db = getDb();
+  const row = db.prepare(`SELECT * FROM users WHERE id = ?`).get(id) as UserRow | undefined;
+  return row ?? null;
+}
+
+export function listUsers(): UserRow[] {
+  const db = getDb();
+  return db.prepare(`SELECT * FROM users ORDER BY created_at ASC`).all() as UserRow[];
+}
+
+export function countAdmins(): number {
+  const db = getDb();
+  const row = db.prepare(`SELECT COUNT(*) as c FROM users WHERE role = 'admin'`).get() as { c: number };
+  return row.c;
+}
+
+export function deleteUser(id: string): boolean {
+  const db = getDb();
+  return db.prepare(`DELETE FROM users WHERE id = ?`).run(id).changes > 0;
+}
+
+export function updateUserRole(id: string, role: 'admin' | 'viewer'): boolean {
+  const db = getDb();
+  return db.prepare(`UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?`).run(role, id).changes > 0;
+}
+
+export function updateUserPassword(id: string, passwordHash: string): boolean {
+  const db = getDb();
+  return db.prepare(`UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?`).run(passwordHash, id).changes > 0;
+}
+
 // --- Failed alert dead-letter queue ---
 
 export interface FailedAlertRow {

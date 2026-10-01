@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useServiceStatus, useSummary } from '@/hooks/useStatus';
+import { useSession } from '@/hooks/useSession';
 import { useTranslation } from '@/lib/i18n';
 import { useSidebar } from './SidebarContext';
 
@@ -118,6 +119,7 @@ function getOverallHealth(statuses: string[]): { label: string; tone: string; do
 export default function Sidebar() {
   const pathname = usePathname();
   const { t } = useTranslation();
+  const { user, mutate: mutateSession } = useSession();
   const { collapsed, setCollapsed } = useSidebar();
   const { data } = useServiceStatus();
   const { data: summary } = useSummary(60000);
@@ -245,6 +247,32 @@ export default function Sidebar() {
               }}
             />
           </div>
+        </div>
+      )}
+
+      {!collapsed && (
+        <div className="mx-3 mb-3 px-3 py-2 rounded-xl surface-elevated flex items-center justify-between gap-2">
+          {user ? (
+            <>
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-foreground truncate">{user.email}</div>
+                <div className="text-[10px] text-muted capitalize">{user.role}</div>
+              </div>
+              <button
+                onClick={async () => {
+                  await fetch('/api/auth/logout', { method: 'POST' });
+                  await mutateSession();
+                }}
+                className="text-[11px] text-muted hover:text-foreground transition-colors flex-shrink-0"
+              >
+                Log out
+              </button>
+            </>
+          ) : (
+            <Link href="/login" className="text-xs text-muted hover:text-foreground transition-colors">
+              Log in
+            </Link>
+          )}
         </div>
       )}
     </aside>

@@ -19,7 +19,7 @@ function ShellInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   // Public, chrome-less routes render without the app sidebar/nav.
-  if (pathname?.startsWith('/status') || pathname?.startsWith('/embed')) {
+  if (pathname?.startsWith('/status') || pathname?.startsWith('/embed') || pathname?.startsWith('/login')) {
     return <div className="min-h-screen bg-background text-foreground">{children}</div>;
   }
 
