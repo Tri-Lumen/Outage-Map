@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import type { Tweaks } from '@/hooks/useTweaks';
 import type { TileConfig } from '@/hooks/useBoard';
 import { serializeBoard, parseBoardFile } from '@/lib/board/io';
-import { THEMES, type Theme, type CustomTheme } from './ThemeProvider';
+import { THEMES, useTheme, type Theme, type CustomTheme } from './ThemeProvider';
 
 interface Props {
   open: boolean;
@@ -30,7 +30,39 @@ const CUSTOM_FIELDS: { key: keyof CustomTheme; label: string }[] = [
 
 const ACCENT_OPTIONS = ['#268bd2', '#2aa198', '#b58900', '#d33682', '#859900', '#3b82f6'];
 
+async function pickColorWithEyeDropper(): Promise<string | null> {
+  try {
+    const Picker = (window as unknown as { EyeDropper: new () => { open: () => Promise<{ sRGBHex: string }> } }).EyeDropper;
+    const result = await new Picker().open();
+    return result?.sRGBHex ?? null;
+  } catch {
+    return null; // user cancelled
+  }
+}
+
+function EyeDropperButton({ onPick, label }: { onPick: (hex: string) => void; label: string }) {
+  if (typeof window === 'undefined' || !('EyeDropper' in window)) return null;
+  return (
+    <button
+      type="button"
+      className="board-btn board-btn-icon"
+      title="Eye-dropper"
+      aria-label={label}
+      onClick={async () => {
+        const hex = await pickColorWithEyeDropper();
+        if (hex) onPick(hex);
+      }}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M2 22l3-1 11-11-2-2L3 19l-1 3z" />
+        <path d="M14 8l4-4a2.83 2.83 0 014 4l-4 4" />
+      </svg>
+    </button>
+  );
+}
+
 export default function TweaksPanel({ open, onClose, tweaks, setTweak, setTweaks, board, setBoard, theme, setTheme, customTheme, setCustomTheme }: Props) {
+  const { customThemeRecents } = useTheme();
   const panelRef = useRef<HTMLDivElement>(null);
   const offsetRef = useRef({ x: 16, y: 16 });
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -178,28 +210,51 @@ export default function TweaksPanel({ open, onClose, tweaks, setTweak, setTweaks
 
         {theme === 'custom' && (
           <>
-            {CUSTOM_FIELDS.map((f) => (
-              <div className="twk-row twk-row-h" key={f.key}>
-                <div className="twk-lbl"><span>{f.label}</span></div>
-                <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                  <input
-                    type="color"
-                    className="twk-color"
-                    value={customTheme[f.key]}
-                    onChange={(e) => setCustomTheme({ [f.key]: e.target.value })}
-                    aria-label={`Pick ${f.label}`}
-                  />
-                  <input
-                    type="text"
-                    className="twk-field"
-                    style={{ width: 90, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11 }}
-                    value={customTheme[f.key]}
-                    onChange={(e) => setCustomTheme({ [f.key]: e.target.value })}
-                    spellCheck={false}
-                  />
+            {CUSTOM_FIELDS.map((f) => {
+              const recents = customThemeRecents[f.key] ?? [];
+              return (
+                <div key={f.key}>
+                  <div className="twk-row twk-row-h">
+                    <div className="twk-lbl"><span>{f.label}</span></div>
+                    <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                      <input
+                        type="color"
+                        className="twk-color"
+                        value={customTheme[f.key]}
+                        onChange={(e) => setCustomTheme({ [f.key]: e.target.value })}
+                        aria-label={`Pick ${f.label}`}
+                      />
+                      <input
+                        type="text"
+                        className="twk-field"
+                        style={{ width: 90, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11 }}
+                        value={customTheme[f.key]}
+                        onChange={(e) => setCustomTheme({ [f.key]: e.target.value })}
+                        spellCheck={false}
+                      />
+                      <EyeDropperButton label={`Eye-dropper for ${f.label}`} onPick={(hex) => setCustomTheme({ [f.key]: hex })} />
+                    </div>
+                  </div>
+                  {recents.length > 0 && (
+                    <div className="twk-row">
+                      <div className="twk-lbl" />
+                      <div className="twk-chips">
+                        {recents.map((color) => (
+                          <button
+                            key={color}
+                            className="twk-chip"
+                            data-on={customTheme[f.key] === color}
+                            style={{ background: color }}
+                            onClick={() => setCustomTheme({ [f.key]: color })}
+                            title={color}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </>
         )}
 
@@ -243,25 +298,7 @@ export default function TweaksPanel({ open, onClose, tweaks, setTweak, setTweaks
               placeholder="#268bd2"
               spellCheck={false}
             />
-            {typeof window !== 'undefined' && 'EyeDropper' in window && (
-              <button
-                type="button"
-                className="board-btn board-btn-icon"
-                title="Eye-dropper"
-                onClick={async () => {
-                  try {
-                    const Picker = (window as unknown as { EyeDropper: new () => { open: () => Promise<{ sRGBHex: string }> } }).EyeDropper;
-                    const result = await new Picker().open();
-                    if (result?.sRGBHex) setTweak('accent', result.sRGBHex);
-                  } catch { /* user cancelled */ }
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M2 22l3-1 11-11-2-2L3 19l-1 3z" />
-                  <path d="M14 8l4-4a2.83 2.83 0 014 4l-4 4" />
-                </svg>
-              </button>
-            )}
+            <EyeDropperButton label="Eye-dropper for accent color" onPick={(hex) => setTweak('accent', hex)} />
           </div>
         </div>
 
