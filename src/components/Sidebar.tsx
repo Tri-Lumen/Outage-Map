@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useServiceStatus, useSummary } from '@/hooks/useStatus';
+import { useTranslation } from '@/lib/i18n';
 import { useSidebar } from './SidebarContext';
 
 interface NavItem {
@@ -116,6 +117,7 @@ function getOverallHealth(statuses: string[]): { label: string; tone: string; do
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { t } = useTranslation();
   const { collapsed, setCollapsed } = useSidebar();
   const { data } = useServiceStatus();
   const { data: summary } = useSummary(60000);
@@ -193,7 +195,7 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              title={collapsed ? item.label : undefined}
+              title={collapsed ? t(item.label) : undefined}
               aria-current={active ? 'page' : undefined}
               className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                 active
@@ -207,8 +209,8 @@ export default function Sidebar() {
               <span className={active ? 'text-accent-cyan' : ''}>{item.icon}</span>
               {!collapsed && (
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium leading-none">{item.label}</div>
-                  <div className={`text-[11px] mt-1 truncate ${active ? 'text-muted' : 'text-muted-strong'}`}>{item.description}</div>
+                  <div className="text-sm font-medium leading-none">{t(item.label)}</div>
+                  <div className={`text-[11px] mt-1 truncate ${active ? 'text-muted' : 'text-muted-strong'}`}>{t(item.description)}</div>
                 </div>
               )}
             </Link>

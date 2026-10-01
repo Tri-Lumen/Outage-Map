@@ -10,6 +10,7 @@ import {
   writePreferences,
 } from '@/hooks/usePreferences';
 import { useTheme, THEMES, type Theme } from './ThemeProvider';
+import { useTranslation, LOCALES } from '@/lib/i18n';
 import { listTimeZones } from '@/lib/format';
 import PageHeader from './ui/PageHeader';
 import Card from './ui/Card';
@@ -79,6 +80,7 @@ const THEME_PREVIEWS: Record<Theme, {
 
 export default function SettingsView() {
   const { theme, setTheme } = useTheme();
+  const { locale, setLocale, t } = useTranslation();
   const synced = usePreferences();
   const [prefs, setPrefs] = useState<Preferences>(synced);
   const [saved, setSaved] = useState(false);
@@ -312,6 +314,23 @@ export default function SettingsView() {
                 }`}
               />
             </button>
+          </div>
+
+          <div className="flex items-center justify-between py-2 border-t border-subtle">
+            <div>
+              <p className="text-sm text-foreground">{t('Language')}</p>
+              <p className="text-[11px] text-muted">Translates navigation and status labels across the app</p>
+            </div>
+            <select
+              value={locale}
+              onChange={(e) => setLocale(e.target.value as typeof locale)}
+              className="px-2 py-1.5 rounded-md bg-white/5 border border-subtle text-sm text-foreground focus:outline-none focus:border-accent max-w-[220px]"
+              aria-label="Language"
+            >
+              {LOCALES.map((l) => (
+                <option key={l.value} value={l.value}>{l.label}</option>
+              ))}
+            </select>
           </div>
 
           <div className="flex items-center justify-between py-2 border-t border-subtle">
