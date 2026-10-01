@@ -11,7 +11,9 @@ export default function Sparkline({ data, color = '#268bd2', height = 32 }: Spar
   const h = height;
   const points = data
     .map((v, i) => {
-      const x = (i / (data.length - 1)) * w;
+      // data.length - 1 is 0 for a single-point series, which would divide
+      // by zero and produce a NaN coordinate (an invalid SVG points attr).
+      const x = data.length > 1 ? (i / (data.length - 1)) * w : 0;
       const y = h - v * h;
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })

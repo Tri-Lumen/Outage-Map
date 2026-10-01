@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { upsertPushSubscription } from '@/lib/db';
+import { isValidWebhookUrl } from '@/lib/webhook';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +24,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'endpoint, keys.p256dh, and keys.auth are required' }, { status: 400 });
   }
 
-  if (!/^https?:\/\//i.test(endpoint)) {
+  // Same SSRF guard as outbound webhooks: the server will POST to this
+  // endpoint later (on every push send), so it can't be allowed to point
+  // at a loopback/internal/link-local address.
+  if (!(await isValidWebhookUrl(endpoint))) {
     return NextResponse.json({ error: 'Invalid endpoint URL' }, { status: 400 });
   }
 

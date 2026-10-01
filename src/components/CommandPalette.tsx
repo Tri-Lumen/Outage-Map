@@ -48,6 +48,7 @@ const NAV_PAGES: { href: string; label: string; hint: string }[] = [
   { href: '/analytics', label: 'Analytics', hint: 'Uptime, SLA & MTTR' },
   { href: '/map', label: 'Heat Map', hint: 'Geographic density' },
   { href: '/alerts', label: 'Alerts', hint: 'Rules & subscriptions' },
+  { href: '/incidents', label: 'Incidents', hint: 'Search all incidents' },
   { href: '/sources', label: 'Sources', hint: 'Imported services' },
   { href: '/settings', label: 'Settings', hint: 'Preferences & theme' },
   { href: '/maintenance', label: 'Maintenance', hint: 'Planned downtime windows' },
@@ -174,7 +175,7 @@ export default function CommandPalette() {
         keywords: 'refresh reload fetch poll update status now',
         run: () => {
           mutate('/api/status');
-          mutate((key: string) => key.startsWith('/api/incidents'));
+          mutate((key: unknown) => typeof key === 'string' && key.startsWith('/api/incidents'));
           close();
         },
       },

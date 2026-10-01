@@ -5,22 +5,14 @@ import {
   getCustomServiceById,
   updateCustomService,
 } from '@/lib/db';
+import { isWriteEnabled, isAuthorized } from '@/lib/apiAuth';
+import { health } from '@/lib/health';
+import { circuit } from '@/lib/fetchers/circuit';
 
 export const dynamic = 'force-dynamic';
 
 const URL_RE = /^https?:\/\/[^\s]+$/i;
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
-
-function isWriteEnabled(): boolean {
-  return process.env.ENABLE_RULES_API === 'true' || !!process.env.CRON_SECRET;
-}
-
-function isAuthorized(request: NextRequest): boolean {
-  if (process.env.ENABLE_RULES_API === 'true') return true;
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  return request.headers.get('authorization') === `Bearer ${secret}`;
-}
 
 interface Ctx {
   params: { id: string };
@@ -110,9 +102,12 @@ export async function DELETE(request: NextRequest, { params }: Ctx) {
     }
     const ok = deleteCustomService(params.id);
     if (ok) {
-      // Drop the orphaned status/history/incidents so a future slug re-use
-      // doesn't inherit the previous service's data.
+      // Drop the orphaned status/history/incidents, plus the in-memory
+      // health/circuit state, so a future slug re-use doesn't inherit the
+      // previous service's data.
       cleanupServiceData(row.slug);
+      health.deleteService(row.slug);
+      circuit.deleteService(row.slug);
     }
     return NextResponse.json({ ok });
   } catch (err) {

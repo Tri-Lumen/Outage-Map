@@ -234,6 +234,7 @@ To force a refresh to the latest published build, either tick
 | `POLL_INTERVAL_MINUTES` | `3` | Poll cadence. Must divide 60 (`1,2,3,4,5,6,10,12,15,20,30,60`); other values are clamped to 3. |
 | `CRON_SECRET` | _required_ | Bearer token guarding `POST /api/cron` and — unless `ENABLE_RULES_API=true` — writes on `/api/alerts/rules`. Endpoint returns `503` if unset. |
 | `ENABLE_RULES_API` | `false` | When `true`, allows the dashboard UI to write to `/api/alerts/rules` without a token. Use only on trusted networks. |
+| `SESSION_SECRET` | _unset_ | Enables multi-user login. A random 32+ byte secret signing session cookies — rotating it logs everyone out. Bootstrap the first admin with `npm run cli -- users add --email you@example.com --password ... --role admin`; further accounts can be managed from Settings once logged in. `admin` sessions satisfy the same write-auth check as `CRON_SECRET`/`ENABLE_RULES_API`; `viewer` sessions are read-only everywhere. Leave unset to disable login entirely — the existing token-based auth is unaffected either way. |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | _unset_ | SMTP transport. Email alerts are skipped if any of these are missing. |
 | `SMTP_REJECT_UNAUTHORIZED` | `true` | Enforce TLS certificate validation. Set to `false` only for self-signed dev servers. |
 | `ALERT_FROM` | `SMTP_USER` | `From:` address on outgoing alert emails. |
@@ -246,6 +247,8 @@ To force a refresh to the latest published build, either tick
 | `FETCH_TIMEOUT_MS` | `12000` | Per-attempt timeout used by every fetcher. Clamped to 1000–60000. |
 | `FETCH_MAX_RETRIES` | `2` | Retries on transient failures (network errors, 5xx, 429) with full-jitter exponential backoff. Honors `Retry-After` on 429. Clamped to 0–5. |
 | `CIRCUIT_FAILURE_THRESHOLD` | `5` | Consecutive failed cycles before a (service, source) circuit opens. Once open, calls short-circuit with status `unknown` until the cooldown elapses (5 → 80 min, doubling on each re-open). |
+| `VAPID_PUBLIC_KEY` / `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | _unset_ | Web push keypair (generate with `npx web-push generate-vapid-keys`). The push-notification feature is disabled until all of these are set; the public key must be duplicated under the `NEXT_PUBLIC_` prefix so the browser client can read it. |
+| `VAPID_SUBJECT` | `mailto:admin@example.com` | Contact URI sent with push requests, per the Web Push protocol. |
 
 ## API Endpoints
 
@@ -255,12 +258,19 @@ To force a refresh to the latest published build, either tick
 | `/api/incidents?days=7&service=slack` | GET | Recent incidents feed. `days` clamped to 1–90; unknown service slugs return empty. |
 | `/api/history?days=30` | GET | 30-day outage history for charts |
 | `/api/cron` | POST | Manually trigger a poll cycle. Requires `Bearer $CRON_SECRET`; rate-limited to 1 request / 30s per IP. |
-| `/api/alerts/rules` | GET / POST | List / create alert rules. Writes need Bearer auth (or `ENABLE_RULES_API=true`). |
+| `/api/alerts/rules` | GET / POST | List / create alert rules. Writes need Bearer auth, a logged-in admin session, or `ENABLE_RULES_API=true`. |
 | `/api/alerts/rules/:id` | PATCH / DELETE | Update or remove a rule. Same auth as POST. |
+| `/api/auth/login` | POST | `{email, password}` → sets a session cookie. Requires `SESSION_SECRET`. |
+| `/api/auth/logout` | POST | Clears the session cookie. |
+| `/api/auth/me` | GET | Returns the current session's `{email, role}`, or `{user: null}`. |
+| `/api/auth/users` | GET / POST | List / create login accounts. Admin-only. |
+| `/api/auth/users/:id` | PATCH / DELETE | Change an account's role, or remove it. Admin-only; refuses to leave zero admins. |
 | `/api/alerts/test` | POST | Send a test email to verify SMTP wiring. |
 | `/api/sources` | GET / POST | List / create custom data sources merged into the runtime catalog. Writes require Bearer auth (or `ENABLE_RULES_API=true`). |
 | `/api/sources/:id` | PATCH / DELETE | Update or remove a custom source. Same auth as POST. DELETE also cleans up the source's status, history, and incident rows. |
 | `/api/sources/contribute` | POST | Open a PR against `main` adding selected custom sources to `src/lib/services.contributed.json`. Requires `GITHUB_TOKEN` plus Bearer auth. |
+| `/api/badge/:slug.svg` | GET | Shields.io-style status badge for one service (`![status](.../api/badge/slack.svg)`), no auth. 404 on an unknown slug. |
+| `/api/incidents.ics?days=90&service=slack` | GET | RFC 5545 calendar feed of incidents, subscribable from any calendar app. One `VEVENT` per incident (`DTSTART`→`DTEND`, or `DTSTART` only while unresolved). |
 
 ## Architecture
 

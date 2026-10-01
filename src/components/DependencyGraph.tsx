@@ -65,9 +65,9 @@ export default function DependencyGraph() {
     const REST_LEN = 160;
     const CENTER_PULL = 0.003;
 
-    function tick() {
+    function tick(): number {
       const nodes = nodesRef.current;
-      if (!nodes.length) return;
+      if (!nodes.length) return 0;
 
       const idMap = new Map(nodes.map((n) => [n.id, n]));
 
@@ -106,6 +106,7 @@ export default function DependencyGraph() {
         b.vy -= (dy / dist) * force;
       }
 
+      let totalSpeed = 0;
       for (const n of nodes) {
         n.vx *= DAMPING;
         n.vy *= DAMPING;
@@ -114,7 +115,9 @@ export default function DependencyGraph() {
         // Clamp to canvas
         n.x = Math.max(40, Math.min(width - 40, n.x));
         n.y = Math.max(40, Math.min(height - 40, n.y));
+        totalSpeed += Math.abs(n.vx) + Math.abs(n.vy);
       }
+      return totalSpeed;
     }
 
     function draw() {
@@ -175,10 +178,36 @@ export default function DependencyGraph() {
       }
     }
 
-    function loop() {
-      tick();
+    // Once the layout has settled (near-zero velocity for a few consecutive
+    // frames), stop scheduling new frames instead of redrawing an unchanging
+    // canvas at 60fps until the next services poll tears this effect down.
+    const SETTLE_EPSILON = 0.05;
+    const SETTLE_FRAMES = 5;
+    let settledStreak = 0;
+
+    const prefersReducedMotion =
+      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) {
+      // Skip the visible spring animation: run the simulation to convergence
+      // synchronously, then draw the final layout once.
+      for (let i = 0; i < 300; i++) tick();
       draw();
-      rafRef.current = requestAnimationFrame(loop);
+      return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+    }
+
+    function loop() {
+      const totalSpeed = tick();
+      draw();
+      if (totalSpeed < SETTLE_EPSILON) {
+        settledStreak += 1;
+      } else {
+        settledStreak = 0;
+      }
+      if (settledStreak < SETTLE_FRAMES) {
+        rafRef.current = requestAnimationFrame(loop);
+      } else {
+        rafRef.current = null;
+      }
     }
 
     rafRef.current = requestAnimationFrame(loop);

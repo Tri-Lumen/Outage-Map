@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useInfiniteIncidents } from '@/hooks/useIncidentSearch';
+import { useServiceStatus } from '@/hooks/useStatus';
+import { getDependentServices } from '@/lib/serviceDependencies';
 import type { IncidentResponse } from '@/lib/types';
 
 const SEVERITY_STYLES: Record<string, { dot: string; border: string }> = {
@@ -27,10 +29,11 @@ function formatDate(dateStr: string | null): string {
   });
 }
 
-function IncidentRow({ incident }: { incident: IncidentResponse }) {
+function IncidentRow({ incident, serviceNames }: { incident: IncidentResponse; serviceNames: Map<string, string> }) {
   const [expanded, setExpanded] = useState(false);
   const severity = SEVERITY_STYLES[incident.severity] || SEVERITY_STYLES.minor;
   const statusInfo = STATUS_LABELS[incident.status] || STATUS_LABELS.investigating;
+  const dependents = getDependentServices(incident.service);
 
   return (
     <div
@@ -58,6 +61,12 @@ function IncidentRow({ incident }: { incident: IncidentResponse }) {
         <div className="mt-2 ml-3.5 space-y-2">
           {incident.description && (
             <p className="text-xs text-muted leading-relaxed">{incident.description}</p>
+          )}
+          {dependents.length > 0 && !incident.resolvedAt && (
+            <p className="text-xs text-orange-400/90">
+              ⚠ May cascade to {dependents.length} dependent service{dependents.length !== 1 ? 's' : ''}:{' '}
+              {dependents.map((slug) => serviceNames.get(slug) ?? slug).join(', ')}
+            </p>
           )}
           <div className="flex items-center gap-4 text-xs text-muted-strong">
             <span>Severity: <span className="text-foreground capitalize">{incident.severity}</span></span>
@@ -97,9 +106,18 @@ export default function IncidentFeed() {
     debounceRef.current = setTimeout(() => setQuery(val), 300);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   const toggleSeverity = useCallback((s: string) => {
     setSeverities((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
   }, []);
+
+  const { data: statusData } = useServiceStatus();
+  const serviceNames = new Map((statusData?.services ?? []).map((s) => [s.slug, s.name]));
 
   const { incidents, loadMore, loading, hasMore } = useInfiniteIncidents({
     q: query || undefined,
@@ -129,28 +147,63 @@ export default function IncidentFeed() {
 
   const hasActiveFilters = severities.length > 0 || dateFrom || dateTo;
 
+  const exportCsv = useCallback(() => {
+    const headers = ['ID', 'Service', 'Title', 'Severity', 'Status', 'Started', 'Resolved', 'Description'];
+    const csvRows = incidents.map((inc) => [
+      inc.id,
+      inc.serviceName,
+      `"${(inc.title || '').replace(/"/g, '""')}"`,
+      inc.severity,
+      inc.status,
+      inc.startedAt ?? '',
+      inc.resolvedAt ?? '',
+      `"${(inc.description || '').replace(/"/g, '""')}"`,
+    ]);
+    const csv = [headers, ...csvRows].map((row) => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'incidents.csv';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, [incidents]);
+
   return (
     <div className="surface-card rounded-xl overflow-hidden">
       {/* Header */}
       <div className="px-5 py-4 border-b border-subtle space-y-3">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-foreground">Recent Incidents</h2>
-          <button
-            onClick={() => setShowFilters((v) => !v)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-              hasActiveFilters || showFilters
-                ? 'border-accent/50 bg-accent/10 text-foreground'
-                : 'border-subtle text-muted hover:text-foreground hover:border-strong'
-            }`}
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
-            </svg>
-            Filters
-            {hasActiveFilters && (
-              <span className="w-1.5 h-1.5 rounded-full bg-accent-cyan" />
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={exportCsv}
+              disabled={incidents.length === 0}
+              title="Export the loaded incidents (respects active filters) as CSV"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-subtle text-muted hover:text-foreground hover:border-strong transition-colors disabled:opacity-40 disabled:pointer-events-none"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              CSV
+            </button>
+            <button
+              onClick={() => setShowFilters((v) => !v)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                hasActiveFilters || showFilters
+                  ? 'border-accent/50 bg-accent/10 text-foreground'
+                  : 'border-subtle text-muted hover:text-foreground hover:border-strong'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+              </svg>
+              Filters
+              {hasActiveFilters && (
+                <span className="w-1.5 h-1.5 rounded-full bg-accent-cyan" />
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Search */}
@@ -240,7 +293,7 @@ export default function IncidentFeed() {
             <p className="text-sm">No incidents found</p>
           </div>
         ) : (
-          incidents.map((incident) => <IncidentRow key={incident.id} incident={incident} />)
+          incidents.map((incident) => <IncidentRow key={incident.id} incident={incident} serviceNames={serviceNames} />)
         )}
 
         {/* Infinite scroll sentinel */}

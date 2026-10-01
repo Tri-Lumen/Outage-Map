@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useServiceStatus, useIncidents, useHistory } from '@/hooks/useStatus';
+import { useSSE } from '@/hooks/useSSE';
 import { usePreferences } from '@/hooks/usePreferences';
 import { useBoard } from '@/hooks/useBoard';
 import { useBoardSet } from '@/hooks/useBoardSet';
@@ -22,6 +23,7 @@ import ShortcutsOverlay from './ShortcutsOverlay';
 import PresentControls from './PresentControls';
 import TileConfigDrawer from './TileConfigDrawer';
 import RefreshControl from './RefreshControl';
+import { useToast } from './ui/Toast';
 
 export default function Dashboard() {
   const { theme, setTheme, customTheme, setCustomTheme } = useTheme();
@@ -37,6 +39,29 @@ export default function Dashboard() {
   });
   const prefs              = usePreferences();
   const present            = usePresentMode();
+  const { push: pushToast } = useToast();
+
+  // Ctrl/Cmd+Z already undoes a delete, but it's undiscoverable — surface an
+  // explicit "Undo" action on the removal toast too.
+  const removeTileWithUndo = (id: string) => {
+    const tile = board.find((t) => t.id === id);
+    actions.removeTile(id);
+    pushToast(
+      `Removed "${tile?.config?.label ?? tile?.type ?? 'tile'}"`,
+      'info',
+      { label: 'Undo', onClick: actions.undo },
+    );
+  };
+
+  const bulkDeleteWithUndo = (ids: string[]) => {
+    if (ids.length === 0) return;
+    actions.bulkDelete(ids);
+    pushToast(
+      `Removed ${ids.length} tile${ids.length !== 1 ? 's' : ''}`,
+      'info',
+      { label: 'Undo', onClick: actions.undo },
+    );
+  };
 
   const [editing, setEditing]             = useState(false);
   const [importOpen, setImportOpen]       = useState(false);
@@ -91,7 +116,7 @@ export default function Dashboard() {
       'ArrowRight': () => actions.bulkMove(selectedArr,  1, 0),
       'ArrowUp':    () => actions.bulkMove(selectedArr,  0, -1),
       'ArrowDown':  () => actions.bulkMove(selectedArr,  0,  1),
-      'Backspace':  () => { actions.bulkDelete(selectedArr); clearSelection(); },
+      'Backspace':  () => { bulkDeleteWithUndo(selectedArr); clearSelection(); },
       'mod+d':      () => actions.bulkDuplicate(selectedArr),
     },
     { enabled: editing && selectedIds.size > 0 },
@@ -136,6 +161,7 @@ export default function Dashboard() {
   const { data: statusData, isLoading } = useServiceStatus(refreshMs);
   const { data: incidentData }          = useIncidents(7);
   const { data: historyData }           = useHistory(30);
+  const { viewerCount } = useSSE();
 
   const live: LiveData = useMemo(() => ({
     services:    statusData?.services    ?? [],
@@ -153,6 +179,16 @@ export default function Dashboard() {
   }, [live]);
 
   const handleAddImported = (svc: { type: string; name: string; url: string; refresh: number; color: string }) => {
+    if (svc.type === 'rss') {
+      // RSS-detected imports get a live feed-reading tile instead of the
+      // static statuspage demo card (which never fetches svc.url at all).
+      actions.addTile('rss', {
+        feed: 'custom',
+        customFeedUrl: svc.url,
+        label: svc.name,
+      });
+      return;
+    }
     actions.addTile('statuspage', {
       name:  svc.name,
       color: svc.color,
@@ -188,6 +224,15 @@ export default function Dashboard() {
 
         {/* Right: actions + live pill */}
         <div className="flex items-center gap-2 flex-wrap">
+          {viewerCount !== null && viewerCount > 1 && (
+            <div className="live-pill" title="Other browser tabs/windows currently viewing this dashboard">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span>{viewerCount} viewing</span>
+            </div>
+          )}
           <RefreshControl lastUpdated={statusData?.lastUpdated} refreshSec={prefs.refreshInterval} />
 
           <button
@@ -307,7 +352,7 @@ export default function Dashboard() {
           <button
             className="board-btn"
             style={{ color: '#ef5350' }}
-            onClick={() => { actions.bulkDelete(selectedArr); clearSelection(); }}
+            onClick={() => { bulkDeleteWithUndo(selectedArr); clearSelection(); }}
           >Delete</button>
           <span className="bulk-bar-hint">Arrow keys move · ⇧Click toggle · Esc clear</span>
           <button className="board-btn" onClick={clearSelection}>Done</button>
@@ -344,7 +389,7 @@ export default function Dashboard() {
           onToggleSelect={toggleSelect}
           onClearSelection={clearSelection}
           onUpdateTile={actions.updateTile}
-          onRemoveTile={actions.removeTile}
+          onRemoveTile={removeTileWithUndo}
           onCycleResize={actions.cycleResize}
           onToggleDataPoint={actions.toggleDataPoint}
           onSwapTiles={actions.swapTiles}
@@ -397,7 +442,7 @@ export default function Dashboard() {
         live={live}
         onClose={() => setConfigTileId(null)}
         onUpdate={actions.updateTile}
-        onRemove={actions.removeTile}
+        onRemove={removeTileWithUndo}
         onDuplicate={actions.duplicateTile}
       />
 

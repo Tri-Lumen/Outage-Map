@@ -24,7 +24,8 @@ function relTime(iso: string | null): string {
 export default function FetcherHealthTile({
   config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure,
 }: TileProps) {
-  const { data, isLoading, mutate } = useFetcherHealth(30000);
+  const refreshMs = typeof config.refreshMs === 'number' ? config.refreshMs : 30000;
+  const { data, isLoading, mutate } = useFetcherHealth(refreshMs);
   const fetchers = data?.fetchers ?? [];
   const failing = fetchers.filter((f) => f.consecutiveFailures > 0).length;
   const [resetting, setResetting] = useState<string | null>(null);

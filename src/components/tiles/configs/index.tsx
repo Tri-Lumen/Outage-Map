@@ -21,7 +21,6 @@ function common(tile: TileConfig, onUpdate: ConfigFormProps['onUpdate'], opts: {
   const cfg = tile.config as Record<string, unknown>;
   return (
     <CommonFields
-      tileType={tile.type}
       label={typeof cfg.label === 'string' ? cfg.label : undefined}
       refreshMs={typeof cfg.refreshMs === 'number' ? cfg.refreshMs : undefined}
       accent={typeof cfg.accent === 'string' ? cfg.accent : undefined}
@@ -282,7 +281,7 @@ const RssForm: ConfigForm = ({ tile, onUpdate }) => {
   const customFeedUrl = (tile.config.customFeedUrl as string) || '';
   return (
     <>
-      {common(tile, onUpdate, { hideRefresh: true })}
+      {common(tile, onUpdate)}
       <div className="twk-row">
         <div className="twk-lbl"><span>Feed</span></div>
         <select
@@ -318,7 +317,7 @@ const IncidentMetricsForm: ConfigForm = ({ tile, onUpdate }) => {
   const days = typeof tile.config.days === 'number' ? tile.config.days : 30;
   return (
     <>
-      {common(tile, onUpdate, { hideRefresh: true })}
+      {common(tile, onUpdate)}
       <div className="twk-row">
         <div className="twk-lbl"><span>Default range</span></div>
         <div className="twk-seg">
@@ -333,8 +332,8 @@ const IncidentMetricsForm: ConfigForm = ({ tile, onUpdate }) => {
   );
 };
 
-const FetcherHealthForm: ConfigForm = ({ tile, onUpdate }) => common(tile, onUpdate, { hideRefresh: true });
-const AlertAuditForm: ConfigForm = ({ tile, onUpdate }) => common(tile, onUpdate, { hideRefresh: true });
+const FetcherHealthForm: ConfigForm = ({ tile, onUpdate }) => common(tile, onUpdate);
+const AlertAuditForm: ConfigForm = ({ tile, onUpdate }) => common(tile, onUpdate);
 
 export const TILE_CONFIG_FORMS: Record<TileType, ConfigForm> = {
   'stat':              StatForm,

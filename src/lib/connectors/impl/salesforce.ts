@@ -13,7 +13,9 @@ const ImpactSchema = z
 
 const IncidentSchema = z
   .object({
-    id: z.string().nullish(),
+    // Salesforce's live API sends this as a number despite looking like an
+    // opaque id elsewhere — coerce to string rather than reject.
+    id: z.union([z.string(), z.number()]).nullish().transform((v) => (v == null ? v : String(v))),
     externalId: z.string().nullish(),
     message: z.object({ subject: z.string().nullish(), eventStatus: z.string().nullish() }).nullish(),
     IncidentImpacts: z.array(ImpactSchema).nullish(),

@@ -86,6 +86,7 @@ export interface UseBoardSet {
   deleteBoard: (id: string) => void;
   duplicateBoard: (id: string) => void;
   starBoard: (id: string) => void;
+  reorderBoards: (draggedId: string, targetId: string) => void;
   nextBoard: () => void;
   prevBoard: () => void;
 }
@@ -175,6 +176,19 @@ export function useBoardSet(): UseBoardSet {
     }));
   }, []);
 
+  const reorderBoards = useCallback((draggedId: string, targetId: string) => {
+    if (draggedId === targetId) return;
+    setState((s) => {
+      const fromIdx = s.boards.findIndex((b) => b.id === draggedId);
+      const toIdx = s.boards.findIndex((b) => b.id === targetId);
+      if (fromIdx === -1 || toIdx === -1) return s;
+      const boards = [...s.boards];
+      const [moved] = boards.splice(fromIdx, 1);
+      boards.splice(toIdx, 0, moved);
+      return { ...s, boards };
+    });
+  }, []);
+
   const nextBoard = useCallback(() => {
     setState((s) => {
       const idx = s.boards.findIndex((b) => b.id === s.active);
@@ -203,6 +217,7 @@ export function useBoardSet(): UseBoardSet {
     deleteBoard,
     duplicateBoard,
     starBoard,
+    reorderBoards,
     nextBoard,
     prevBoard,
   };

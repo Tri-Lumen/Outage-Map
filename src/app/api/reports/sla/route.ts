@@ -1,9 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getStatusHistory, getPaginatedIncidents } from '@/lib/db';
+import { getStatusHistory, getPaginatedIncidents, IncidentRow } from '@/lib/db';
 import { getServices } from '@/lib/services';
 import { computeSlaRows, generateCsv, generatePdfHtml } from '@/lib/reports/slaReport';
+import { getPollIntervalMinutes } from '@/lib/pollInterval';
 
 export const dynamic = 'force-dynamic';
+
+// getPaginatedIncidents caps a single page at 200; a report must cover every
+// incident in range, so page through with plain offset pagination (cursor
+// mode intentionally drops the date-range filter, so it can't be used here).
+// Capped at 50 pages (50k incidents) as a sanity bound.
+function collectAllIncidents(dateFrom: string, dateTo: string, service: string | null): IncidentRow[] {
+  const pageSize = 1000;
+  const all: IncidentRow[] = [];
+  for (let page = 0; page < 100; page++) {
+    const { incidents } = getPaginatedIncidents({ dateFrom, dateTo, service, limit: pageSize, offset: page * pageSize });
+    all.push(...incidents);
+    if (incidents.length < pageSize) break;
+  }
+  return all;
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -15,11 +31,15 @@ export async function GET(request: NextRequest) {
   const to = searchParams.get('to') || defaultTo;
   const slaTarget = parseFloat(searchParams.get('sla') || '99.9');
 
+  const allServices = getServices();
+  const serviceParam = searchParams.get('service');
+  const service = serviceParam && allServices.some((s) => s.slug === serviceParam) ? serviceParam : null;
+  const services = service ? allServices.filter((s) => s.slug === service) : allServices;
+
   try {
-    const history = getStatusHistory(null, 90, from, to);
-    const { incidents } = getPaginatedIncidents({ dateFrom: from, dateTo: to, limit: 2000 });
-    const services = getServices();
-    const rows = computeSlaRows(history, incidents, services, slaTarget);
+    const history = getStatusHistory(service, 90, from, to);
+    const incidents = collectAllIncidents(from, to, service);
+    const rows = computeSlaRows(history, incidents, services, slaTarget, getPollIntervalMinutes());
 
     if (format === 'pdf') {
       const html = generatePdfHtml(rows, { from, to, slaTarget });

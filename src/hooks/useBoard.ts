@@ -61,6 +61,13 @@ interface History {
   future: TileConfig[][];
 }
 
+// Date.now() alone collides when two tiles are minted in the same
+// millisecond (fast double-click, or an add right after a duplicate),
+// producing duplicate React keys and one tile clobbering the other.
+function newTileId(): string {
+  return `t${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function pushHistory(h: History, next: TileConfig[]): History {
   if (next === h.present) return h;
   const past = [...h.past, h.present];
@@ -317,7 +324,7 @@ export function useBoard({ bp = 'desktop', boardId, tiles, onCommit }: UseBoardP
       'fetcher-health':    [],
       'alert-audit':       [],
     };
-    const id = 't' + Date.now();
+    const id = newTileId();
     const size = defaultSizes[type];
     mutate((b) => {
       const bottom = b.reduce((m, t) => {
@@ -377,7 +384,7 @@ export function useBoard({ bp = 'desktop', boardId, tiles, onCommit }: UseBoardP
       const w = Math.min(src.w, cols);
       const clone: TileConfig = {
         ...src,
-        id: 't' + Date.now(),
+        id: newTileId(),
         x: 0,
         y: bottom,
         w,
@@ -424,13 +431,13 @@ export function useBoard({ bp = 'desktop', boardId, tiles, onCommit }: UseBoardP
       }, 0);
       const additions: TileConfig[] = [];
       let yCursor = bottomStart;
-      ids.forEach((id, i) => {
+      ids.forEach((id) => {
         const src = b.find((t) => t.id === id);
         if (!src) return;
         const w = Math.min(src.w, cols);
         const clone: TileConfig = {
           ...src,
-          id: 't' + Date.now() + '_' + i,
+          id: newTileId(),
           x: 0,
           y: yCursor,
           w,

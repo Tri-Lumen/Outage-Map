@@ -36,6 +36,7 @@ export function computeSlaRows(
   incidents: IncidentRow[],
   services: ServiceConfig[],
   slaTarget: number = 99.9,
+  pollIntervalMinutes: number = 3,
 ): SlaRow[] {
   const bySlug: Record<string, HistoryPoint[]> = {};
   for (const h of history) {
@@ -52,7 +53,7 @@ export function computeSlaRows(
     const totalPoints = points.length;
     const outagePoints = points.reduce((s, p) => s + (STATUS_OUTAGE_WEIGHT[p.status] ?? 0), 0);
     const uptimePct = totalPoints > 0 ? ((totalPoints - outagePoints) / totalPoints) * 100 : 100;
-    const downtimeMinutes = Math.round(outagePoints * 3);
+    const downtimeMinutes = Math.round(outagePoints * pollIntervalMinutes);
 
     const svcIncidents = incidentsBySlug[svc.slug] ?? [];
     const resolved = svcIncidents.filter((i) => i.resolved_at && i.started_at);

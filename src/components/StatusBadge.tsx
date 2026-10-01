@@ -1,6 +1,7 @@
 'use client';
 
 import { ServiceStatus } from '@/lib/types';
+import { useTranslation } from '@/lib/i18n';
 
 const STATUS_CONFIG: Record<ServiceStatus, { label: string; bg: string; text: string; dot: string }> = {
   operational: {
@@ -41,6 +42,7 @@ interface StatusBadgeProps {
 }
 
 export default function StatusBadge({ status, size = 'md' }: StatusBadgeProps) {
+  const { t } = useTranslation();
   const config = STATUS_CONFIG[status] || STATUS_CONFIG.unknown;
 
   const sizeClasses = {
@@ -58,7 +60,7 @@ export default function StatusBadge({ status, size = 'md' }: StatusBadgeProps) {
   return (
     <span
       role="status"
-      aria-label={`Status: ${config.label}`}
+      aria-label={`Status: ${t(config.label)}`}
       className={`inline-flex items-center gap-1.5 rounded-full font-medium ${config.bg} ${config.text} ${sizeClasses[size]}`}
     >
       <span
@@ -67,7 +69,7 @@ export default function StatusBadge({ status, size = 'md' }: StatusBadgeProps) {
           status !== 'operational' && status !== 'unknown' ? 'animate-pulse' : ''
         }`}
       />
-      {config.label}
+      {t(config.label)}
     </span>
   );
 }

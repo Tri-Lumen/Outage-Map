@@ -2,18 +2,21 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useTranslation } from '@/lib/i18n';
 
 const ITEMS = [
   { href: '/', label: 'Status' },
   { href: '/analytics', label: 'Analytics' },
   { href: '/map', label: 'Map' },
   { href: '/alerts', label: 'Alerts' },
+  { href: '/incidents', label: 'Incidents' },
   { href: '/sources', label: 'Sources' },
   { href: '/settings', label: 'Settings' },
 ];
 
 export default function MobileNav() {
   const pathname = usePathname();
+  const { t } = useTranslation();
   return (
     <nav className="lg:hidden sticky top-0 z-40 surface-card border-b border-subtle">
       <div className="flex items-center gap-1 overflow-x-auto px-3 py-2">
@@ -30,7 +33,7 @@ export default function MobileNav() {
                   : 'text-muted hover:text-foreground hover:bg-white/5'
               }`}
             >
-              {item.label}
+              {t(item.label)}
             </Link>
           );
         })}

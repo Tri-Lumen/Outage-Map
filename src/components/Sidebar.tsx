@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useServiceStatus, useSummary } from '@/hooks/useStatus';
+import { useSession } from '@/hooks/useSession';
+import { useTranslation } from '@/lib/i18n';
 import { useSidebar } from './SidebarContext';
 
 interface NavItem {
@@ -50,6 +52,16 @@ const NAV_ITEMS: NavItem[] = [
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.6} stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+      </svg>
+    ),
+  },
+  {
+    href: '/incidents',
+    label: 'Incidents',
+    description: 'Search all incidents',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.6} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01" />
       </svg>
     ),
   },
@@ -106,6 +118,8 @@ function getOverallHealth(statuses: string[]): { label: string; tone: string; do
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { t } = useTranslation();
+  const { user, mutate: mutateSession } = useSession();
   const { collapsed, setCollapsed } = useSidebar();
   const { data } = useServiceStatus();
   const { data: summary } = useSummary(60000);
@@ -183,7 +197,7 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              title={collapsed ? item.label : undefined}
+              title={collapsed ? t(item.label) : undefined}
               aria-current={active ? 'page' : undefined}
               className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                 active
@@ -197,8 +211,8 @@ export default function Sidebar() {
               <span className={active ? 'text-accent-cyan' : ''}>{item.icon}</span>
               {!collapsed && (
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium leading-none">{item.label}</div>
-                  <div className={`text-[11px] mt-1 truncate ${active ? 'text-muted' : 'text-muted-strong'}`}>{item.description}</div>
+                  <div className="text-sm font-medium leading-none">{t(item.label)}</div>
+                  <div className={`text-[11px] mt-1 truncate ${active ? 'text-muted' : 'text-muted-strong'}`}>{t(item.description)}</div>
                 </div>
               )}
             </Link>
@@ -233,6 +247,32 @@ export default function Sidebar() {
               }}
             />
           </div>
+        </div>
+      )}
+
+      {!collapsed && (
+        <div className="mx-3 mb-3 px-3 py-2 rounded-xl surface-elevated flex items-center justify-between gap-2">
+          {user ? (
+            <>
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-foreground truncate">{user.email}</div>
+                <div className="text-[10px] text-muted capitalize">{user.role}</div>
+              </div>
+              <button
+                onClick={async () => {
+                  await fetch('/api/auth/logout', { method: 'POST' });
+                  await mutateSession();
+                }}
+                className="text-[11px] text-muted hover:text-foreground transition-colors flex-shrink-0"
+              >
+                Log out
+              </button>
+            </>
+          ) : (
+            <Link href="/login" className="text-xs text-muted hover:text-foreground transition-colors">
+              Log in
+            </Link>
+          )}
         </div>
       )}
     </aside>

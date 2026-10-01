@@ -21,6 +21,8 @@ const VALID_THEMES: Theme[] = THEMES.map((t) => t.value);
 const DEFAULT_THEME: Theme = 'solarized-dark';
 const STORAGE_KEY = 'outage-map-theme';
 const CUSTOM_STORAGE_KEY = 'outage-map-custom-theme';
+const CUSTOM_RECENTS_KEY = 'outage-map-custom-theme-recents';
+const RECENTS_LIMIT = 8;
 const LEGACY_MAP: Record<string, Theme> = {
   dark: 'solarized-dark',
   light: 'solarized-light',
@@ -50,12 +52,16 @@ const CUSTOM_VAR_MAP: Record<keyof CustomTheme, string> = {
   muted:           '--muted',
 };
 
+/** Most-recent first per field, capped at 8. */
+export type CustomThemeRecents = Partial<Record<keyof CustomTheme, string[]>>;
+
 interface ThemeContextValue {
   theme: Theme;
   setTheme: (theme: Theme) => void;
   toggle: () => void;
   customTheme: CustomTheme;
   setCustomTheme: (next: Partial<CustomTheme>) => void;
+  customThemeRecents: CustomThemeRecents;
 }
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
@@ -90,6 +96,7 @@ function applyTheme(theme: Theme, customTheme: CustomTheme) {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(DEFAULT_THEME);
   const [customTheme, setCustomThemeState] = useState<CustomTheme>(DEFAULT_CUSTOM_THEME);
+  const [customThemeRecents, setCustomThemeRecents] = useState<CustomThemeRecents>({});
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -103,6 +110,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         const parsed = JSON.parse(customRaw) as Partial<CustomTheme>;
         setCustomThemeState({ ...DEFAULT_CUSTOM_THEME, ...parsed });
       }
+    } catch { /* ignore */ }
+
+    try {
+      const recentsRaw = localStorage.getItem(CUSTOM_RECENTS_KEY);
+      if (recentsRaw) setCustomThemeRecents(JSON.parse(recentsRaw) as CustomThemeRecents);
     } catch { /* ignore */ }
   }, []);
 
@@ -133,10 +145,25 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       try { localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
       return next;
     });
+
+    // Only record well-formed hex values, not partial text-input keystrokes.
+    const hexPatch = Object.entries(patch).filter(
+      ([, v]) => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v),
+    ) as [keyof CustomTheme, string][];
+    if (hexPatch.length === 0) return;
+
+    setCustomThemeRecents((prev) => {
+      const next = { ...prev };
+      for (const [key, value] of hexPatch) {
+        next[key] = [value, ...(prev[key] ?? []).filter((c) => c !== value)].slice(0, RECENTS_LIMIT);
+      }
+      try { localStorage.setItem(CUSTOM_RECENTS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggle, customTheme, setCustomTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, toggle, customTheme, setCustomTheme, customThemeRecents }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -151,6 +178,7 @@ export function useTheme(): ThemeContextValue {
       toggle: () => {},
       customTheme: DEFAULT_CUSTOM_THEME,
       setCustomTheme: () => {},
+      customThemeRecents: {},
     };
   }
   return ctx;

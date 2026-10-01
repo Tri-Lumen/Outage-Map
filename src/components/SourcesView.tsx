@@ -226,7 +226,12 @@ export default function SourcesView() {
   const handleResetCircuit = async (slug: string) => {
     setError(null);
     try {
-      await fetch(`/api/health/fetchers/${encodeURIComponent(slug)}/official/reset`, { method: 'POST' });
+      const res = await fetch(`/api/health/fetchers/${encodeURIComponent(slug)}/official/reset`, { method: 'POST' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.error || 'Failed to reset circuit');
+        return;
+      }
       mutateHealth?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error');

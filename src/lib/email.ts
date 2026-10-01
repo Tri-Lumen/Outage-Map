@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { hasRecentAlert, logAlert, getAlertEscalationState } from './db';
+import { hasRecentAlert, logAlert, getAlertEscalationState, recordFailedAlert } from './db';
 import { getServiceBySlug } from './services';
 import { IncidentResult, ServiceStatus } from './types';
 import { statusHex, statusLabel } from './statusColors';
@@ -148,6 +148,13 @@ export async function sendIncidentAlert(
     return true;
   } catch (err) {
     log.error('Failed to send alert:', err);
+    recordFailedAlert({
+      kind: 'email_incident',
+      serviceSlug: incident.serviceSlug,
+      incidentId: incident.incidentId,
+      payload: { incident, recipients },
+      error: err instanceof Error ? err.message : String(err),
+    });
     return false;
   }
 }
@@ -214,8 +221,14 @@ export async function sendEscalationAlert(
   incidentTitle: string,
   level: number,
   recipients: string[],
+  escalationIntervals: number[],
 ): Promise<boolean> {
-  const state = getAlertEscalationState(serviceSlug, incidentId, 'new_incident');
+  // Re-check against the rule's own intervals right before sending (a second
+  // rule/recipient processed later in the same cycle may have already
+  // bumped the escalation_level via logAlert below). Using the default
+  // [60]-minute interval here — instead of the rule's actual intervals —
+  // would wrongly gate or fire this send on a mismatched schedule.
+  const state = getAlertEscalationState(serviceSlug, incidentId, 'new_incident', escalationIntervals);
   if (!state.shouldAlert) return false;
 
   const transporter = getTransporter();
@@ -255,6 +268,13 @@ export async function sendEscalationAlert(
     return true;
   } catch (err) {
     log.error('Escalation alert failed:', err);
+    recordFailedAlert({
+      kind: 'email_escalation',
+      serviceSlug,
+      incidentId,
+      payload: { serviceSlug, incidentId, incidentTitle, level, recipients: deduped, escalationIntervals },
+      error: err instanceof Error ? err.message : String(err),
+    });
     return false;
   }
 }
@@ -313,6 +333,13 @@ export async function sendStatusChangeAlert(
     return true;
   } catch (err) {
     log.error('Failed to send status change alert:', err);
+    recordFailedAlert({
+      kind: 'email_status_change',
+      serviceSlug,
+      incidentId: null,
+      payload: { serviceSlug, oldStatus, newStatus },
+      error: err instanceof Error ? err.message : String(err),
+    });
     return false;
   }
 }

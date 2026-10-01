@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Noto_Sans, Noto_Sans_Mono, Inter, Roboto, Source_Sans_3, Lato } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { I18nProvider } from "@/lib/i18n";
 import AppShell from "@/components/AppShell";
 
 const notoSans = Noto_Sans({
@@ -59,6 +60,10 @@ export const metadata: Metadata = {
     "Cloudflare",
   ],
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/icon.svg",
+    apple: "/apple-touch-icon.png",
+  },
   appleWebApp: {
     capable: true,
     title: "Outage Map",
@@ -80,9 +85,11 @@ export default function RootLayout({
       <body
         className={`${notoSans.variable} ${notoSansMono.variable} ${brandInter.variable} ${brandRoboto.variable} ${brandSourceSans.variable} ${brandLato.variable} font-sans antialiased`}
       >
-        <ThemeProvider>
-          <AppShell>{children}</AppShell>
-        </ThemeProvider>
+        <I18nProvider>
+          <ThemeProvider>
+            <AppShell>{children}</AppShell>
+          </ThemeProvider>
+        </I18nProvider>
       </body>
     </html>
   );

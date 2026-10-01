@@ -83,6 +83,8 @@ export interface AlertRule {
   webhookUrl: string | null;
   webhookEnabled: boolean;
   channelType: ChannelType;
+  /** Whether a webhook signing secret exists; never the raw secret itself. */
+  hasChannelSecret: boolean;
   escalationEnabled: boolean;
   escalationIntervals: number[];
   enabled: boolean;
@@ -110,6 +112,8 @@ export interface MaintenanceWindow {
   note: string | null;
   createdBy: string | null;
   createdAt: string;
+  recurrence: 'none' | 'weekly';
+  recurrenceUntil: string | null;
 }
 
 const INCIDENT_STATUSES: ReadonlyArray<IncidentStatus> = [
@@ -133,9 +137,12 @@ export function asIncidentSeverity(value: unknown): IncidentSeverity {
   return isIncidentSeverity(value) ? value : 'minor';
 }
 
+const CHANNEL_TYPES: ReadonlyArray<ChannelType> = ['slack', 'teams', 'discord', 'generic', 'pagerduty', 'opsgenie'];
+
+export function isChannelType(value: unknown): value is ChannelType {
+  return typeof value === 'string' && (CHANNEL_TYPES as ReadonlyArray<string>).includes(value);
+}
+
 export function asChannelType(value: unknown): ChannelType {
-  const valid: ChannelType[] = ['slack', 'teams', 'discord', 'generic'];
-  return typeof value === 'string' && (valid as string[]).includes(value)
-    ? (value as ChannelType)
-    : 'generic';
+  return isChannelType(value) ? value : 'generic';
 }

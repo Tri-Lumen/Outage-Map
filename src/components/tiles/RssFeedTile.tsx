@@ -25,7 +25,8 @@ export default function RssFeedTile({ config, editing, onResize, onRemove, onDup
   const customUrl = (config.customFeedUrl as string) || '';
   const feedName = FEED_NAMES[feedId] || feedId;
 
-  const { data, isLoading, error } = useRssFeed(feedId, customUrl);
+  const refreshMs = typeof config.refreshMs === 'number' ? config.refreshMs : undefined;
+  const { data, isLoading, error } = useRssFeed(feedId, customUrl, refreshMs);
 
   const displayName = data?.title || feedName;
 

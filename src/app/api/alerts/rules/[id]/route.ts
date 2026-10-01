@@ -1,22 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteAlertRule, updateAlertRule } from '@/lib/db';
 import { getServices } from '@/lib/services';
-import { isIncidentSeverity } from '@/lib/types';
+import { isIncidentSeverity, isChannelType } from '@/lib/types';
+import { isWriteEnabled, isAuthorized } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function isWriteEnabled(): boolean {
-  return process.env.ENABLE_RULES_API === 'true' || !!process.env.CRON_SECRET;
-}
-
-function isAuthorized(request: NextRequest): boolean {
-  if (process.env.ENABLE_RULES_API === 'true') return true;
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  return request.headers.get('authorization') === `Bearer ${secret}`;
-}
 
 interface Ctx {
   params: { id: string };
@@ -47,6 +37,9 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
     emailEnabled: unknown;
     webhookUrl: unknown;
     webhookEnabled: unknown;
+    channelType: unknown;
+    escalationEnabled: unknown;
+    escalationIntervals: unknown;
     enabled: unknown;
   }>;
 
@@ -79,13 +72,32 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
       patch.webhookEnabled = false;
     } else if (typeof input.webhookUrl === 'string') {
       const { isValidWebhookUrl } = await import('@/lib/webhook');
-      if (!isValidWebhookUrl(input.webhookUrl.trim())) {
+      if (!(await isValidWebhookUrl(input.webhookUrl.trim()))) {
         return NextResponse.json({ error: 'Invalid or disallowed webhook URL' }, { status: 400 });
       }
       patch.webhookUrl = input.webhookUrl.trim();
     }
   }
   if (input.webhookEnabled !== undefined) patch.webhookEnabled = !!input.webhookEnabled;
+  if (input.channelType !== undefined) {
+    if (!isChannelType(input.channelType)) {
+      return NextResponse.json({ error: 'Invalid channelType' }, { status: 400 });
+    }
+    patch.channelType = input.channelType;
+  }
+  if (input.escalationEnabled !== undefined) patch.escalationEnabled = !!input.escalationEnabled;
+  if (input.escalationIntervals !== undefined) {
+    if (!Array.isArray(input.escalationIntervals)) {
+      return NextResponse.json({ error: 'escalationIntervals must be an array of numbers' }, { status: 400 });
+    }
+    const cleaned = input.escalationIntervals.filter(
+      (n): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0,
+    );
+    if (cleaned.length === 0) {
+      return NextResponse.json({ error: 'escalationIntervals must contain at least one positive number' }, { status: 400 });
+    }
+    patch.escalationIntervals = cleaned;
+  }
   if (input.enabled !== undefined) patch.enabled = !!input.enabled;
 
   try {

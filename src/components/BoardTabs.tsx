@@ -10,6 +10,8 @@ interface Props {
 export default function BoardTabs({ boardSet }: Props) {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -38,7 +40,30 @@ export default function BoardTabs({ boardSet }: Props) {
         const isActive = b.id === boardSet.activeId;
         const isRenaming = renamingId === b.id;
         return (
-          <div key={b.id} className={`board-tab ${isActive ? 'board-tab-on' : ''}`}>
+          <div
+            key={b.id}
+            className={`board-tab ${isActive ? 'board-tab-on' : ''} ${dragOverId === b.id && draggedId !== b.id ? 'board-tab-drag-over' : ''}`}
+            draggable={!isRenaming}
+            onDragStart={(e) => {
+              setDraggedId(b.id);
+              e.dataTransfer.effectAllowed = 'move';
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              if (draggedId && draggedId !== b.id) setDragOverId(b.id);
+            }}
+            onDragLeave={() => setDragOverId((cur) => (cur === b.id ? null : cur))}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (draggedId && draggedId !== b.id) boardSet.reorderBoards(draggedId, b.id);
+              setDraggedId(null);
+              setDragOverId(null);
+            }}
+            onDragEnd={() => {
+              setDraggedId(null);
+              setDragOverId(null);
+            }}
+          >
             {isRenaming ? (
               <input
                 ref={inputRef}

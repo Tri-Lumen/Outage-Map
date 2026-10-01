@@ -11,10 +11,12 @@ const MAJOR_KEYWORDS = /(service disruption|outage|unavailable)/i;
 const DEGRADED_KEYWORDS = /(increased error|elevated|degraded|performance|latenc)/i;
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
-const ONE_HOUR_MS = 60 * 60 * 1000;
 
 // Authoritative-by-recency: only RSS items within the window count, so old
-// events never linger as a false "degraded".
+// events never linger as a false "degraded". Severity itself must not decay
+// with age within that window — an ongoing major outage that's been open for
+// over an hour is still major, not "degraded" (a real incident would
+// otherwise silently stop paging anyone after ~60 minutes).
 export function parseAwsItems(items: RssItem[], serviceSlug: string, now: number = Date.now()): ConnectorResult {
   let worst: ServiceStatus = 'operational';
   const recentTitles: string[] = [];
@@ -25,8 +27,8 @@ export function parseAwsItems(items: RssItem[], serviceSlug: string, now: number
     const ageMs = now - item.pubDate.getTime();
     if (ageMs > TWO_HOURS_MS) continue;
 
-    const isMajor = MAJOR_KEYWORDS.test(item.title) && ageMs <= ONE_HOUR_MS;
-    const isDegraded = DEGRADED_KEYWORDS.test(item.title) || MAJOR_KEYWORDS.test(item.title);
+    const isMajor = MAJOR_KEYWORDS.test(item.title);
+    const isDegraded = DEGRADED_KEYWORDS.test(item.title) || isMajor;
 
     if (isMajor) worst = 'major_outage';
     else if (isDegraded && worst === 'operational') worst = 'degraded';

@@ -30,6 +30,16 @@ describe('aws connector', () => {
     expect(r.status.status).toBe('degraded');
   });
 
+  it('keeps a service disruption major_outage past the one-hour mark, as long as it is within the two-hour window', () => {
+    const r = parseAwsItems(
+      [item({ title: 'Service disruption in us-east-1', pubDate: ago(1.5), guid: 'g2' })],
+      'aws',
+      NOW,
+    );
+    expect(r.status.status).toBe('major_outage');
+    expect(r.incidents[0].severity).toBe('major');
+  });
+
   it('skips items without a valid pubDate', () => {
     const r = parseAwsItems([item({ title: 'Service disruption', pubDate: null })], 'aws', NOW);
     expect(r.status.status).toBe('operational');

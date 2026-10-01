@@ -15,6 +15,22 @@ interface RulesResponse {
   rules: AlertRule[];
 }
 
+interface FailedAlertEntry {
+  id: number;
+  kind: string;
+  serviceSlug: string;
+  incidentId: string | null;
+  summary: string;
+  attempts: number;
+  lastError: string | null;
+  createdAt: string;
+  lastAttemptAt: string;
+}
+
+interface FailedAlertsResponse {
+  failedAlerts: FailedAlertEntry[];
+}
+
 interface LegacyRule {
   id?: string;
   email?: string;
@@ -87,7 +103,35 @@ export default function AlertsView() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<typeof draft | null>(null);
   const [logOpen, setLogOpen] = useState(false);
-  const { data: logData } = useAlertLog(logOpen);
+  const [logLimit, setLogLimit] = useState(50);
+  const { data: logData } = useAlertLog(logOpen, logLimit);
+  const [secretState, setSecretState] = useState<Record<string, { value?: string; busy?: boolean; error?: string }>>({});
+  const [failedOpen, setFailedOpen] = useState(false);
+  const { data: failedData, mutate: mutateFailed } = useSWR<FailedAlertsResponse>(
+    failedOpen ? '/api/alerts/failed' : null,
+    fetcher,
+    { refreshInterval: 60000, revalidateOnFocus: false },
+  );
+  const [retryingId, setRetryingId] = useState<number | null>(null);
+  const [retryMsg, setRetryMsg] = useState<{ id: number; message: string } | null>(null);
+
+  const retryFailedAlert = async (id: number) => {
+    setRetryingId(id);
+    setRetryMsg(null);
+    try {
+      const res = await fetch(`/api/alerts/failed/${id}/retry`, { method: 'POST' });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok && body.ok) {
+        await mutateFailed();
+      } else {
+        setRetryMsg({ id, message: body.error === 'still_failing' ? 'Still failing' : (body.error || 'Retry failed') });
+      }
+    } catch {
+      setRetryMsg({ id, message: 'Network error' });
+    } finally {
+      setRetryingId(null);
+    }
+  };
 
   // One-shot migration: lift any rules left in localStorage from the old
   // client-only implementation up into the server, then clear the key.
@@ -251,6 +295,38 @@ export default function AlertsView() {
       }
     } catch {
       /* ignore */
+    }
+  };
+
+  const revealSecret = async (ruleId: string) => {
+    setSecretState((s) => ({ ...s, [ruleId]: { ...s[ruleId], busy: true, error: undefined } }));
+    try {
+      const res = await fetch(`${RULES_API}/${ruleId}/secret`);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSecretState((s) => ({ ...s, [ruleId]: { busy: false, error: body.error || 'Failed to reveal secret' } }));
+        return;
+      }
+      setSecretState((s) => ({ ...s, [ruleId]: { busy: false, value: body.secret } }));
+    } catch {
+      setSecretState((s) => ({ ...s, [ruleId]: { busy: false, error: 'Network error' } }));
+    }
+  };
+
+  const rotateSecret = async (ruleId: string) => {
+    if (!confirm('Rotate this webhook secret? Any integration verifying signatures will need the new value.')) return;
+    setSecretState((s) => ({ ...s, [ruleId]: { ...s[ruleId], busy: true, error: undefined } }));
+    try {
+      const res = await fetch(`${RULES_API}/${ruleId}/secret`, { method: 'POST' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSecretState((s) => ({ ...s, [ruleId]: { busy: false, error: body.error || 'Failed to rotate secret' } }));
+        return;
+      }
+      setSecretState((s) => ({ ...s, [ruleId]: { busy: false, value: body.secret } }));
+      mutate();
+    } catch {
+      setSecretState((s) => ({ ...s, [ruleId]: { busy: false, error: 'Network error' } }));
     }
   };
 
@@ -640,7 +716,9 @@ export default function AlertsView() {
                     {isTesting ? 'Sending…' : 'Send test'}
                   </button>
                   <button
-                    onClick={() => editingId === r.id ? (setEditingId(null), setEditDraft(null)) : startEdit(r)}
+                    onClick={() => editingId === r.id
+                      ? (setEditingId(null), setEditDraft(null), setSecretState((s) => ({ ...s, [r.id]: {} })))
+                      : startEdit(r)}
                     className="p-2 rounded-md text-muted hover:text-accent-cyan hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                     aria-label={`Edit rule for ${r.email}`}
                   >
@@ -737,10 +815,62 @@ export default function AlertsView() {
                           </label>
                         </div>
                       </div>
+                      {editDraft.webhookEnabled && editDraft.webhookUrl.trim() && (
+                        <div className="lg:col-span-2">
+                          <label className="block text-xs font-medium text-muted mb-1.5">Webhook signing secret</label>
+                          {secretState[r.id]?.value ? (
+                            <div className="flex items-center gap-2">
+                              <code className="flex-1 px-3 py-2 rounded-md bg-white/5 border border-subtle text-xs text-foreground overflow-x-auto whitespace-nowrap">
+                                {secretState[r.id]?.value}
+                              </code>
+                              <button
+                                type="button"
+                                onClick={() => rotateSecret(r.id)}
+                                disabled={secretState[r.id]?.busy}
+                                className="px-3 py-2 rounded-md border border-subtle text-xs font-medium text-muted hover:text-foreground hover:border-strong disabled:opacity-50 whitespace-nowrap"
+                              >
+                                Rotate
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="flex-1 px-3 py-2 rounded-md bg-white/5 border border-subtle text-xs text-muted-strong tracking-widest">
+                                {r.hasChannelSecret ? '••••••••••••••••••••••••' : 'None set yet — enable and save to generate one'}
+                              </span>
+                              {r.hasChannelSecret && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => revealSecret(r.id)}
+                                    disabled={secretState[r.id]?.busy}
+                                    className="px-3 py-2 rounded-md border border-subtle text-xs font-medium text-muted hover:text-foreground hover:border-strong disabled:opacity-50 whitespace-nowrap"
+                                  >
+                                    {secretState[r.id]?.busy ? 'Loading…' : 'Reveal'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => rotateSecret(r.id)}
+                                    disabled={secretState[r.id]?.busy}
+                                    className="px-3 py-2 rounded-md border border-subtle text-xs font-medium text-muted hover:text-foreground hover:border-strong disabled:opacity-50 whitespace-nowrap"
+                                  >
+                                    Rotate
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                          {secretState[r.id]?.error && (
+                            <p className="text-[11px] text-red-400 mt-1">{secretState[r.id]?.error}</p>
+                          )}
+                          <p className="text-[11px] text-muted-strong mt-1">
+                            Sent as the <code>X-Outage-Signature</code> HMAC header on every delivery to this webhook.
+                          </p>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center justify-end gap-2 pt-2 border-t border-subtle">
                       <button
-                        onClick={() => { setEditingId(null); setEditDraft(null); }}
+                        onClick={() => { setEditingId(null); setEditDraft(null); setSecretState((s) => ({ ...s, [r.id]: {} })); }}
                         className="px-4 py-2 rounded-md text-xs font-medium text-muted hover:text-foreground"
                       >
                         Cancel
@@ -818,6 +948,75 @@ export default function AlertsView() {
                     </li>
                   );
                 })}
+              </ul>
+            )}
+            {logData && logData.total > logData.log.length && (
+              <button
+                onClick={() => setLogLimit((n) => n + 50)}
+                className="w-full px-5 py-2.5 text-xs text-muted hover:text-foreground border-t border-white/[0.04] transition-colors"
+              >
+                Load more ({logData.total - logData.log.length} remaining)
+              </button>
+            )}
+          </Card>
+        )}
+      </section>
+
+      <section>
+        <button
+          onClick={() => setFailedOpen((o) => !o)}
+          className="inline-flex items-center gap-2 text-xs font-medium text-muted hover:text-foreground transition-colors mb-3"
+        >
+          <svg
+            className={`w-3.5 h-3.5 transition-transform ${failedOpen ? 'rotate-90' : ''}`}
+            fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+          </svg>
+          Failed deliveries
+          {failedData && failedData.failedAlerts.length > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 text-[10px] font-semibold">
+              {failedData.failedAlerts.length}
+            </span>
+          )}
+        </button>
+        {failedOpen && (
+          <Card padded={false} className="overflow-hidden">
+            {!failedData ? (
+              <p className="px-5 py-4 text-xs text-muted">Loading…</p>
+            ) : failedData.failedAlerts.length === 0 ? (
+              <p className="px-5 py-4 text-xs text-muted">No failed deliveries pending retry.</p>
+            ) : (
+              <ul className="divide-y divide-white/[0.04]">
+                {failedData.failedAlerts.map((f) => (
+                  <li key={f.id} className="flex items-start gap-3 px-5 py-3 text-xs">
+                    <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1 bg-red-400" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-foreground font-medium">{f.serviceSlug}</span>
+                        <span className="text-muted">·</span>
+                        <span className="text-muted">{f.kind}</span>
+                        <span className="text-muted-strong text-[10px]">
+                          {f.attempts} attempt{f.attempts !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <p className="text-muted mt-0.5 truncate">{f.summary}</p>
+                      {f.lastError && (
+                        <p className="text-red-400/80 text-[10px] mt-0.5 truncate" title={f.lastError}>{f.lastError}</p>
+                      )}
+                      {retryMsg?.id === f.id && (
+                        <p className="text-amber-400 text-[10px] mt-0.5">{retryMsg.message}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => retryFailedAlert(f.id)}
+                      disabled={retryingId === f.id}
+                      className="px-3 py-1.5 rounded-md border border-subtle text-[11px] font-medium text-foreground hover:border-strong hover:bg-white/5 disabled:opacity-50 disabled:cursor-wait transition-colors flex-shrink-0"
+                    >
+                      {retryingId === f.id ? 'Retrying…' : 'Retry now'}
+                    </button>
+                  </li>
+                ))}
               </ul>
             )}
           </Card>

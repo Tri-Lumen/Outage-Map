@@ -1,6 +1,9 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { randomBytes } from 'crypto';
+import { runMigrations } from './migrations';
+import { isWindowActiveAt as isScheduleActiveAt } from './maintenanceSchedule';
 
 const DB_PATH = process.env.DATABASE_PATH || './data/outage.db';
 
@@ -23,241 +26,8 @@ export function getDb(): Database.Database {
   // drop a poll cycle's worth of status updates.
   db.pragma('busy_timeout = 5000');
 
-  initTables(db);
+  runMigrations(db);
   return db;
-}
-
-function initTables(db: Database.Database) {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS service_status (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      service_slug TEXT NOT NULL,
-      source TEXT NOT NULL,
-      status TEXT NOT NULL,
-      details TEXT,
-      report_count INTEGER,
-      checked_at DATETIME NOT NULL DEFAULT (datetime('now')),
-      UNIQUE(service_slug, source)
-    );
-
-    CREATE TABLE IF NOT EXISTS incidents (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      service_slug TEXT NOT NULL,
-      incident_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      status TEXT NOT NULL,
-      severity TEXT NOT NULL,
-      started_at DATETIME,
-      resolved_at DATETIME,
-      description TEXT,
-      source_url TEXT,
-      created_at DATETIME NOT NULL DEFAULT (datetime('now')),
-      updated_at DATETIME NOT NULL DEFAULT (datetime('now')),
-      UNIQUE(service_slug, incident_id)
-    );
-
-    CREATE TABLE IF NOT EXISTS status_history (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      service_slug TEXT NOT NULL,
-      status TEXT NOT NULL,
-      report_count INTEGER DEFAULT 0,
-      incident_count INTEGER DEFAULT 0,
-      recorded_at DATETIME NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_history_service_date
-      ON status_history(service_slug, recorded_at);
-
-    CREATE INDEX IF NOT EXISTS idx_incidents_service_created
-      ON incidents(service_slug, created_at);
-
-    CREATE INDEX IF NOT EXISTS idx_incidents_resolved
-      ON incidents(resolved_at);
-
-    CREATE TABLE IF NOT EXISTS alert_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      service_slug TEXT NOT NULL,
-      incident_id TEXT,
-      alert_type TEXT NOT NULL,
-      sent_at DATETIME NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_alert_log_lookup
-      ON alert_log(service_slug, alert_type, sent_at);
-
-    CREATE TABLE IF NOT EXISTS alert_rules (
-      id TEXT PRIMARY KEY,
-      email TEXT NOT NULL,
-      services TEXT NOT NULL DEFAULT '[]',
-      min_severity TEXT NOT NULL DEFAULT 'major',
-      email_enabled INTEGER NOT NULL DEFAULT 1,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      created_at DATETIME NOT NULL DEFAULT (datetime('now')),
-      updated_at DATETIME NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_alert_rules_enabled
-      ON alert_rules(enabled);
-
-    CREATE TABLE IF NOT EXISTS custom_services (
-      id TEXT PRIMARY KEY,
-      slug TEXT NOT NULL UNIQUE,
-      name TEXT NOT NULL,
-      color TEXT NOT NULL DEFAULT '#268bd2',
-      status_url TEXT NOT NULL,
-      downdetector_slug TEXT,
-      fetcher TEXT NOT NULL,
-      brand_font TEXT NOT NULL DEFAULT 'var(--font-brand-inter), Inter, system-ui, sans-serif',
-      refresh_seconds INTEGER NOT NULL DEFAULT 180,
-      kind TEXT NOT NULL,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      created_at DATETIME NOT NULL DEFAULT (datetime('now')),
-      updated_at DATETIME NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_custom_services_enabled
-      ON custom_services(enabled);
-
-    CREATE TABLE IF NOT EXISTS maintenance_windows (
-      id TEXT PRIMARY KEY,
-      service_slugs TEXT NOT NULL DEFAULT '[]',
-      start_time DATETIME NOT NULL,
-      end_time DATETIME NOT NULL,
-      note TEXT,
-      created_by TEXT,
-      created_at DATETIME NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_maint_active
-      ON maintenance_windows(start_time, end_time);
-
-    CREATE TABLE IF NOT EXISTS fetcher_latency (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      service_slug TEXT NOT NULL,
-      source TEXT NOT NULL,
-      latency_ms INTEGER NOT NULL,
-      recorded_at DATETIME NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_fetcher_latency_lookup
-      ON fetcher_latency(service_slug, source, recorded_at);
-
-    CREATE TABLE IF NOT EXISTS boards (
-      id TEXT PRIMARY KEY,
-      device_token TEXT NOT NULL,
-      board_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      starred INTEGER NOT NULL DEFAULT 0,
-      tiles TEXT NOT NULL DEFAULT '[]',
-      theme TEXT,
-      updated_at DATETIME NOT NULL DEFAULT (datetime('now')),
-      UNIQUE(device_token, board_id)
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_boards_device
-      ON boards(device_token);
-
-    CREATE TABLE IF NOT EXISTS push_subscriptions (
-      id TEXT PRIMARY KEY,
-      endpoint TEXT NOT NULL UNIQUE,
-      p256dh TEXT NOT NULL,
-      auth TEXT NOT NULL,
-      user_agent TEXT,
-      created_at DATETIME NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS postmortems (
-      id TEXT PRIMARY KEY,
-      incident_db_id INTEGER NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
-      content TEXT NOT NULL,
-      generated_at DATETIME NOT NULL DEFAULT (datetime('now')),
-      last_edited_at DATETIME,
-      exported_at DATETIME
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_postmortems_incident
-      ON postmortems(incident_db_id);
-
-    CREATE TABLE IF NOT EXISTS app_settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      updated_at DATETIME NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
-
-  // FTS5 virtual table for incident full-text search (F4).
-  // FTS5 is compiled into the better-sqlite3 binary and supports IF NOT EXISTS.
-  db.exec(`
-    CREATE VIRTUAL TABLE IF NOT EXISTS incidents_fts
-      USING fts5(title, description, content='incidents', content_rowid='id');
-
-    CREATE TRIGGER IF NOT EXISTS incidents_ai AFTER INSERT ON incidents BEGIN
-      INSERT INTO incidents_fts(rowid, title, description)
-        VALUES (new.id, new.title, COALESCE(new.description, ''));
-    END;
-
-    CREATE TRIGGER IF NOT EXISTS incidents_au AFTER UPDATE ON incidents BEGIN
-      INSERT INTO incidents_fts(incidents_fts, rowid, title, description)
-        VALUES ('delete', old.id, old.title, COALESCE(old.description, ''));
-      INSERT INTO incidents_fts(rowid, title, description)
-        VALUES (new.id, new.title, COALESCE(new.description, ''));
-    END;
-
-    CREATE TRIGGER IF NOT EXISTS incidents_ad AFTER DELETE ON incidents BEGIN
-      INSERT INTO incidents_fts(incidents_fts, rowid, title, description)
-        VALUES ('delete', old.id, old.title, COALESCE(old.description, ''));
-    END;
-  `);
-
-  // Safe migration for pre-existing databases — add columns if missing.
-  const historyCols = db.prepare(`PRAGMA table_info(status_history)`).all() as Array<{ name: string }>;
-  if (!historyCols.some((c) => c.name === 'incident_count')) {
-    db.exec(`ALTER TABLE status_history ADD COLUMN incident_count INTEGER DEFAULT 0`);
-  }
-
-  const ruleCols = db.prepare(`PRAGMA table_info(alert_rules)`).all() as Array<{ name: string }>;
-  if (!ruleCols.some((c) => c.name === 'webhook_url')) {
-    db.exec(`ALTER TABLE alert_rules ADD COLUMN webhook_url TEXT`);
-  }
-  if (!ruleCols.some((c) => c.name === 'webhook_enabled')) {
-    db.exec(`ALTER TABLE alert_rules ADD COLUMN webhook_enabled INTEGER NOT NULL DEFAULT 0`);
-  }
-  if (!ruleCols.some((c) => c.name === 'channel_type')) {
-    db.exec(`ALTER TABLE alert_rules ADD COLUMN channel_type TEXT NOT NULL DEFAULT 'generic'`);
-  }
-  if (!ruleCols.some((c) => c.name === 'escalation_enabled')) {
-    db.exec(`ALTER TABLE alert_rules ADD COLUMN escalation_enabled INTEGER NOT NULL DEFAULT 0`);
-  }
-  if (!ruleCols.some((c) => c.name === 'escalation_intervals')) {
-    db.exec(`ALTER TABLE alert_rules ADD COLUMN escalation_intervals TEXT NOT NULL DEFAULT '[240,1440]'`);
-  }
-  if (!ruleCols.some((c) => c.name === 'notify_on_anomaly')) {
-    db.exec(`ALTER TABLE alert_rules ADD COLUMN notify_on_anomaly INTEGER NOT NULL DEFAULT 0`);
-  }
-
-  const logCols = db.prepare(`PRAGMA table_info(alert_log)`).all() as Array<{ name: string }>;
-  if (!logCols.some((c) => c.name === 'escalation_level')) {
-    db.exec(`ALTER TABLE alert_log ADD COLUMN escalation_level INTEGER NOT NULL DEFAULT 1`);
-  }
-
-  const statusCols = db.prepare(`PRAGMA table_info(service_status)`).all() as Array<{ name: string }>;
-  if (!statusCols.some((c) => c.name === 'is_anomaly')) {
-    db.exec(`ALTER TABLE service_status ADD COLUMN is_anomaly INTEGER NOT NULL DEFAULT 0`);
-  }
-  if (!statusCols.some((c) => c.name === 'anomaly_z_score')) {
-    db.exec(`ALTER TABLE service_status ADD COLUMN anomaly_z_score REAL`);
-  }
-
-  // One-time cleanup: Downdetector was removed as a data source. The unused
-  // columns (report_count, is_anomaly, anomaly_z_score, downdetector_slug,
-  // notify_on_anomaly) are left in place — SQLite DROP COLUMN is risky with the
-  // FTS triggers/WAL — but we purge the stale 'downdetector' status rows so the
-  // dashboard doesn't surface ghost entries. Sentinel-guarded to run once.
-  const ddPurged = db.prepare(`SELECT value FROM app_settings WHERE key = 'downdetector_rows_purged'`).get();
-  if (!ddPurged) {
-    db.exec(`DELETE FROM service_status WHERE source = 'downdetector'`);
-    db.prepare(`INSERT INTO app_settings (key, value) VALUES ('downdetector_rows_purged', '1')`).run();
-  }
 }
 
 // Generic key/value settings store for server-readable, persisted config
@@ -311,6 +81,45 @@ export function upsertServiceStatus(
       report_count = excluded.report_count,
       checked_at = excluded.checked_at
   `).run(serviceSlug, source, status, details, reportCount);
+}
+
+export interface StatusTransitionRow {
+  id: number;
+  service_slug: string;
+  old_status: string;
+  new_status: string;
+  during_maintenance: number;
+  occurred_at: string;
+}
+
+// Records every observed status change, regardless of severity, maintenance
+// window, or whether email is configured — unlike alert_log, which only
+// records a row when an alert was actually dispatched.
+export function insertStatusTransition(
+  serviceSlug: string,
+  oldStatus: string,
+  newStatus: string,
+  duringMaintenance: boolean,
+): void {
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO status_transitions (service_slug, old_status, new_status, during_maintenance)
+    VALUES (?, ?, ?, ?)
+  `).run(serviceSlug, oldStatus, newStatus, duringMaintenance ? 1 : 0);
+}
+
+export function listStatusTransitions(serviceSlug?: string, limit: number = 50): StatusTransitionRow[] {
+  const db = getDb();
+  if (serviceSlug) {
+    return db.prepare(`
+      SELECT id, service_slug, old_status, new_status, during_maintenance, occurred_at
+      FROM status_transitions WHERE service_slug = ? ORDER BY occurred_at DESC LIMIT ?
+    `).all(serviceSlug, limit) as StatusTransitionRow[];
+  }
+  return db.prepare(`
+    SELECT id, service_slug, old_status, new_status, during_maintenance, occurred_at
+    FROM status_transitions ORDER BY occurred_at DESC LIMIT ?
+  `).all(limit) as StatusTransitionRow[];
 }
 
 export function insertStatusHistory(
@@ -438,16 +247,16 @@ export function getPaginatedIncidents(opts: {
   const conditions: string[] = [];
   const params: Array<string | number> = [];
 
-  // Date range: cursor overrides offset-based pagination
-  if (cursor) {
-    conditions.push('i.updated_at < ?');
-    params.push(cursor);
-  } else if (dateFrom || dateTo) {
-    if (dateFrom) { conditions.push('i.created_at >= ?'); params.push(dateFrom); }
-    if (dateTo) { conditions.push('i.created_at <= ?'); params.push(dateTo); }
-  } else {
-    conditions.push(`i.created_at >= datetime('now', '-' || ? || ' days')`);
-    params.push(days);
+  // Date range: cursor-based scroll skips the days/date-range window entirely
+  // (it walks the full matching set page by page instead).
+  if (!cursor) {
+    if (dateFrom || dateTo) {
+      if (dateFrom) { conditions.push('i.created_at >= ?'); params.push(dateFrom); }
+      if (dateTo) { conditions.push('i.created_at <= ?'); params.push(dateTo); }
+    } else {
+      conditions.push(`i.created_at >= datetime('now', '-' || ? || ' days')`);
+      params.push(days);
+    }
   }
 
   if (service) {
@@ -471,15 +280,31 @@ export function getPaginatedIncidents(opts: {
     params.push(q.trim() + '*');
   }
 
+  // `total` reflects only the filters above (service/severities/q/date range),
+  // not the cursor position, so it stays stable across pages of the same scroll.
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
   const total = (db.prepare(`SELECT COUNT(*) as n ${fromClause} ${where}`).get(...params) as { n: number }).n;
-  const incidents = db.prepare(
-    `SELECT i.* ${fromClause} ${where} ORDER BY i.started_at DESC, i.created_at DESC LIMIT ? OFFSET ?`
-  ).all(...params, limit, offset) as IncidentRow[];
 
-  const nextCursor = incidents.length === limit && incidents.length > 0
-    ? incidents[incidents.length - 1].updated_at
+  // The page query additionally filters by cursor, encoded as
+  // "<started_at>|<created_at>|<id>" — the same tuple the ORDER BY sorts on —
+  // so paging can't skip or duplicate rows the way a single updated_at cursor
+  // could when updated_at doesn't track the sort key.
+  const pageConditions = [...conditions];
+  const pageParams = [...params];
+  if (cursor) {
+    const [cStarted, cCreated, cId] = cursor.split('|');
+    pageConditions.push(`(COALESCE(i.started_at, ''), i.created_at, i.id) < (?, ?, ?)`);
+    pageParams.push(cStarted ?? '', cCreated ?? '', Number(cId) || 0);
+  }
+  const pageWhere = pageConditions.length > 0 ? `WHERE ${pageConditions.join(' AND ')}` : '';
+
+  const incidents = db.prepare(
+    `SELECT i.* ${fromClause} ${pageWhere} ORDER BY i.started_at DESC, i.created_at DESC, i.id DESC LIMIT ? OFFSET ?`
+  ).all(...pageParams, limit, offset) as IncidentRow[];
+
+  const last = incidents[incidents.length - 1];
+  const nextCursor = incidents.length === limit && last
+    ? `${last.started_at ?? ''}|${last.created_at}|${last.id}`
     : null;
 
   return { incidents, total, nextCursor };
@@ -592,10 +417,130 @@ export function getRecentAlertLog(limit = 100) {
   }>;
 }
 
+// --- Users ---
+
+export interface UserRow {
+  id: string;
+  email: string;
+  password_hash: string;
+  role: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export function insertUser(row: { id: string; email: string; passwordHash: string; role: 'admin' | 'viewer' }): void {
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO users (id, email, password_hash, role) VALUES (?, ?, ?, ?)
+  `).run(row.id, row.email, row.passwordHash, row.role);
+}
+
+export function getUserByEmail(email: string): UserRow | null {
+  const db = getDb();
+  const row = db.prepare(`SELECT * FROM users WHERE email = ? COLLATE NOCASE`).get(email) as UserRow | undefined;
+  return row ?? null;
+}
+
+export function getUserById(id: string): UserRow | null {
+  const db = getDb();
+  const row = db.prepare(`SELECT * FROM users WHERE id = ?`).get(id) as UserRow | undefined;
+  return row ?? null;
+}
+
+export function listUsers(): UserRow[] {
+  const db = getDb();
+  return db.prepare(`SELECT * FROM users ORDER BY created_at ASC`).all() as UserRow[];
+}
+
+export function countAdmins(): number {
+  const db = getDb();
+  const row = db.prepare(`SELECT COUNT(*) as c FROM users WHERE role = 'admin'`).get() as { c: number };
+  return row.c;
+}
+
+export function deleteUser(id: string): boolean {
+  const db = getDb();
+  return db.prepare(`DELETE FROM users WHERE id = ?`).run(id).changes > 0;
+}
+
+export function updateUserRole(id: string, role: 'admin' | 'viewer'): boolean {
+  const db = getDb();
+  return db.prepare(`UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?`).run(role, id).changes > 0;
+}
+
+export function updateUserPassword(id: string, passwordHash: string): boolean {
+  const db = getDb();
+  return db.prepare(`UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?`).run(passwordHash, id).changes > 0;
+}
+
+// --- Failed alert dead-letter queue ---
+
+export interface FailedAlertRow {
+  id: number;
+  kind: string;
+  service_slug: string;
+  incident_id: string | null;
+  payload: string;
+  attempts: number;
+  last_error: string | null;
+  created_at: string;
+  last_attempt_at: string;
+  resolved_at: string | null;
+}
+
+export function recordFailedAlert(row: {
+  kind: string;
+  serviceSlug: string;
+  incidentId: string | null;
+  payload: unknown;
+  error: string;
+}): void {
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO failed_alerts (kind, service_slug, incident_id, payload, attempts, last_error)
+    VALUES (?, ?, ?, ?, 1, ?)
+  `).run(row.kind, row.serviceSlug, row.incidentId, JSON.stringify(row.payload), row.error);
+}
+
+export function listUnresolvedFailedAlerts(limit: number = 50): FailedAlertRow[] {
+  const db = getDb();
+  return db.prepare(`
+    SELECT id, kind, service_slug, incident_id, payload, attempts, last_error, created_at, last_attempt_at, resolved_at
+    FROM failed_alerts WHERE resolved_at IS NULL ORDER BY created_at ASC LIMIT ?
+  `).all(limit) as FailedAlertRow[];
+}
+
+export function getFailedAlert(id: number): FailedAlertRow | null {
+  const db = getDb();
+  const row = db.prepare(`
+    SELECT id, kind, service_slug, incident_id, payload, attempts, last_error, created_at, last_attempt_at, resolved_at
+    FROM failed_alerts WHERE id = ?
+  `).get(id) as FailedAlertRow | undefined;
+  return row ?? null;
+}
+
+export function markFailedAlertResolved(id: number): void {
+  const db = getDb();
+  db.prepare(`UPDATE failed_alerts SET resolved_at = datetime('now') WHERE id = ?`).run(id);
+}
+
+export function markFailedAlertRetryFailed(id: number, error: string): void {
+  const db = getDb();
+  db.prepare(`
+    UPDATE failed_alerts SET attempts = attempts + 1, last_error = ?, last_attempt_at = datetime('now') WHERE id = ?
+  `).run(error, id);
+}
+
 export function cleanupOldHistory(days: number = 35) {
   const db = getDb();
   db.prepare(`
     DELETE FROM status_history WHERE recorded_at < datetime('now', '-' || ? || ' days')
+  `).run(days);
+  db.prepare(`
+    DELETE FROM status_transitions WHERE occurred_at < datetime('now', '-' || ? || ' days')
+  `).run(days);
+  db.prepare(`
+    DELETE FROM failed_alerts WHERE resolved_at IS NOT NULL AND resolved_at < datetime('now', '-' || ? || ' days')
   `).run(days);
   db.prepare(`
     DELETE FROM fetcher_latency WHERE recorded_at < datetime('now', '-2 days')
@@ -630,6 +575,7 @@ export interface AlertRuleRow {
   webhook_url: string | null;
   webhook_enabled: number;
   channel_type: string;
+  channel_secret: string | null;
   escalation_enabled: number;
   escalation_intervals: string;
   enabled: number;
@@ -639,10 +585,14 @@ export interface AlertRuleRow {
 
 const RULE_COLS = [
   'id', 'email', 'services', 'min_severity', 'email_enabled',
-  'webhook_url', 'webhook_enabled', 'channel_type',
+  'webhook_url', 'webhook_enabled', 'channel_type', 'channel_secret',
   'escalation_enabled', 'escalation_intervals',
   'enabled', 'created_at', 'updated_at',
 ].join(', ');
+
+function generateChannelSecret(): string {
+  return randomBytes(24).toString('hex');
+}
 
 export function listAlertRules(): AlertRuleRow[] {
   const db = getDb();
@@ -672,13 +622,17 @@ export function insertAlertRule(row: {
   enabled: boolean;
 }) {
   const db = getDb();
+  // Every webhook-enabled rule gets its own signing secret up front, so
+  // there's always something to reveal/rotate rather than a null state the
+  // UI has to special-case.
+  const channelSecret = row.webhookEnabled && row.webhookUrl ? generateChannelSecret() : null;
   db.prepare(`
     INSERT INTO alert_rules (
       id, email, services, min_severity, email_enabled,
-      webhook_url, webhook_enabled, channel_type,
+      webhook_url, webhook_enabled, channel_type, channel_secret,
       escalation_enabled, escalation_intervals, enabled
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     row.id,
     row.email,
@@ -688,6 +642,7 @@ export function insertAlertRule(row: {
     row.webhookUrl ?? null,
     row.webhookEnabled ? 1 : 0,
     row.channelType ?? 'generic',
+    channelSecret,
     row.escalationEnabled ? 1 : 0,
     JSON.stringify(row.escalationIntervals ?? [240, 1440]),
     row.enabled ? 1 : 0,
@@ -722,11 +677,39 @@ export function updateAlertRule(
   if (patch.escalationEnabled !== undefined) { fields.push('escalation_enabled = ?'); values.push(patch.escalationEnabled ? 1 : 0); }
   if (patch.escalationIntervals !== undefined) { fields.push('escalation_intervals = ?'); values.push(JSON.stringify(patch.escalationIntervals)); }
   if (patch.enabled !== undefined) { fields.push('enabled = ?'); values.push(patch.enabled ? 1 : 0); }
+
+  // Provision a secret the first time a rule's webhook gets enabled, so it's
+  // never silently null for a rule that otherwise looks fully configured.
+  if (patch.webhookEnabled === true || (patch.webhookUrl && patch.webhookUrl !== null)) {
+    const existing = db.prepare('SELECT channel_secret, webhook_url FROM alert_rules WHERE id = ?')
+      .get(id) as { channel_secret: string | null; webhook_url: string | null } | undefined;
+    const resultingUrl = patch.webhookUrl !== undefined ? patch.webhookUrl : existing?.webhook_url;
+    if (existing && !existing.channel_secret && resultingUrl) {
+      fields.push('channel_secret = ?');
+      values.push(generateChannelSecret());
+    }
+  }
+
   if (fields.length === 0) return false;
   fields.push(`updated_at = datetime('now')`);
   values.push(id);
   const result = db.prepare(`UPDATE alert_rules SET ${fields.join(', ')} WHERE id = ?`).run(...values);
   return result.changes > 0;
+}
+
+/** Returns the raw signing secret for a rule, or null if the rule or secret doesn't exist. */
+export function getAlertRuleSecret(id: string): string | null {
+  const db = getDb();
+  const row = db.prepare('SELECT channel_secret FROM alert_rules WHERE id = ?').get(id) as { channel_secret: string | null } | undefined;
+  return row?.channel_secret ?? null;
+}
+
+/** Generates and stores a new signing secret for a rule, invalidating the old one. Returns the new secret, or null if the rule doesn't exist. */
+export function rotateAlertRuleSecret(id: string): string | null {
+  const db = getDb();
+  const secret = generateChannelSecret();
+  const result = db.prepare(`UPDATE alert_rules SET channel_secret = ?, updated_at = datetime('now') WHERE id = ?`).run(secret, id);
+  return result.changes > 0 ? secret : null;
 }
 
 export function deleteAlertRule(id: string): boolean {
@@ -882,34 +865,43 @@ export interface MaintenanceWindowRow {
   note: string | null;
   created_by: string | null;
   created_at: string;
+  recurrence: string;
+  recurrence_until: string | null;
+}
+
+const MAINT_COLS = 'id, service_slugs, start_time, end_time, note, created_by, created_at, recurrence, recurrence_until';
+
+export function isWindowActiveAt(row: MaintenanceWindowRow, at: Date): boolean {
+  return isScheduleActiveAt(
+    { startTime: row.start_time, endTime: row.end_time, recurrence: row.recurrence, recurrenceUntil: row.recurrence_until },
+    at,
+  );
 }
 
 export function listMaintenanceWindows(): MaintenanceWindowRow[] {
   const db = getDb();
   return db.prepare(
-    `SELECT id, service_slugs, start_time, end_time, note, created_by, created_at
-     FROM maintenance_windows ORDER BY start_time ASC`
+    `SELECT ${MAINT_COLS} FROM maintenance_windows ORDER BY start_time ASC`
   ).all() as MaintenanceWindowRow[];
 }
 
 export function listActiveMaintenanceWindows(): MaintenanceWindowRow[] {
   const db = getDb();
-  return db.prepare(`
-    SELECT id, service_slugs, start_time, end_time, note, created_by, created_at
-    FROM maintenance_windows
-    WHERE start_time <= datetime('now') AND end_time >= datetime('now')
+  // Narrows out one-off windows that can never be active again; every
+  // weekly row still needs the JS check above since its original
+  // start/end only describe its first occurrence.
+  const candidates = db.prepare(`
+    SELECT ${MAINT_COLS} FROM maintenance_windows
+    WHERE recurrence = 'weekly' OR (start_time <= datetime('now') AND end_time >= datetime('now'))
   `).all() as MaintenanceWindowRow[];
+  const now = new Date();
+  return candidates.filter((w) => isWindowActiveAt(w, now));
 }
 
 export function isServiceInMaintenance(serviceSlug: string): boolean {
-  const db = getDb();
-  const row = db.prepare(`
-    SELECT id FROM maintenance_windows
-    WHERE start_time <= datetime('now') AND end_time >= datetime('now')
-      AND (service_slugs = '[]' OR service_slugs LIKE ?)
-    LIMIT 1
-  `).get(`%"${serviceSlug}"%`);
-  return !!row;
+  return listActiveMaintenanceWindows().some(
+    (w) => w.service_slugs === '[]' || w.service_slugs.includes(`"${serviceSlug}"`),
+  );
 }
 
 export function insertMaintenanceWindow(row: {
@@ -919,17 +911,36 @@ export function insertMaintenanceWindow(row: {
   endTime: string;
   note?: string | null;
   createdBy?: string | null;
+  recurrence?: 'none' | 'weekly';
+  recurrenceUntil?: string | null;
 }): void {
   const db = getDb();
   db.prepare(`
-    INSERT INTO maintenance_windows (id, service_slugs, start_time, end_time, note, created_by)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(row.id, JSON.stringify(row.serviceSlugs), row.startTime, row.endTime, row.note ?? null, row.createdBy ?? null);
+    INSERT INTO maintenance_windows
+      (id, service_slugs, start_time, end_time, note, created_by, recurrence, recurrence_until)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    row.id,
+    JSON.stringify(row.serviceSlugs),
+    row.startTime,
+    row.endTime,
+    row.note ?? null,
+    row.createdBy ?? null,
+    row.recurrence ?? 'none',
+    row.recurrenceUntil ?? null,
+  );
 }
 
 export function updateMaintenanceWindow(
   id: string,
-  patch: Partial<{ serviceSlugs: string[]; startTime: string; endTime: string; note: string | null }>,
+  patch: Partial<{
+    serviceSlugs: string[];
+    startTime: string;
+    endTime: string;
+    note: string | null;
+    recurrence: 'none' | 'weekly';
+    recurrenceUntil: string | null;
+  }>,
 ): boolean {
   const db = getDb();
   const fields: string[] = [];
@@ -938,6 +949,8 @@ export function updateMaintenanceWindow(
   if (patch.startTime !== undefined) { fields.push('start_time = ?'); values.push(patch.startTime); }
   if (patch.endTime !== undefined) { fields.push('end_time = ?'); values.push(patch.endTime); }
   if (patch.note !== undefined) { fields.push('note = ?'); values.push(patch.note); }
+  if (patch.recurrence !== undefined) { fields.push('recurrence = ?'); values.push(patch.recurrence); }
+  if (patch.recurrenceUntil !== undefined) { fields.push('recurrence_until = ?'); values.push(patch.recurrenceUntil); }
   if (fields.length === 0) return false;
   values.push(id);
   return db.prepare(`UPDATE maintenance_windows SET ${fields.join(', ')} WHERE id = ?`).run(...values).changes > 0;
@@ -1014,6 +1027,31 @@ export function deleteBoard(deviceToken: string, boardId: string): boolean {
   const db = getDb();
   return db.prepare('DELETE FROM boards WHERE device_token = ? AND board_id = ?')
     .run(deviceToken, boardId).changes > 0;
+}
+
+// Replaces a device's full board set in one transaction: deletes rows not
+// present in `boards`, then upserts each one. A partial failure (bad data,
+// a constraint violation) rolls back the whole sync instead of leaving the
+// device with some boards deleted and others not yet upserted.
+export function syncBoardsForDevice(
+  deviceToken: string,
+  boards: Array<{ boardId: string; name: string; starred: boolean; tiles: string; theme?: string | null }>,
+): void {
+  const db = getDb();
+  const tx = db.transaction(() => {
+    const existing = db.prepare('SELECT board_id FROM boards WHERE device_token = ?')
+      .all(deviceToken) as Array<{ board_id: string }>;
+    const newIds = new Set(boards.map((b) => b.boardId));
+    for (const row of existing) {
+      if (!newIds.has(row.board_id)) {
+        db.prepare('DELETE FROM boards WHERE device_token = ? AND board_id = ?').run(deviceToken, row.board_id);
+      }
+    }
+    for (const b of boards) {
+      upsertBoard({ deviceToken, ...b });
+    }
+  });
+  tx();
 }
 
 // --- Push Subscriptions (F6) ---

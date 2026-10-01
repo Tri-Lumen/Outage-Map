@@ -116,4 +116,10 @@ export const circuit = {
     entry.openedAt = null;
     entry.cooldownMs = BASE_COOLDOWN_MS;
   },
+
+  // Drops all tracked state for a service. Call when a custom service is
+  // deleted so a future slug re-use doesn't inherit a stale open circuit.
+  deleteService(service: string) {
+    getStateMap().delete(key(service, 'official'));
+  },
 };

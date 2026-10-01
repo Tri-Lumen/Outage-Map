@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getIncidentById, getPostmortemByIncidentId, insertPostmortem, updatePostmortem } from '@/lib/db';
 import { generatePostmortemMarkdown } from '@/lib/postmortem';
+import { isWriteEnabled, isAuthorized } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +29,16 @@ export async function GET(_req: NextRequest, { params }: { params: { incidentId:
 }
 
 export async function PUT(request: NextRequest, { params }: { params: { incidentId: string } }) {
+  if (!isWriteEnabled()) {
+    return NextResponse.json(
+      { error: 'Postmortem editing is not enabled. Set ENABLE_RULES_API=true or configure CRON_SECRET.' },
+      { status: 503 },
+    );
+  }
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const id = parseInt(params.incidentId, 10);
   if (isNaN(id)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
 

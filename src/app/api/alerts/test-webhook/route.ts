@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, reason: 'invalid_request' }, { status: 400 });
   }
 
-  if (!isValidWebhookUrl(url)) {
+  if (!(await isValidWebhookUrl(url))) {
     return NextResponse.json({ ok: false, reason: 'invalid_url' }, { status: 400 });
   }
 

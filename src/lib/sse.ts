@@ -17,7 +17,11 @@ function getRegistry(): Set<Controller> {
 export function registerSSEClient(controller: Controller): () => void {
   const registry = getRegistry();
   registry.add(controller);
-  return () => registry.delete(controller);
+  broadcastSSE({ type: 'viewer_count', count: getConnectedClientCount() });
+  return () => {
+    registry.delete(controller);
+    broadcastSSE({ type: 'viewer_count', count: getConnectedClientCount() });
+  };
 }
 
 export function broadcastSSE(event: { type: string; [key: string]: unknown }): void {
