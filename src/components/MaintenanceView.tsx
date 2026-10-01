@@ -7,14 +7,14 @@ import { usePreferences } from '@/hooks/usePreferences';
 import { formatInTimeZone } from '@/lib/format';
 import { mutate } from 'swr';
 import type { MaintenanceWindow } from '@/lib/types';
+import { isWindowActiveAt, windowOverlapsRange } from '@/lib/maintenanceSchedule';
 
 function formatDateTime(iso: string, tz?: string) {
   return formatInTimeZone(iso, tz, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }, iso);
 }
 
 function isActive(w: MaintenanceWindow) {
-  const now = Date.now();
-  return new Date(w.startTime).getTime() <= now && new Date(w.endTime).getTime() >= now;
+  return isWindowActiveAt(w, new Date());
 }
 
 export default function MaintenanceView() {
@@ -29,6 +29,8 @@ export default function MaintenanceView() {
     startTime: '',
     endTime: '',
     note: '',
+    recurrence: 'none' as 'none' | 'weekly',
+    recurrenceUntil: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -47,6 +49,10 @@ export default function MaintenanceView() {
           startTime: new Date(form.startTime).toISOString(),
           endTime: new Date(form.endTime).toISOString(),
           note: form.note || null,
+          recurrence: form.recurrence,
+          recurrenceUntil: form.recurrence === 'weekly' && form.recurrenceUntil
+            ? new Date(form.recurrenceUntil).toISOString()
+            : null,
         }),
       });
       if (!res.ok) {
@@ -56,7 +62,7 @@ export default function MaintenanceView() {
       }
       await mutate('/api/maintenance');
       setCreating(false);
-      setForm({ serviceSlugs: [], startTime: '', endTime: '', note: '' });
+      setForm({ serviceSlugs: [], startTime: '', endTime: '', note: '', recurrence: 'none', recurrenceUntil: '' });
     } catch {
       setError('Network error');
     } finally {
@@ -152,6 +158,31 @@ export default function MaintenanceView() {
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-muted mb-1">Repeats</label>
+              <select
+                value={form.recurrence}
+                onChange={(e) => setForm((f) => ({ ...f, recurrence: e.target.value === 'weekly' ? 'weekly' : 'none' }))}
+                className="w-full px-3 py-1.5 rounded-lg surface-elevated border border-subtle text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                <option value="none">One-time</option>
+                <option value="weekly">Weekly</option>
+              </select>
+            </div>
+            {form.recurrence === 'weekly' && (
+              <div>
+                <label className="block text-xs text-muted mb-1">Repeat until (optional)</label>
+                <input
+                  type="date"
+                  value={form.recurrenceUntil}
+                  onChange={(e) => setForm((f) => ({ ...f, recurrenceUntil: e.target.value }))}
+                  className="w-full px-3 py-1.5 rounded-lg surface-elevated border border-subtle text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+            )}
+          </div>
+
           <div>
             <label className="block text-xs text-muted mb-1">Note (optional)</label>
             <input
@@ -213,6 +244,11 @@ export default function MaintenanceView() {
                     {active && (
                       <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-semibold uppercase tracking-wide">Active</span>
                     )}
+                    {w.recurrence === 'weekly' && (
+                      <span className="px-2 py-0.5 rounded-full bg-white/10 text-muted text-[10px] font-semibold uppercase tracking-wide">
+                        Weekly
+                      </span>
+                    )}
                     <span className="text-xs text-muted">
                       {w.serviceSlugs.length === 0 ? 'All services' : w.serviceSlugs.join(', ')}
                     </span>
@@ -220,6 +256,11 @@ export default function MaintenanceView() {
                   <p className="text-sm text-foreground font-medium">
                     {formatDateTime(w.startTime, tz)} → {formatDateTime(w.endTime, tz)}
                   </p>
+                  {w.recurrence === 'weekly' && (
+                    <p className="text-xs text-muted mt-0.5">
+                      Repeats weekly{w.recurrenceUntil ? ` until ${formatDateTime(w.recurrenceUntil, tz)}` : ''}
+                    </p>
+                  )}
                   {w.note && <p className="text-xs text-muted mt-1">{w.note}</p>}
                 </div>
                 <button
@@ -264,13 +305,9 @@ function MaintenanceCalendar({ windows, tz }: { windows: MaintenanceWindow[]; tz
   while (cells.length % 7 !== 0) cells.push(null);
 
   const windowsForDay = (day: Date) => {
-    const ds = startOfDay(day).getTime();
-    const de = ds + 86400000 - 1;
-    return windows.filter((w) => {
-      const ws = new Date(w.startTime).getTime();
-      const we = new Date(w.endTime).getTime();
-      return ws <= de && we >= ds;
-    });
+    const ds = startOfDay(day);
+    const de = new Date(ds.getTime() + 86400000 - 1);
+    return windows.filter((w) => windowOverlapsRange(w, ds, de));
   };
 
   const monthLabel = cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });

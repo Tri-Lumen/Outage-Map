@@ -25,6 +25,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     startTime: unknown;
     endTime: unknown;
     note: unknown;
+    recurrence: unknown;
+    recurrenceUntil: unknown;
   }>;
 
   const patch: Parameters<typeof updateMaintenanceWindow>[1] = {};
@@ -34,6 +36,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (typeof input.startTime === 'string') patch.startTime = input.startTime;
   if (typeof input.endTime === 'string') patch.endTime = input.endTime;
   if (typeof input.note === 'string' || input.note === null) patch.note = input.note ?? null;
+  if (input.recurrence === 'none' || input.recurrence === 'weekly') patch.recurrence = input.recurrence;
+  if (typeof input.recurrenceUntil === 'string' || input.recurrenceUntil === null) {
+    patch.recurrenceUntil = input.recurrenceUntil ?? null;
+  }
 
   if (patch.startTime && patch.endTime && new Date(patch.startTime) >= new Date(patch.endTime)) {
     return NextResponse.json({ error: 'startTime must be before endTime' }, { status: 400 });

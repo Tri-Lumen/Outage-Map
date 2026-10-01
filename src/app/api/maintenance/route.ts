@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic';
 function rowToWindow(row: {
   id: string; service_slugs: string; start_time: string; end_time: string;
   note: string | null; created_by: string | null; created_at: string;
+  recurrence: string; recurrence_until: string | null;
 }): MaintenanceWindow {
   let serviceSlugs: string[] = [];
   try { serviceSlugs = JSON.parse(row.service_slugs); } catch { /* empty array */ }
@@ -19,6 +20,8 @@ function rowToWindow(row: {
     note: row.note,
     createdBy: row.created_by,
     createdAt: row.created_at,
+    recurrence: row.recurrence === 'weekly' ? 'weekly' : 'none',
+    recurrenceUntil: row.recurrence_until,
   };
 }
 
@@ -54,6 +57,8 @@ export async function POST(request: NextRequest) {
     endTime: unknown;
     note: unknown;
     createdBy: unknown;
+    recurrence: unknown;
+    recurrenceUntil: unknown;
   }>;
 
   const startTime = typeof input.startTime === 'string' ? input.startTime.trim() : '';
@@ -70,12 +75,19 @@ export async function POST(request: NextRequest) {
     : [];
   const note = typeof input.note === 'string' ? input.note.trim() : null;
   const createdBy = typeof input.createdBy === 'string' ? input.createdBy.trim() : null;
+  const recurrence = input.recurrence === 'weekly' ? 'weekly' : 'none';
+  const recurrenceUntil = recurrence === 'weekly' && typeof input.recurrenceUntil === 'string' && input.recurrenceUntil.trim()
+    ? input.recurrenceUntil.trim()
+    : null;
 
   const id = `maint_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
   try {
-    insertMaintenanceWindow({ id, serviceSlugs, startTime, endTime, note, createdBy });
-    return NextResponse.json({ window: { id, serviceSlugs, startTime, endTime, note, createdBy } }, { status: 201 });
+    insertMaintenanceWindow({ id, serviceSlugs, startTime, endTime, note, createdBy, recurrence, recurrenceUntil });
+    return NextResponse.json(
+      { window: { id, serviceSlugs, startTime, endTime, note, createdBy, recurrence, recurrenceUntil } },
+      { status: 201 },
+    );
   } catch (err) {
     console.error('[api/maintenance] POST failed:', err);
     return NextResponse.json({ error: 'Failed to create maintenance window' }, { status: 500 });

@@ -110,6 +110,8 @@ export interface MaintenanceWindow {
   note: string | null;
   createdBy: string | null;
   createdAt: string;
+  recurrence: 'none' | 'weekly';
+  recurrenceUntil: string | null;
 }
 
 const INCIDENT_STATUSES: ReadonlyArray<IncidentStatus> = [
