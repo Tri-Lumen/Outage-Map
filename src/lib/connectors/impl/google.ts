@@ -20,7 +20,13 @@ const GOOGLE_PRODUCTS = [
 const FRESHNESS_MS = 24 * 60 * 60 * 1000;
 
 const UpdateSchema = z
-  .object({ status: z.number().nullish(), text: z.string().nullish(), when: z.string().nullish() })
+  .object({
+    // Google's live feed sends this as a numeric string (e.g. "2"), not a
+    // number, despite the field looking numeric — coerce rather than reject.
+    status: z.union([z.number(), z.string()]).nullish().transform((v) => (v == null ? v : Number(v))),
+    text: z.string().nullish(),
+    when: z.string().nullish(),
+  })
   .passthrough();
 
 const IncidentSchema = z
