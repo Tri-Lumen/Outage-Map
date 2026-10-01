@@ -5,6 +5,7 @@ import { mutate } from 'swr';
 
 export function useSSE() {
   const [connected, setConnected] = useState(false);
+  const [viewerCount, setViewerCount] = useState<number | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -21,10 +22,12 @@ export function useSSE() {
 
       es.addEventListener('message', (evt) => {
         try {
-          const data = JSON.parse(evt.data) as { type: string };
+          const data = JSON.parse(evt.data) as { type: string; count?: number };
           if (data.type === 'poll_complete') {
             void mutate('/api/status');
             void mutate((key: string) => typeof key === 'string' && key.startsWith('/api/incidents'));
+          } else if (data.type === 'viewer_count' && typeof data.count === 'number') {
+            setViewerCount(data.count);
           }
         } catch { /* ignore malformed events */ }
       });
@@ -46,5 +49,5 @@ export function useSSE() {
     };
   }, []);
 
-  return { connected };
+  return { connected, viewerCount };
 }
