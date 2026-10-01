@@ -1032,6 +1032,31 @@ export function deleteBoard(deviceToken: string, boardId: string): boolean {
     .run(deviceToken, boardId).changes > 0;
 }
 
+// Replaces a device's full board set in one transaction: deletes rows not
+// present in `boards`, then upserts each one. A partial failure (bad data,
+// a constraint violation) rolls back the whole sync instead of leaving the
+// device with some boards deleted and others not yet upserted.
+export function syncBoardsForDevice(
+  deviceToken: string,
+  boards: Array<{ boardId: string; name: string; starred: boolean; tiles: string; theme?: string | null }>,
+): void {
+  const db = getDb();
+  const tx = db.transaction(() => {
+    const existing = db.prepare('SELECT board_id FROM boards WHERE device_token = ?')
+      .all(deviceToken) as Array<{ board_id: string }>;
+    const newIds = new Set(boards.map((b) => b.boardId));
+    for (const row of existing) {
+      if (!newIds.has(row.board_id)) {
+        db.prepare('DELETE FROM boards WHERE device_token = ? AND board_id = ?').run(deviceToken, row.board_id);
+      }
+    }
+    for (const b of boards) {
+      upsertBoard({ deviceToken, ...b });
+    }
+  });
+  tx();
+}
+
 // --- Push Subscriptions (F6) ---
 
 export interface PushSubscriptionRow {

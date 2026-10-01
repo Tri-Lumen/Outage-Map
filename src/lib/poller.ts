@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { getServices } from './services';
 import { ServiceConfig, ServiceStatus } from './types';
 import {
@@ -79,9 +80,9 @@ function getPreviousStatus(serviceSlug: string): ServiceStatus | null {
 
 const changedServices: string[] = [];
 
-async function pollService(service: ServiceConfig): Promise<void> {
+async function pollService(service: ServiceConfig, cycleId: string): Promise<void> {
   if (process.env.DEBUG === 'true') {
-    log.info(`Polling ${service.name}...`);
+    log.info(`[cycle ${cycleId}] Polling ${service.name}...`);
   }
 
   const previousStatus = getPreviousStatus(service.slug);
@@ -136,10 +137,10 @@ async function pollService(service: ServiceConfig): Promise<void> {
   }
 
   insertStatusHistory(service.slug, officialStatus.status, activeIncidentCount);
-  log.debug(`${service.name}: ${officialStatus.status} (active incidents: ${activeIncidentCount})`);
+  log.debug(`[cycle ${cycleId}] ${service.name}: ${officialStatus.status} (active incidents: ${activeIncidentCount})`);
 }
 
-async function processEscalations() {
+async function processEscalations(cycleId: string) {
   try {
     const unresolved = getActiveUnresolvedIncidents(4);
     for (const incident of unresolved) {
@@ -149,7 +150,7 @@ async function processEscalations() {
       }
     }
   } catch (err) {
-    log.error('Escalation processing failed:', err);
+    log.error(`[cycle ${cycleId}] Escalation processing failed:`, err);
   }
 }
 
@@ -167,8 +168,12 @@ export async function runPollCycle(): Promise<{ success: boolean; polled: number
   isPolling = true;
   changedServices.length = 0;
   const cycleStart = Date.now();
+  // Short per-cycle id so every log line from this cycle — across all
+  // services polled concurrently — can be grepped out of interleaved output
+  // as one unit, instead of being indistinguishable from the next cycle's.
+  const cycleId = randomUUID().slice(0, 8);
   if (process.env.DEBUG === 'true') {
-    log.info(`Starting poll cycle at ${new Date().toISOString()}`);
+    log.info(`[cycle ${cycleId}] Starting poll cycle at ${new Date().toISOString()}`);
   }
 
   let polled = 0;
@@ -176,7 +181,7 @@ export async function runPollCycle(): Promise<{ success: boolean; polled: number
 
   try {
     const results = await Promise.allSettled(
-      getServices().map((service) => pollService(service)),
+      getServices().map((service) => pollService(service, cycleId)),
     );
 
     for (const result of results) {
@@ -184,12 +189,12 @@ export async function runPollCycle(): Promise<{ success: boolean; polled: number
         polled++;
       } else {
         errors++;
-        log.error('Service poll failed:', result.reason);
+        log.error(`[cycle ${cycleId}] Service poll failed:`, result.reason);
       }
     }
 
     // Escalation alerts for long-running unresolved incidents.
-    await processEscalations();
+    await processEscalations(cycleId);
 
     // Broadcast SSE event so connected clients refresh immediately.
     broadcastSSE({ type: 'poll_complete', ts: Date.now(), services_changed: [...changedServices] });
@@ -206,7 +211,7 @@ export async function runPollCycle(): Promise<{ success: boolean; polled: number
           });
         }
       } catch (err) {
-        log.error('Push dispatch failed:', err);
+        log.error(`[cycle ${cycleId}] Push dispatch failed:`, err);
       }
     }
 
@@ -217,11 +222,11 @@ export async function runPollCycle(): Promise<{ success: boolean; polled: number
         vacuumDb();
         lastVacuumAt = Date.now();
       } catch (err) {
-        log.error('VACUUM failed:', err);
+        log.error(`[cycle ${cycleId}] VACUUM failed:`, err);
       }
     }
     if (process.env.DEBUG === 'true' || prunedIncidents > 0) {
-      log.info(`Poll cycle complete: ${polled} succeeded, ${errors} failed, ${prunedIncidents} incidents pruned`);
+      log.info(`[cycle ${cycleId}] Poll cycle complete: ${polled} succeeded, ${errors} failed, ${prunedIncidents} incidents pruned`);
     }
   } finally {
     isPolling = false;

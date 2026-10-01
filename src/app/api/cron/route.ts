@@ -10,16 +10,14 @@ export const maxDuration = 60;
 // retries in a tight loop, or someone with the secret accidentally hammering
 // the endpoint. Per-process state is fine because Next.js serverful mode
 // pins this to one node-cron instance anyway.
+//
+// Keyed globally, not per-IP: there's exactly one shared CRON_SECRET for the
+// whole deployment, so every authorized caller shares one bucket regardless
+// of what X-Forwarded-For/X-Real-IP claim — those headers are client-settable
+// unless a trusted reverse proxy overwrites them, which this app can't
+// assume, so per-IP keying let a caller bypass the limit just by varying them.
 const RATE_LIMIT_WINDOW_MS = 30_000;
-const lastHitByKey = new Map<string, number>();
-
-function rateLimitKey(request: NextRequest): string {
-  const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip') ||
-    'unknown';
-  return ip;
-}
+let lastHitAt = 0;
 
 export async function POST(request: NextRequest) {
   // Verify authorization. A missing or empty CRON_SECRET must NOT open
@@ -36,23 +34,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const key = rateLimitKey(request);
   const now = Date.now();
-  const last = lastHitByKey.get(key) ?? 0;
-  if (now - last < RATE_LIMIT_WINDOW_MS) {
-    const retryAfterSec = Math.ceil((RATE_LIMIT_WINDOW_MS - (now - last)) / 1000);
+  if (now - lastHitAt < RATE_LIMIT_WINDOW_MS) {
+    const retryAfterSec = Math.ceil((RATE_LIMIT_WINDOW_MS - (now - lastHitAt)) / 1000);
     return NextResponse.json(
       { error: 'Rate limited' },
       { status: 429, headers: { 'Retry-After': String(retryAfterSec) } },
     );
   }
-  lastHitByKey.set(key, now);
-  // Best-effort cleanup so the map doesn't grow unbounded.
-  if (lastHitByKey.size > 1000) {
-    lastHitByKey.forEach((t, k) => {
-      if (now - t > RATE_LIMIT_WINDOW_MS * 4) lastHitByKey.delete(k);
-    });
-  }
+  lastHitAt = now;
 
   try {
     const result = await runPollCycle();

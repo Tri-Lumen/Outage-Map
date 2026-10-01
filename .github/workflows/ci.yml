@@ -28,3 +28,11 @@ jobs:
       - run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
+
+      # Informational only: next@14/nodemailer@8/vitest@2 currently carry
+      # known advisories that only resolve via a major-version bump, which is
+      # a deliberate, separately-tracked upgrade, not something a CI gate
+      # should block every PR on. Surfaces new/transitive-dep regressions
+      # without failing the build.
+      - run: npm audit --audit-level=high
+        continue-on-error: true

@@ -9,7 +9,18 @@ set -e
 # every boot, then drop privileges.
 echo "[entrypoint] preparing /app/data"
 mkdir -p /app/data
-chown -R nextjs:nodejs /app/data
+# The volume only ever needs the recursive chown once — every subsequent
+# write happens as the nextjs user already (nothing else touches this
+# volume), so once the top-level directory itself is owned correctly, a
+# recursive re-chown on every restart is wasted work that scales with
+# however much the SQLite file/WAL/backups have grown. Skip it when
+# ownership is already right; fall back to running it if `stat` itself
+# fails for any reason (never silently skip on a check we can't trust).
+owner="$(stat -c '%u:%g' /app/data 2>/dev/null || true)"
+if [ "$owner" != "1001:1001" ]; then
+  echo "[entrypoint] fixing /app/data ownership (was: ${owner:-unknown})"
+  chown -R nextjs:nodejs /app/data
+fi
 
 echo "[entrypoint] starting: $*"
 exec su-exec nextjs:nodejs "$@"

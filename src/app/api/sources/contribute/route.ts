@@ -132,49 +132,7 @@ export async function POST(request: NextRequest) {
   const newEntries = rows.map(rowToServiceConfig);
   const summary = newEntries.map((s) => `- \`${s.slug}\` — ${s.name} (${s.statusUrl})`).join('\n');
 
-  // 1. Read current contributed.json (or fall back to skeleton).
-  type ContentsRes = { sha: string; content: string; encoding: string };
-  const contents = await gh<ContentsRes>(
-    ctx,
-    'GET',
-    `/repos/${owner}/${repoName}/contents/${CONTRIBUTED_PATH}?ref=${encodeURIComponent(base)}`,
-  );
-  if (contents.error && contents.status !== 404) {
-    return githubError(contents);
-  }
-  let existing: ContributedFile = { schemaVersion: 1, services: [] };
-  let existingSha: string | null = null;
-  if (contents.data) {
-    existingSha = contents.data.sha;
-    try {
-      const raw = Buffer.from(contents.data.content, 'base64').toString('utf-8');
-      existing = JSON.parse(raw) as ContributedFile;
-      if (!Array.isArray(existing.services)) existing.services = [];
-    } catch (err) {
-      console.error('[contribute] Failed to parse existing contributed.json:', err);
-      return NextResponse.json(
-        { error: 'Failed to parse existing contributed.json from main' },
-        { status: 500 },
-      );
-    }
-  }
-
-  // 2. Compose the merged file, de-duped on slug.
-  const seen = new Set(existing.services.map((s) => s.slug));
-  const fresh = newEntries.filter((s) => !seen.has(s.slug));
-  if (fresh.length === 0) {
-    return NextResponse.json(
-      { error: 'Every selected source is already in the catalog on main' },
-      { status: 409 },
-    );
-  }
-  const next: ContributedFile = {
-    schemaVersion: 1,
-    services: [...existing.services, ...fresh],
-  };
-  const nextContent = `${JSON.stringify(next, null, 2)}\n`;
-
-  // 3. Get the SHA of base branch's HEAD so we can create a branch off it.
+  // 1. Get the SHA of base branch's HEAD so we can create a branch off it.
   type RefRes = { object: { sha: string } };
   const baseRef = await gh<RefRes>(
     ctx,
@@ -194,26 +152,32 @@ export async function POST(request: NextRequest) {
   );
   if (createBranch.error) return githubError(createBranch);
 
-  // 4. PUT the updated file on the new branch.
-  const commitMessage = `feat(catalog): add ${fresh.length} user-imported service${fresh.length === 1 ? '' : 's'}`;
-  const putBody: Record<string, unknown> = {
-    message: commitMessage,
-    content: Buffer.from(nextContent, 'utf-8').toString('base64'),
-    branch,
-  };
-  if (existingSha) putBody.sha = existingSha;
-  const put = await gh<unknown>(
-    ctx,
-    'PUT',
-    `/repos/${owner}/${repoName}/contents/${CONTRIBUTED_PATH}`,
-    putBody,
-  );
-  if (put.error) {
-    await deleteBranch(ctx, branch);
-    return githubError(put);
+  // 2. Read + merge + PUT the updated file, reading from `branch` (not
+  // base) so the sha we PUT against always matches what's actually there.
+  // Retried once: if another contribute request merges into base between
+  // this branch's creation and our PUT, GitHub's contents API returns 409
+  // (stale sha) — re-reading from the branch and retrying once resolves it
+  // without a human needing to re-run the whole flow.
+  let putResult: Awaited<ReturnType<typeof putContributedFile>> | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    putResult = await putContributedFile(ctx, branch, newEntries);
+    if (putResult.outcome !== 'conflict') break;
   }
+  if (!putResult || putResult.outcome === 'error') {
+    await deleteBranch(ctx, branch);
+    return putResult?.response ?? NextResponse.json({ error: 'Failed to update contributed.json' }, { status: 500 });
+  }
+  if (putResult.outcome === 'conflict') {
+    await deleteBranch(ctx, branch);
+    return putResult.response!;
+  }
+  if (putResult.outcome === 'no_new_entries') {
+    await deleteBranch(ctx, branch);
+    return putResult.response!;
+  }
+  const fresh = putResult.fresh!;
 
-  // 5. Open the PR.
+  // 3. Open the PR.
   type PrRes = { number: number; html_url: string };
   const titleNames = fresh.map((s) => s.name).join(', ');
   const title = `Add ${fresh.length} service${fresh.length === 1 ? '' : 's'} to catalog (${titleNames})`;
@@ -244,6 +208,82 @@ export async function POST(request: NextRequest) {
     },
     { status: 201 },
   );
+}
+
+type PutOutcome =
+  | { outcome: 'ok'; fresh: ServiceConfig[] }
+  | { outcome: 'conflict'; response: ReturnType<typeof NextResponse.json> }
+  | { outcome: 'no_new_entries'; response: ReturnType<typeof NextResponse.json> }
+  | { outcome: 'error'; response: ReturnType<typeof NextResponse.json> };
+
+// Reads src/lib/services.contributed.json from `branch`, merges in
+// `newEntries` (de-duped on slug), and PUTs the result back to that same
+// branch. Reading and writing against the same ref (rather than reading
+// from base once, up front) is what makes the retry in the caller safe to
+// just re-run on a sha conflict.
+async function putContributedFile(
+  ctx: GitHubCtx,
+  branch: string,
+  newEntries: ServiceConfig[],
+): Promise<PutOutcome> {
+  const { owner, repo: repoName } = ctx;
+
+  type ContentsRes = { sha: string; content: string; encoding: string };
+  const contents = await gh<ContentsRes>(
+    ctx,
+    'GET',
+    `/repos/${owner}/${repoName}/contents/${CONTRIBUTED_PATH}?ref=${encodeURIComponent(branch)}`,
+  );
+  if (contents.error && contents.status !== 404) {
+    return { outcome: 'error', response: githubError(contents) };
+  }
+
+  let existing: ContributedFile = { schemaVersion: 1, services: [] };
+  let existingSha: string | null = null;
+  if (contents.data) {
+    existingSha = contents.data.sha;
+    try {
+      const raw = Buffer.from(contents.data.content, 'base64').toString('utf-8');
+      existing = JSON.parse(raw) as ContributedFile;
+      if (!Array.isArray(existing.services)) existing.services = [];
+    } catch (err) {
+      console.error('[contribute] Failed to parse existing contributed.json:', err);
+      return {
+        outcome: 'error',
+        response: NextResponse.json({ error: 'Failed to parse existing contributed.json' }, { status: 500 }),
+      };
+    }
+  }
+
+  const seen = new Set(existing.services.map((s) => s.slug));
+  const fresh = newEntries.filter((s) => !seen.has(s.slug));
+  if (fresh.length === 0) {
+    return {
+      outcome: 'no_new_entries',
+      response: NextResponse.json(
+        { error: 'Every selected source is already in the catalog on main' },
+        { status: 409 },
+      ),
+    };
+  }
+  const next: ContributedFile = { schemaVersion: 1, services: [...existing.services, ...fresh] };
+  const nextContent = `${JSON.stringify(next, null, 2)}\n`;
+
+  const commitMessage = `feat(catalog): add ${fresh.length} user-imported service${fresh.length === 1 ? '' : 's'}`;
+  const putBody: Record<string, unknown> = {
+    message: commitMessage,
+    content: Buffer.from(nextContent, 'utf-8').toString('base64'),
+    branch,
+  };
+  if (existingSha) putBody.sha = existingSha;
+  const put = await gh<unknown>(ctx, 'PUT', `/repos/${owner}/${repoName}/contents/${CONTRIBUTED_PATH}`, putBody);
+  if (put.error) {
+    if (put.status === 409) {
+      return { outcome: 'conflict', response: githubError(put) };
+    }
+    return { outcome: 'error', response: githubError(put) };
+  }
+  return { outcome: 'ok', fresh };
 }
 
 // Best-effort cleanup so a failed contribution doesn't leave an orphaned

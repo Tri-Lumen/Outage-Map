@@ -1,0 +1,38 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      # next/eslint-config-next/react move together; bundling avoids a PR per
+      # package for what's really one coordinated upgrade.
+      next-and-react:
+        patterns:
+          - "next"
+          - "eslint-config-next"
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+    ignore:
+      # Major-version bumps for these are deliberate, separately-tracked
+      # upgrades (see README/PR history) — let Dependabot propose them, but
+      # don't auto-open a PR for every minor/patch along the way.
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "nodemailer"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vitest"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"

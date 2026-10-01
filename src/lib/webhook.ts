@@ -1,4 +1,5 @@
 import { createHmac } from 'crypto';
+import { lookup } from 'dns/promises';
 import { httpFetch } from './fetchers/httpFetch';
 import { hasRecentAlert, logAlert } from './db';
 import { getServiceBySlug } from './services';
@@ -10,12 +11,44 @@ import { createLogger } from './logger';
 const log = createLogger('webhook');
 
 // Block SSRF attempts: reject URLs that literally name loopback, RFC-1918,
-// or link-local/cloud-metadata (169.254.x.x, incl. AWS/GCP/Azure IMDS)
-// hosts. This is a string check on the URL itself, not a resolved-IP check,
-// so a hostname that merely *resolves* to one of these ranges (DNS
-// rebinding) is not caught — there is no protection below the fetch layer.
+// or link-local/cloud-metadata (169.254.x.x, incl. AWS/GCP/Azure IMDS) hosts.
 const PRIVATE_IP_RE =
   /^(https?:\/\/)(localhost|127\.|0\.|10\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[?::1\]?|\[?fc00:|\[?fe80:)/i;
+
+const PRIVATE_IPV4_RE =
+  /^(127\.|0\.|10\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.)/;
+
+function isPrivateIPv4(ip: string): boolean {
+  return PRIVATE_IPV4_RE.test(ip);
+}
+
+function isPrivateIPv6(ip: string): boolean {
+  const lower = ip.toLowerCase();
+  if (lower === '::1' || lower === '::') return true;
+  if (/^fe[89ab]/.test(lower)) return true; // fe80::/10 link-local
+  if (/^f[cd]/.test(lower)) return true; // fc00::/7 unique local
+  const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mapped) return isPrivateIPv4(mapped[1]);
+  return false;
+}
+
+// DNS-rebinding defense: the regex above only catches a URL that literally
+// names a private host. A hostname that merely *resolves* to a private/
+// loopback/link-local address slips past it, so resolve and check every
+// returned address too. This is still a point-in-time check — the fetch
+// itself re-resolves and could in principle get a different answer for a
+// very-low-TTL record — but it closes the common case (a hostname that
+// simply points at an internal address) rather than trusting the string.
+async function resolvesToPrivateAddress(hostname: string): Promise<boolean> {
+  const clean = hostname.replace(/^\[|\]$/g, '');
+  try {
+    const addresses = await lookup(clean, { all: true });
+    return addresses.some((a) => (a.family === 4 ? isPrivateIPv4(a.address) : isPrivateIPv6(a.address)));
+  } catch {
+    // Unresolvable — can't deliver to it anyway, so treat as invalid.
+    return true;
+  }
+}
 
 function redactUrl(url: string): string {
   try {
@@ -26,15 +59,17 @@ function redactUrl(url: string): string {
   }
 }
 
-export function isValidWebhookUrl(url: string): boolean {
+export async function isValidWebhookUrl(url: string): Promise<boolean> {
   if (!/^https?:\/\//i.test(url)) return false;
   if (PRIVATE_IP_RE.test(url)) return false;
+  let hostname: string;
   try {
-    new URL(url);
-    return true;
+    hostname = new URL(url).hostname;
   } catch {
     return false;
   }
+  if (await resolvesToPrivateAddress(hostname)) return false;
+  return true;
 }
 
 export async function sendWebhookAlert(url: string, payload: object, channelType?: string): Promise<boolean> {

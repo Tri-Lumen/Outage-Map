@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
   // Same SSRF guard as outbound webhooks: the server will POST to this
   // endpoint later (on every push send), so it can't be allowed to point
   // at a loopback/internal/link-local address.
-  if (!isValidWebhookUrl(endpoint)) {
+  if (!(await isValidWebhookUrl(endpoint))) {
     return NextResponse.json({ error: 'Invalid endpoint URL' }, { status: 400 });
   }
 

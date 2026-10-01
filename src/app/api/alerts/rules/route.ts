@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
   let webhookUrl: string | null = null;
   if (typeof input.webhookUrl === 'string' && input.webhookUrl.trim()) {
     const { isValidWebhookUrl } = await import('@/lib/webhook');
-    if (!isValidWebhookUrl(input.webhookUrl.trim())) {
+    if (!(await isValidWebhookUrl(input.webhookUrl.trim()))) {
       return NextResponse.json({ error: 'Invalid or disallowed webhook URL' }, { status: 400 });
     }
     webhookUrl = input.webhookUrl.trim();
