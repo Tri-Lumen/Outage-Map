@@ -20,7 +20,8 @@ const TYPE_COLOR: Record<string, string> = {
 export default function AlertAuditTile({
   config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure,
 }: TileProps) {
-  const { data, isLoading } = useAlertLog(true, 60000);
+  const refreshMs = typeof config.refreshMs === 'number' ? config.refreshMs : 60000;
+  const { data, isLoading } = useAlertLog(true, 50, refreshMs);
   const entries = data?.log ?? [];
 
   return (

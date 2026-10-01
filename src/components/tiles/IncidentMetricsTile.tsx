@@ -13,14 +13,15 @@ export default function IncidentMetricsTile({
   config, editing, onResize, onRemove, onDuplicate, onRename, onConfigure,
 }: TileProps) {
   const days = typeof config.days === 'number' ? config.days : 30;
-  const { data, isLoading } = useIncidentMetrics(days);
+  const refreshMs = typeof config.refreshMs === 'number' ? config.refreshMs : undefined;
+  const { data, isLoading } = useIncidentMetrics(days, refreshMs);
 
   const [rangeDays, setRangeDays] = useState(days);
   // Re-sync when the tile's configured default range changes (e.g. via the
   // config drawer) — otherwise an already-mounted tile keeps showing the
   // range it happened to mount with.
   useEffect(() => setRangeDays(days), [days]);
-  const { data: rangeData } = useIncidentMetrics(rangeDays);
+  const { data: rangeData } = useIncidentMetrics(rangeDays, refreshMs);
   const metrics = rangeData ?? data;
 
   const critical = metrics?.mttrBySeverity?.critical;
