@@ -114,9 +114,9 @@ interface AlertLogEntry {
   sent_at: string;
 }
 
-export function useAlertLog(enabled: boolean, refreshIntervalMs?: number) {
-  return useSWR<{ log: AlertLogEntry[] }>(
-    enabled ? '/api/alerts/log' : null,
+export function useAlertLog(enabled: boolean, limit: number = 50, refreshIntervalMs?: number) {
+  return useSWR<{ log: AlertLogEntry[]; total: number; limit: number; offset: number }>(
+    enabled ? `/api/alerts/log?limit=${limit}` : null,
     fetcher,
     { refreshInterval: refreshIntervalMs ?? 60000, revalidateOnFocus: false }
   );

@@ -263,6 +263,8 @@ To force a refresh to the latest published build, either tick
 | `/api/sources` | GET / POST | List / create custom data sources merged into the runtime catalog. Writes require Bearer auth (or `ENABLE_RULES_API=true`). |
 | `/api/sources/:id` | PATCH / DELETE | Update or remove a custom source. Same auth as POST. DELETE also cleans up the source's status, history, and incident rows. |
 | `/api/sources/contribute` | POST | Open a PR against `main` adding selected custom sources to `src/lib/services.contributed.json`. Requires `GITHUB_TOKEN` plus Bearer auth. |
+| `/api/badge/:slug.svg` | GET | Shields.io-style status badge for one service (`![status](.../api/badge/slack.svg)`), no auth. 404 on an unknown slug. |
+| `/api/incidents.ics?days=90&service=slack` | GET | RFC 5545 calendar feed of incidents, subscribable from any calendar app. One `VEVENT` per incident (`DTSTART`→`DTEND`, or `DTSTART` only while unresolved). |
 
 ## Architecture
 

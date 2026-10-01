@@ -179,6 +179,22 @@ export default function AnalyticsView() {
     }
   }, [visibleRows, rangeDays, slaTarget]);
 
+  const exportServiceCsv = useCallback(async (slug: string, target: number) => {
+    try {
+      const res = await fetch(`/api/reports/sla?format=csv&sla=${target}&service=${encodeURIComponent(slug)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sla-report-${slug}-${rangeDays}d.csv`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      /* best-effort — the bulk export button above remains the reliable path */
+    }
+  }, [rangeDays]);
+
   const exportPdf = useCallback(async () => {
     setExporting(true);
     try {
@@ -500,15 +516,27 @@ export default function AnalyticsView() {
                         )}
                       </td>
                       <td className="px-5 py-3 text-right">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${
-                            meets
-                              ? 'bg-emerald-500/10 text-emerald-400'
-                              : 'bg-red-500/10 text-red-400'
-                          }`}
-                        >
-                          {meets ? '✓ meets' : '✗ breach'}
-                        </span>
+                        <div className="inline-flex items-center gap-2">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                              meets
+                                ? 'bg-emerald-500/10 text-emerald-400'
+                                : 'bg-red-500/10 text-red-400'
+                            }`}
+                          >
+                            {meets ? '✓ meets' : '✗ breach'}
+                          </span>
+                          <button
+                            onClick={() => exportServiceCsv(r.slug, r.target)}
+                            className="p-1 rounded text-muted-strong hover:text-foreground hover:bg-white/5 transition-colors"
+                            title={`Export ${r.name} SLA report (CSV)`}
+                            aria-label={`Export ${r.name} SLA report`}
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                            </svg>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

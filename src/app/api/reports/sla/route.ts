@@ -10,11 +10,11 @@ export const dynamic = 'force-dynamic';
 // incident in range, so page through with plain offset pagination (cursor
 // mode intentionally drops the date-range filter, so it can't be used here).
 // Capped at 50 pages (50k incidents) as a sanity bound.
-function collectAllIncidents(dateFrom: string, dateTo: string): IncidentRow[] {
+function collectAllIncidents(dateFrom: string, dateTo: string, service: string | null): IncidentRow[] {
   const pageSize = 1000;
   const all: IncidentRow[] = [];
   for (let page = 0; page < 100; page++) {
-    const { incidents } = getPaginatedIncidents({ dateFrom, dateTo, limit: pageSize, offset: page * pageSize });
+    const { incidents } = getPaginatedIncidents({ dateFrom, dateTo, service, limit: pageSize, offset: page * pageSize });
     all.push(...incidents);
     if (incidents.length < pageSize) break;
   }
@@ -31,10 +31,14 @@ export async function GET(request: NextRequest) {
   const to = searchParams.get('to') || defaultTo;
   const slaTarget = parseFloat(searchParams.get('sla') || '99.9');
 
+  const allServices = getServices();
+  const serviceParam = searchParams.get('service');
+  const service = serviceParam && allServices.some((s) => s.slug === serviceParam) ? serviceParam : null;
+  const services = service ? allServices.filter((s) => s.slug === service) : allServices;
+
   try {
-    const history = getStatusHistory(null, 90, from, to);
-    const incidents = collectAllIncidents(from, to);
-    const services = getServices();
+    const history = getStatusHistory(service, 90, from, to);
+    const incidents = collectAllIncidents(from, to, service);
     const rows = computeSlaRows(history, incidents, services, slaTarget, getPollIntervalMinutes());
 
     if (format === 'pdf') {

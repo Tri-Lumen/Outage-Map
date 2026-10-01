@@ -1,3 +1,24 @@
+// /api/metrics and /api/metrics/prometheus are unauthenticated unless
+// METRICS_TOKEN is set — fine on a trusted internal network, but easy to
+// forget when NEXT_PUBLIC_APP_URL points at a real public hostname.
+function warnIfMetricsUnprotected(): void {
+  if (process.env.METRICS_TOKEN) return;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+  let isLocal = true;
+  try {
+    const hostname = new URL(appUrl).hostname;
+    isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+  } catch {
+    // No/unparseable NEXT_PUBLIC_APP_URL — assume local dev, don't warn.
+  }
+  if (!isLocal) {
+    console.warn(
+      `[metrics] METRICS_TOKEN is not set and NEXT_PUBLIC_APP_URL (${appUrl}) does not look like localhost — ` +
+      `/api/metrics is publicly readable. Set METRICS_TOKEN to require a Bearer token.`,
+    );
+  }
+}
+
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     const cron = await import('node-cron');
@@ -14,6 +35,8 @@ export async function register() {
 
     const expression = intervalMinutes === 60 ? '0 * * * *' : `*/${intervalMinutes} * * * *`;
     console.log(`[cron] Scheduling poll cycle every ${intervalMinutes} minutes (${expression})`);
+
+    warnIfMetricsUnprotected();
 
     setTimeout(() => {
       console.log('[cron] Running initial poll cycle...');

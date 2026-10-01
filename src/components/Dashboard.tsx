@@ -22,6 +22,7 @@ import ShortcutsOverlay from './ShortcutsOverlay';
 import PresentControls from './PresentControls';
 import TileConfigDrawer from './TileConfigDrawer';
 import RefreshControl from './RefreshControl';
+import { useToast } from './ui/Toast';
 
 export default function Dashboard() {
   const { theme, setTheme, customTheme, setCustomTheme } = useTheme();
@@ -37,6 +38,29 @@ export default function Dashboard() {
   });
   const prefs              = usePreferences();
   const present            = usePresentMode();
+  const { push: pushToast } = useToast();
+
+  // Ctrl/Cmd+Z already undoes a delete, but it's undiscoverable — surface an
+  // explicit "Undo" action on the removal toast too.
+  const removeTileWithUndo = (id: string) => {
+    const tile = board.find((t) => t.id === id);
+    actions.removeTile(id);
+    pushToast(
+      `Removed "${tile?.config?.label ?? tile?.type ?? 'tile'}"`,
+      'info',
+      { label: 'Undo', onClick: actions.undo },
+    );
+  };
+
+  const bulkDeleteWithUndo = (ids: string[]) => {
+    if (ids.length === 0) return;
+    actions.bulkDelete(ids);
+    pushToast(
+      `Removed ${ids.length} tile${ids.length !== 1 ? 's' : ''}`,
+      'info',
+      { label: 'Undo', onClick: actions.undo },
+    );
+  };
 
   const [editing, setEditing]             = useState(false);
   const [importOpen, setImportOpen]       = useState(false);
@@ -91,7 +115,7 @@ export default function Dashboard() {
       'ArrowRight': () => actions.bulkMove(selectedArr,  1, 0),
       'ArrowUp':    () => actions.bulkMove(selectedArr,  0, -1),
       'ArrowDown':  () => actions.bulkMove(selectedArr,  0,  1),
-      'Backspace':  () => { actions.bulkDelete(selectedArr); clearSelection(); },
+      'Backspace':  () => { bulkDeleteWithUndo(selectedArr); clearSelection(); },
       'mod+d':      () => actions.bulkDuplicate(selectedArr),
     },
     { enabled: editing && selectedIds.size > 0 },
@@ -317,7 +341,7 @@ export default function Dashboard() {
           <button
             className="board-btn"
             style={{ color: '#ef5350' }}
-            onClick={() => { actions.bulkDelete(selectedArr); clearSelection(); }}
+            onClick={() => { bulkDeleteWithUndo(selectedArr); clearSelection(); }}
           >Delete</button>
           <span className="bulk-bar-hint">Arrow keys move · ⇧Click toggle · Esc clear</span>
           <button className="board-btn" onClick={clearSelection}>Done</button>
@@ -354,7 +378,7 @@ export default function Dashboard() {
           onToggleSelect={toggleSelect}
           onClearSelection={clearSelection}
           onUpdateTile={actions.updateTile}
-          onRemoveTile={actions.removeTile}
+          onRemoveTile={removeTileWithUndo}
           onCycleResize={actions.cycleResize}
           onToggleDataPoint={actions.toggleDataPoint}
           onSwapTiles={actions.swapTiles}
@@ -407,7 +431,7 @@ export default function Dashboard() {
         live={live}
         onClose={() => setConfigTileId(null)}
         onUpdate={actions.updateTile}
-        onRemove={actions.removeTile}
+        onRemove={removeTileWithUndo}
         onDuplicate={actions.duplicateTile}
       />
 

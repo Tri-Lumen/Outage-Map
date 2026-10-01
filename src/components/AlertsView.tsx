@@ -87,7 +87,8 @@ export default function AlertsView() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<typeof draft | null>(null);
   const [logOpen, setLogOpen] = useState(false);
-  const { data: logData } = useAlertLog(logOpen);
+  const [logLimit, setLogLimit] = useState(50);
+  const { data: logData } = useAlertLog(logOpen, logLimit);
 
   // One-shot migration: lift any rules left in localStorage from the old
   // client-only implementation up into the server, then clear the key.
@@ -819,6 +820,14 @@ export default function AlertsView() {
                   );
                 })}
               </ul>
+            )}
+            {logData && logData.total > logData.log.length && (
+              <button
+                onClick={() => setLogLimit((n) => n + 50)}
+                className="w-full px-5 py-2.5 text-xs text-muted hover:text-foreground border-t border-white/[0.04] transition-colors"
+              >
+                Load more ({logData.total - logData.log.length} remaining)
+              </button>
             )}
           </Card>
         )}

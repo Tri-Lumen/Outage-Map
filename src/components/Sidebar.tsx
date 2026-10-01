@@ -54,6 +54,16 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
+    href: '/incidents',
+    label: 'Incidents',
+    description: 'Search all incidents',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.6} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01" />
+      </svg>
+    ),
+  },
+  {
     href: '/sources',
     label: 'Sources',
     description: 'Imported services',

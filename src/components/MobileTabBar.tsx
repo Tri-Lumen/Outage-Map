@@ -44,6 +44,7 @@ const TABS = [
 ];
 
 const MORE_LINKS = [
+  { href: '/incidents', label: 'Incidents' },
   { href: '/sources', label: 'Sources' },
   { href: '/settings', label: 'Settings' },
   { href: '/maintenance', label: 'Maintenance' },

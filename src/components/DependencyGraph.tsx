@@ -185,6 +185,16 @@ export default function DependencyGraph() {
     const SETTLE_FRAMES = 5;
     let settledStreak = 0;
 
+    const prefersReducedMotion =
+      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) {
+      // Skip the visible spring animation: run the simulation to convergence
+      // synchronously, then draw the final layout once.
+      for (let i = 0; i < 300; i++) tick();
+      draw();
+      return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+    }
+
     function loop() {
       const totalSpeed = tick();
       draw();

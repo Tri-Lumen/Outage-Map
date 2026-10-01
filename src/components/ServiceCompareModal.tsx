@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useServiceStatus, useHistory, useIncidents } from '@/hooks/useStatus';
 import type { HistoryPoint } from '@/lib/types';
 import Sparkline from './Sparkline';
@@ -9,6 +9,8 @@ interface Props {
   primarySlug: string;
   onClose: () => void;
 }
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 function uptimeFor(points: HistoryPoint[]): number {
   if (!points.length) return 100;
@@ -59,10 +61,42 @@ export default function ServiceCompareModal({ primarySlug, onClose }: Props) {
   const maxMttr = Math.max(primaryMttr, compareMttr, 1);
   const maxIncidents = Math.max(primaryIncidents, compareIncidents, 1);
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    const previousActive = document.activeElement as HTMLElement | null;
+    closeBtnRef.current?.focus();
+
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+        return;
+      }
+      if (e.key === 'Tab' && dialogRef.current) {
+        const focusables = dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE);
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('keydown', handleKey);
+      document.body.style.overflow = previousOverflow;
+      previousActive?.focus?.();
+    };
   }, [onClose]);
 
   const otherServices = services.filter((s) => s.slug !== primarySlug);
@@ -70,10 +104,17 @@ export default function ServiceCompareModal({ primarySlug, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative w-full max-w-3xl surface-card rounded-2xl border border-subtle shadow-2xl overflow-hidden">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="service-compare-title"
+        className="relative w-full max-w-3xl surface-card rounded-2xl border border-subtle shadow-2xl overflow-hidden"
+      >
         <div className="flex items-center justify-between px-6 py-4 border-b border-subtle">
-          <h2 className="text-lg font-semibold text-foreground">Service Comparison</h2>
+          <h2 id="service-compare-title" className="text-lg font-semibold text-foreground">Service Comparison</h2>
           <button
+            ref={closeBtnRef}
             onClick={onClose}
             className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-white/5 transition-colors"
           >
