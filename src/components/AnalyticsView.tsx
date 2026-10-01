@@ -66,6 +66,11 @@ export default function AnalyticsView() {
     { revalidateOnFocus: false },
   );
 
+  // Calendar-month comparison always looks back the max the API allows (90d,
+  // ~3 calendar months), independent of the rolling rangeDays window above.
+  const { data: monthlyHistoryData } = useHistory(90);
+  const { data: monthlyIncidentData } = useIncidents(90);
+
   const services = useMemo(() => statusData?.services || [], [statusData]);
   const history = useMemo(() => historyData?.history || {}, [historyData]);
   const incidents = useMemo(() => incidentData?.incidents || [], [incidentData]);
@@ -216,6 +221,60 @@ export default function AnalyticsView() {
     color: r.color,
   }));
 
+  // Fleet-wide uptime/incidents bucketed by calendar month, independent of
+  // the rolling rangeDays window — "month-over-month" means Jan vs Feb, not
+  // "last 30 days vs the 30 before that" (the trend arrows on each row above
+  // already cover the rolling comparison).
+  const monthlyData = useMemo(() => {
+    const histByService = monthlyHistoryData?.history || {};
+    const allIncidents = monthlyIncidentData?.incidents || [];
+    const monthKey = (dateStr: string) => dateStr.slice(0, 7); // YYYY-MM
+    const buckets = new Map<string, { outageMinutes: number; pointCount: number; incidents: number; critical: number }>();
+
+    for (const points of Object.values(histByService)) {
+      for (const p of points) {
+        const key = monthKey(p.date);
+        const b = buckets.get(key) ?? { outageMinutes: 0, pointCount: 0, incidents: 0, critical: 0 };
+        b.outageMinutes += p.outageMinutes || 0;
+        b.pointCount += 1;
+        buckets.set(key, b);
+      }
+    }
+    for (const inc of allIncidents) {
+      const dateStr = inc.startedAt || inc.updatedAt;
+      if (!dateStr) continue;
+      const b = buckets.get(monthKey(dateStr));
+      if (!b) continue; // started outside the fetched history window
+      b.incidents += 1;
+      if (inc.severity === 'critical') b.critical += 1;
+    }
+
+    const thisMonthKey = monthKey(new Date().toISOString());
+    return Array.from(buckets.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, b]) => {
+        const totalMinutes = b.pointCount * 1440;
+        const uptime = totalMinutes > 0 ? Math.max(0, ((totalMinutes - b.outageMinutes) / totalMinutes) * 100) : 100;
+        const [y, m] = key.split('-').map(Number);
+        return {
+          key,
+          label: new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short' }),
+          uptime: Number(uptime.toFixed(2)),
+          incidents: b.incidents,
+          critical: b.critical,
+          downtimeMinutes: b.outageMinutes,
+          partial: key === thisMonthKey,
+        };
+      });
+  }, [monthlyHistoryData, monthlyIncidentData]);
+
+  const momDelta = useMemo(() => {
+    if (monthlyData.length < 2) return null;
+    const curr = monthlyData[monthlyData.length - 1];
+    const prev = monthlyData[monthlyData.length - 2];
+    return { curr, prev, uptimeDelta: curr.uptime - prev.uptime, incidentsDelta: curr.incidents - prev.incidents };
+  }, [monthlyData]);
+
   const yMin = rows.length
     ? Math.max(0, Math.floor(Math.min(...rows.map((r) => r.uptime)) - 0.5))
     : 98;
@@ -280,6 +339,78 @@ export default function AnalyticsView() {
           />
         )}
       </section>
+
+      {monthlyData.length > 0 && (
+        <section>
+          <Card>
+            <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">Month-over-month</h2>
+                <p className="text-xs text-muted mt-0.5">
+                  Fleet-wide uptime and incidents by calendar month (up to the last 90 days)
+                </p>
+              </div>
+              {momDelta && (
+                <div className="flex items-center gap-4 text-xs">
+                  <span className="text-muted">
+                    Uptime vs {momDelta.prev.label}:{' '}
+                    <span className={momDelta.uptimeDelta >= 0 ? 'text-emerald-400 font-medium' : 'text-red-400 font-medium'}>
+                      {momDelta.uptimeDelta >= 0 ? '▲' : '▼'} {Math.abs(momDelta.uptimeDelta).toFixed(2)}%
+                    </span>
+                  </span>
+                  <span className="text-muted">
+                    Incidents vs {momDelta.prev.label}:{' '}
+                    <span className={momDelta.incidentsDelta <= 0 ? 'text-emerald-400 font-medium' : 'text-red-400 font-medium'}>
+                      {momDelta.incidentsDelta > 0 ? '▲' : momDelta.incidentsDelta < 0 ? '▼' : '–'} {Math.abs(momDelta.incidentsDelta)}
+                    </span>
+                  </span>
+                </div>
+              )}
+            </div>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={monthlyData} margin={{ top: 10, right: 20, bottom: 0, left: -10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fill: 'var(--muted)', fontSize: 11 }}
+                  axisLine={{ stroke: 'var(--border-strong)' }}
+                  tickLine={false}
+                />
+                <YAxis
+                  yAxisId="uptime"
+                  domain={[Math.max(0, Math.floor(Math.min(...monthlyData.map((m) => m.uptime)) - 0.5)), 100]}
+                  tick={{ fill: 'var(--muted)', fontSize: 11 }}
+                  axisLine={{ stroke: 'var(--border-strong)' }}
+                  tickLine={false}
+                  tickFormatter={(v) => `${v}%`}
+                />
+                <YAxis
+                  yAxisId="incidents"
+                  orientation="right"
+                  allowDecimals={false}
+                  tick={{ fill: 'var(--muted)', fontSize: 11 }}
+                  axisLine={{ stroke: 'var(--border-strong)' }}
+                  tickLine={false}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: 'var(--surface-elevated)',
+                    border: '1px solid var(--border-strong)',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    color: 'var(--foreground)',
+                  }}
+                  formatter={(val, name) => [name === 'uptime' ? `${val}%` : val, name === 'uptime' ? 'Uptime' : 'Incidents']}
+                  labelFormatter={(label, payload) => (payload?.[0]?.payload?.partial ? `${label} (so far)` : label)}
+                />
+                <Legend wrapperStyle={{ fontSize: 11, color: 'var(--muted)' }} />
+                <Bar yAxisId="uptime" dataKey="uptime" name="Uptime %" fill="var(--accent, #268bd2)" radius={[6, 6, 0, 0]} />
+                <Bar yAxisId="incidents" dataKey="incidents" name="Incidents" fill="#FFD54F" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
+        </section>
+      )}
 
       <section>
         <Card>
