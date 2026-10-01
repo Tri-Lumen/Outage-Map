@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { randomBytes } from 'crypto';
 import { runMigrations } from './migrations';
 import { isWindowActiveAt as isScheduleActiveAt } from './maintenanceSchedule';
 
@@ -457,6 +458,7 @@ export interface AlertRuleRow {
   webhook_url: string | null;
   webhook_enabled: number;
   channel_type: string;
+  channel_secret: string | null;
   escalation_enabled: number;
   escalation_intervals: string;
   enabled: number;
@@ -466,10 +468,14 @@ export interface AlertRuleRow {
 
 const RULE_COLS = [
   'id', 'email', 'services', 'min_severity', 'email_enabled',
-  'webhook_url', 'webhook_enabled', 'channel_type',
+  'webhook_url', 'webhook_enabled', 'channel_type', 'channel_secret',
   'escalation_enabled', 'escalation_intervals',
   'enabled', 'created_at', 'updated_at',
 ].join(', ');
+
+function generateChannelSecret(): string {
+  return randomBytes(24).toString('hex');
+}
 
 export function listAlertRules(): AlertRuleRow[] {
   const db = getDb();
@@ -499,13 +505,17 @@ export function insertAlertRule(row: {
   enabled: boolean;
 }) {
   const db = getDb();
+  // Every webhook-enabled rule gets its own signing secret up front, so
+  // there's always something to reveal/rotate rather than a null state the
+  // UI has to special-case.
+  const channelSecret = row.webhookEnabled && row.webhookUrl ? generateChannelSecret() : null;
   db.prepare(`
     INSERT INTO alert_rules (
       id, email, services, min_severity, email_enabled,
-      webhook_url, webhook_enabled, channel_type,
+      webhook_url, webhook_enabled, channel_type, channel_secret,
       escalation_enabled, escalation_intervals, enabled
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     row.id,
     row.email,
@@ -515,6 +525,7 @@ export function insertAlertRule(row: {
     row.webhookUrl ?? null,
     row.webhookEnabled ? 1 : 0,
     row.channelType ?? 'generic',
+    channelSecret,
     row.escalationEnabled ? 1 : 0,
     JSON.stringify(row.escalationIntervals ?? [240, 1440]),
     row.enabled ? 1 : 0,
@@ -549,11 +560,39 @@ export function updateAlertRule(
   if (patch.escalationEnabled !== undefined) { fields.push('escalation_enabled = ?'); values.push(patch.escalationEnabled ? 1 : 0); }
   if (patch.escalationIntervals !== undefined) { fields.push('escalation_intervals = ?'); values.push(JSON.stringify(patch.escalationIntervals)); }
   if (patch.enabled !== undefined) { fields.push('enabled = ?'); values.push(patch.enabled ? 1 : 0); }
+
+  // Provision a secret the first time a rule's webhook gets enabled, so it's
+  // never silently null for a rule that otherwise looks fully configured.
+  if (patch.webhookEnabled === true || (patch.webhookUrl && patch.webhookUrl !== null)) {
+    const existing = db.prepare('SELECT channel_secret, webhook_url FROM alert_rules WHERE id = ?')
+      .get(id) as { channel_secret: string | null; webhook_url: string | null } | undefined;
+    const resultingUrl = patch.webhookUrl !== undefined ? patch.webhookUrl : existing?.webhook_url;
+    if (existing && !existing.channel_secret && resultingUrl) {
+      fields.push('channel_secret = ?');
+      values.push(generateChannelSecret());
+    }
+  }
+
   if (fields.length === 0) return false;
   fields.push(`updated_at = datetime('now')`);
   values.push(id);
   const result = db.prepare(`UPDATE alert_rules SET ${fields.join(', ')} WHERE id = ?`).run(...values);
   return result.changes > 0;
+}
+
+/** Returns the raw signing secret for a rule, or null if the rule or secret doesn't exist. */
+export function getAlertRuleSecret(id: string): string | null {
+  const db = getDb();
+  const row = db.prepare('SELECT channel_secret FROM alert_rules WHERE id = ?').get(id) as { channel_secret: string | null } | undefined;
+  return row?.channel_secret ?? null;
+}
+
+/** Generates and stores a new signing secret for a rule, invalidating the old one. Returns the new secret, or null if the rule doesn't exist. */
+export function rotateAlertRuleSecret(id: string): string | null {
+  const db = getDb();
+  const secret = generateChannelSecret();
+  const result = db.prepare(`UPDATE alert_rules SET channel_secret = ?, updated_at = datetime('now') WHERE id = ?`).run(secret, id);
+  return result.changes > 0 ? secret : null;
 }
 
 export function deleteAlertRule(id: string): boolean {

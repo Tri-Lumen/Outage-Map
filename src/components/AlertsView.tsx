@@ -89,6 +89,7 @@ export default function AlertsView() {
   const [logOpen, setLogOpen] = useState(false);
   const [logLimit, setLogLimit] = useState(50);
   const { data: logData } = useAlertLog(logOpen, logLimit);
+  const [secretState, setSecretState] = useState<Record<string, { value?: string; busy?: boolean; error?: string }>>({});
 
   // One-shot migration: lift any rules left in localStorage from the old
   // client-only implementation up into the server, then clear the key.
@@ -252,6 +253,38 @@ export default function AlertsView() {
       }
     } catch {
       /* ignore */
+    }
+  };
+
+  const revealSecret = async (ruleId: string) => {
+    setSecretState((s) => ({ ...s, [ruleId]: { ...s[ruleId], busy: true, error: undefined } }));
+    try {
+      const res = await fetch(`${RULES_API}/${ruleId}/secret`);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSecretState((s) => ({ ...s, [ruleId]: { busy: false, error: body.error || 'Failed to reveal secret' } }));
+        return;
+      }
+      setSecretState((s) => ({ ...s, [ruleId]: { busy: false, value: body.secret } }));
+    } catch {
+      setSecretState((s) => ({ ...s, [ruleId]: { busy: false, error: 'Network error' } }));
+    }
+  };
+
+  const rotateSecret = async (ruleId: string) => {
+    if (!confirm('Rotate this webhook secret? Any integration verifying signatures will need the new value.')) return;
+    setSecretState((s) => ({ ...s, [ruleId]: { ...s[ruleId], busy: true, error: undefined } }));
+    try {
+      const res = await fetch(`${RULES_API}/${ruleId}/secret`, { method: 'POST' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSecretState((s) => ({ ...s, [ruleId]: { busy: false, error: body.error || 'Failed to rotate secret' } }));
+        return;
+      }
+      setSecretState((s) => ({ ...s, [ruleId]: { busy: false, value: body.secret } }));
+      mutate();
+    } catch {
+      setSecretState((s) => ({ ...s, [ruleId]: { busy: false, error: 'Network error' } }));
     }
   };
 
@@ -641,7 +674,9 @@ export default function AlertsView() {
                     {isTesting ? 'Sending…' : 'Send test'}
                   </button>
                   <button
-                    onClick={() => editingId === r.id ? (setEditingId(null), setEditDraft(null)) : startEdit(r)}
+                    onClick={() => editingId === r.id
+                      ? (setEditingId(null), setEditDraft(null), setSecretState((s) => ({ ...s, [r.id]: {} })))
+                      : startEdit(r)}
                     className="p-2 rounded-md text-muted hover:text-accent-cyan hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                     aria-label={`Edit rule for ${r.email}`}
                   >
@@ -738,10 +773,62 @@ export default function AlertsView() {
                           </label>
                         </div>
                       </div>
+                      {editDraft.webhookEnabled && editDraft.webhookUrl.trim() && (
+                        <div className="lg:col-span-2">
+                          <label className="block text-xs font-medium text-muted mb-1.5">Webhook signing secret</label>
+                          {secretState[r.id]?.value ? (
+                            <div className="flex items-center gap-2">
+                              <code className="flex-1 px-3 py-2 rounded-md bg-white/5 border border-subtle text-xs text-foreground overflow-x-auto whitespace-nowrap">
+                                {secretState[r.id]?.value}
+                              </code>
+                              <button
+                                type="button"
+                                onClick={() => rotateSecret(r.id)}
+                                disabled={secretState[r.id]?.busy}
+                                className="px-3 py-2 rounded-md border border-subtle text-xs font-medium text-muted hover:text-foreground hover:border-strong disabled:opacity-50 whitespace-nowrap"
+                              >
+                                Rotate
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="flex-1 px-3 py-2 rounded-md bg-white/5 border border-subtle text-xs text-muted-strong tracking-widest">
+                                {r.hasChannelSecret ? '••••••••••••••••••••••••' : 'None set yet — enable and save to generate one'}
+                              </span>
+                              {r.hasChannelSecret && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => revealSecret(r.id)}
+                                    disabled={secretState[r.id]?.busy}
+                                    className="px-3 py-2 rounded-md border border-subtle text-xs font-medium text-muted hover:text-foreground hover:border-strong disabled:opacity-50 whitespace-nowrap"
+                                  >
+                                    {secretState[r.id]?.busy ? 'Loading…' : 'Reveal'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => rotateSecret(r.id)}
+                                    disabled={secretState[r.id]?.busy}
+                                    className="px-3 py-2 rounded-md border border-subtle text-xs font-medium text-muted hover:text-foreground hover:border-strong disabled:opacity-50 whitespace-nowrap"
+                                  >
+                                    Rotate
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                          {secretState[r.id]?.error && (
+                            <p className="text-[11px] text-red-400 mt-1">{secretState[r.id]?.error}</p>
+                          )}
+                          <p className="text-[11px] text-muted-strong mt-1">
+                            Sent as the <code>X-Outage-Signature</code> HMAC header on every delivery to this webhook.
+                          </p>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center justify-end gap-2 pt-2 border-t border-subtle">
                       <button
-                        onClick={() => { setEditingId(null); setEditDraft(null); }}
+                        onClick={() => { setEditingId(null); setEditDraft(null); setSecretState((s) => ({ ...s, [r.id]: {} })); }}
                         className="px-4 py-2 rounded-md text-xs font-medium text-muted hover:text-foreground"
                       >
                         Cancel

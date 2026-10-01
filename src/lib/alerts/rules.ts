@@ -36,6 +36,7 @@ export function rowToRule(row: AlertRuleRow): AlertRule {
     webhookUrl: row.webhook_url ?? null,
     webhookEnabled: row.webhook_enabled === 1,
     channelType: asChannelType(row.channel_type),
+    hasChannelSecret: !!row.channel_secret,
     escalationEnabled: row.escalation_enabled === 1,
     escalationIntervals: parseIntervals(row.escalation_intervals),
     enabled: row.enabled === 1,
@@ -66,19 +67,26 @@ export function evaluateRulesForIncident(incident: IncidentResult): string[] {
 }
 
 /**
- * Returns deduplicated webhook {url, channelType} pairs whose enabled rules match the incident.
+ * Returns deduplicated webhook {url, channelType, secret} triples whose enabled
+ * rules match the incident. Reads channel_secret straight off the row rather
+ * than through rowToRule/AlertRule, which deliberately never carries the raw
+ * secret (only a hasChannelSecret flag) since that type is also used to build
+ * API responses.
  */
-export function evaluateRulesForWebhook(incident: IncidentResult): { url: string; channelType: string }[] {
-  const rules = listEnabledAlertRules().map(rowToRule);
-  const matched = new Map<string, string>();
-  for (const rule of rules) {
-    if (!rule.webhookEnabled || !rule.webhookUrl) continue;
+export function evaluateRulesForWebhook(
+  incident: IncidentResult,
+): { url: string; channelType: string; secret: string | null }[] {
+  const rows = listEnabledAlertRules();
+  const matched = new Map<string, { channelType: string; secret: string | null }>();
+  for (const row of rows) {
+    if (row.webhook_enabled !== 1 || !row.webhook_url) continue;
+    const rule = rowToRule(row);
     if (!ruleMatchesIncident(rule, incident)) continue;
-    if (!matched.has(rule.webhookUrl)) {
-      matched.set(rule.webhookUrl, rule.channelType);
+    if (!matched.has(row.webhook_url)) {
+      matched.set(row.webhook_url, { channelType: rule.channelType, secret: row.channel_secret ?? null });
     }
   }
-  return Array.from(matched.entries()).map(([url, channelType]) => ({ url, channelType }));
+  return Array.from(matched.entries()).map(([url, { channelType, secret }]) => ({ url, channelType, secret }));
 }
 
 /**

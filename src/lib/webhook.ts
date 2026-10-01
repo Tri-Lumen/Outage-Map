@@ -72,7 +72,12 @@ export async function isValidWebhookUrl(url: string): Promise<boolean> {
   return true;
 }
 
-export async function sendWebhookAlert(url: string, payload: object, channelType?: string): Promise<boolean> {
+export async function sendWebhookAlert(
+  url: string,
+  payload: object,
+  channelType?: string,
+  ruleSecret?: string | null,
+): Promise<boolean> {
   const body = JSON.stringify(payload);
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 
@@ -84,7 +89,9 @@ export async function sendWebhookAlert(url: string, payload: object, channelType
 
   // Optional HMAC signing so receivers can verify authenticity. The signature
   // covers `${timestamp}.${body}` to also bind the timestamp (replay defense).
-  const secret = process.env.WEBHOOK_SIGNING_SECRET;
+  // A rule's own secret (reveal/rotate-able per rule) takes precedence over
+  // the single shared WEBHOOK_SIGNING_SECRET env var.
+  const secret = ruleSecret || process.env.WEBHOOK_SIGNING_SECRET;
   if (secret) {
     const ts = Math.floor(Date.now() / 1000).toString();
     const sig = createHmac('sha256', secret).update(`${ts}.${body}`).digest('hex');
@@ -114,7 +121,7 @@ export async function sendWebhookAlert(url: string, payload: object, channelType
 
 export async function sendWebhookAlerts(
   incident: IncidentResult,
-  webhooks: { url: string; channelType: string }[],
+  webhooks: { url: string; channelType: string; secret?: string | null }[],
 ): Promise<void> {
   if (webhooks.length === 0) return;
   if (hasRecentAlert(incident.serviceSlug, incident.incidentId, 'webhook_incident')) return;
@@ -123,9 +130,9 @@ export async function sendWebhookAlerts(
   const serviceName = service?.name || incident.serviceSlug;
 
   const results = await Promise.allSettled(
-    webhooks.map(({ url, channelType }) => {
+    webhooks.map(({ url, channelType, secret }) => {
       const payload = buildChannelPayload(channelType, incident, serviceName);
-      return sendWebhookAlert(url, payload, channelType);
+      return sendWebhookAlert(url, payload, channelType, secret);
     }),
   );
 

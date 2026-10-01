@@ -83,6 +83,8 @@ export interface AlertRule {
   webhookUrl: string | null;
   webhookEnabled: boolean;
   channelType: ChannelType;
+  /** Whether a webhook signing secret exists; never the raw secret itself. */
+  hasChannelSecret: boolean;
   escalationEnabled: boolean;
   escalationIntervals: number[];
   enabled: boolean;
