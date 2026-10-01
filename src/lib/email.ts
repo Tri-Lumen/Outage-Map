@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { hasRecentAlert, logAlert, getAlertEscalationState } from './db';
+import { hasRecentAlert, logAlert, getAlertEscalationState, recordFailedAlert } from './db';
 import { getServiceBySlug } from './services';
 import { IncidentResult, ServiceStatus } from './types';
 import { statusHex, statusLabel } from './statusColors';
@@ -148,6 +148,13 @@ export async function sendIncidentAlert(
     return true;
   } catch (err) {
     log.error('Failed to send alert:', err);
+    recordFailedAlert({
+      kind: 'email_incident',
+      serviceSlug: incident.serviceSlug,
+      incidentId: incident.incidentId,
+      payload: { incident, recipients },
+      error: err instanceof Error ? err.message : String(err),
+    });
     return false;
   }
 }
@@ -261,6 +268,13 @@ export async function sendEscalationAlert(
     return true;
   } catch (err) {
     log.error('Escalation alert failed:', err);
+    recordFailedAlert({
+      kind: 'email_escalation',
+      serviceSlug,
+      incidentId,
+      payload: { serviceSlug, incidentId, incidentTitle, level, recipients: deduped, escalationIntervals },
+      error: err instanceof Error ? err.message : String(err),
+    });
     return false;
   }
 }
@@ -319,6 +333,13 @@ export async function sendStatusChangeAlert(
     return true;
   } catch (err) {
     log.error('Failed to send status change alert:', err);
+    recordFailedAlert({
+      kind: 'email_status_change',
+      serviceSlug,
+      incidentId: null,
+      payload: { serviceSlug, oldStatus, newStatus },
+      error: err instanceof Error ? err.message : String(err),
+    });
     return false;
   }
 }

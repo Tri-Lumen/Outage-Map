@@ -16,6 +16,7 @@ import {
 } from './db';
 import { sendIncidentAlert, sendStatusChangeAlert, sendEscalationAlert } from './email';
 import { evaluateRulesForIncident, evaluateRulesForWebhook, evaluateRulesForEscalation } from './alerts/rules';
+import { processFailedAlertRetries } from './alerts/retry';
 import { sendWebhookAlerts } from './webhook';
 import { metrics } from './metrics';
 import { health } from './health';
@@ -197,6 +198,13 @@ export async function runPollCycle(): Promise<{ success: boolean; polled: number
 
     // Escalation alerts for long-running unresolved incidents.
     await processEscalations(cycleId);
+
+    // Retry any previously-failed alert dispatches that are due for another attempt.
+    try {
+      await processFailedAlertRetries();
+    } catch (err) {
+      log.error(`[cycle ${cycleId}] Failed-alert retry processing failed:`, err);
+    }
 
     // Broadcast SSE event so connected clients refresh immediately.
     broadcastSSE({ type: 'poll_complete', ts: Date.now(), services_changed: [...changedServices] });

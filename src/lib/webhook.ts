@@ -1,7 +1,7 @@
 import { createHmac } from 'crypto';
 import { lookup } from 'dns/promises';
 import { httpFetch } from './fetchers/httpFetch';
-import { hasRecentAlert, logAlert } from './db';
+import { hasRecentAlert, logAlert, recordFailedAlert } from './db';
 import { getServiceBySlug } from './services';
 import { IncidentResult } from './types';
 import { metrics } from './metrics';
@@ -129,14 +129,36 @@ export async function sendWebhookAlerts(
   const service = getServiceBySlug(incident.serviceSlug);
   const serviceName = service?.name || incident.serviceSlug;
 
+  const attempts = webhooks.map(({ url, channelType, secret }) => ({
+    url,
+    channelType,
+    secret: secret ?? null,
+    payload: buildChannelPayload(channelType, incident, serviceName),
+  }));
+
   const results = await Promise.allSettled(
-    webhooks.map(({ url, channelType, secret }) => {
-      const payload = buildChannelPayload(channelType, incident, serviceName);
-      return sendWebhookAlert(url, payload, channelType, secret);
-    }),
+    attempts.map((a) => sendWebhookAlert(a.url, a.payload, a.channelType, a.secret)),
   );
 
-  const anyOk = results.some((r) => r.status === 'fulfilled' && r.value);
+  let anyOk = false;
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled' && r.value) {
+      anyOk = true;
+      return;
+    }
+    const attempt = attempts[i];
+    const error = r.status === 'rejected'
+      ? (r.reason instanceof Error ? r.reason.message : String(r.reason))
+      : 'webhook delivery failed';
+    recordFailedAlert({
+      kind: 'webhook_incident',
+      serviceSlug: incident.serviceSlug,
+      incidentId: incident.incidentId,
+      payload: { url: attempt.url, payload: attempt.payload, channelType: attempt.channelType, secret: attempt.secret },
+      error,
+    });
+  });
+
   if (anyOk) {
     logAlert(incident.serviceSlug, incident.incidentId, 'webhook_incident');
     metrics.recordAlertSent('webhook', incident.severity);

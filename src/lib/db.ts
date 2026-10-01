@@ -417,6 +417,64 @@ export function getRecentAlertLog(limit = 100) {
   }>;
 }
 
+// --- Failed alert dead-letter queue ---
+
+export interface FailedAlertRow {
+  id: number;
+  kind: string;
+  service_slug: string;
+  incident_id: string | null;
+  payload: string;
+  attempts: number;
+  last_error: string | null;
+  created_at: string;
+  last_attempt_at: string;
+  resolved_at: string | null;
+}
+
+export function recordFailedAlert(row: {
+  kind: string;
+  serviceSlug: string;
+  incidentId: string | null;
+  payload: unknown;
+  error: string;
+}): void {
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO failed_alerts (kind, service_slug, incident_id, payload, attempts, last_error)
+    VALUES (?, ?, ?, ?, 1, ?)
+  `).run(row.kind, row.serviceSlug, row.incidentId, JSON.stringify(row.payload), row.error);
+}
+
+export function listUnresolvedFailedAlerts(limit: number = 50): FailedAlertRow[] {
+  const db = getDb();
+  return db.prepare(`
+    SELECT id, kind, service_slug, incident_id, payload, attempts, last_error, created_at, last_attempt_at, resolved_at
+    FROM failed_alerts WHERE resolved_at IS NULL ORDER BY created_at ASC LIMIT ?
+  `).all(limit) as FailedAlertRow[];
+}
+
+export function getFailedAlert(id: number): FailedAlertRow | null {
+  const db = getDb();
+  const row = db.prepare(`
+    SELECT id, kind, service_slug, incident_id, payload, attempts, last_error, created_at, last_attempt_at, resolved_at
+    FROM failed_alerts WHERE id = ?
+  `).get(id) as FailedAlertRow | undefined;
+  return row ?? null;
+}
+
+export function markFailedAlertResolved(id: number): void {
+  const db = getDb();
+  db.prepare(`UPDATE failed_alerts SET resolved_at = datetime('now') WHERE id = ?`).run(id);
+}
+
+export function markFailedAlertRetryFailed(id: number, error: string): void {
+  const db = getDb();
+  db.prepare(`
+    UPDATE failed_alerts SET attempts = attempts + 1, last_error = ?, last_attempt_at = datetime('now') WHERE id = ?
+  `).run(error, id);
+}
+
 export function cleanupOldHistory(days: number = 35) {
   const db = getDb();
   db.prepare(`
@@ -424,6 +482,9 @@ export function cleanupOldHistory(days: number = 35) {
   `).run(days);
   db.prepare(`
     DELETE FROM status_transitions WHERE occurred_at < datetime('now', '-' || ? || ' days')
+  `).run(days);
+  db.prepare(`
+    DELETE FROM failed_alerts WHERE resolved_at IS NOT NULL AND resolved_at < datetime('now', '-' || ? || ' days')
   `).run(days);
   db.prepare(`
     DELETE FROM fetcher_latency WHERE recorded_at < datetime('now', '-2 days')
