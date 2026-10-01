@@ -7,5 +7,13 @@
       { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }
     ],
     "no-console": ["warn", { "allow": ["warn", "error", "info"] }]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["scripts/**/*.ts"],
+      "rules": {
+        "no-console": "off"
+      }
+    }
+  ]
 }
