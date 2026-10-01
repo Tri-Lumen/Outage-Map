@@ -11,6 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "cli": "tsx scripts/cli.ts",
+    "backup": "tsx scripts/backup.ts",
+    "restore": "tsx scripts/restore.ts",
     "prepare": "husky"
   },
   "lint-staged": {

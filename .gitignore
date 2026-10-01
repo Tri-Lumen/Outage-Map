@@ -32,6 +32,9 @@ yarn-error.log*
 # database
 /data/*.db
 
+# local backups (see scripts/backup.ts)
+/backups/
+
 # vercel
 .vercel
 
